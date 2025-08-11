@@ -1,13 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  sendMessage: (msg) => ipcRenderer.send('chat-message', msg),
+  sendMessage: (contactId, msg) => ipcRenderer.send('chat-message', { contactId, msg }),
   onReply: (callback) => {
-    return ipcRenderer.on('chat-reply', (event, data) => callback(data));
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('chat-reply', handler);
+    return () => ipcRenderer.removeListener('chat-reply', handler);
   },
   removeChatListener: () => {
     ipcRenderer.removeAllListeners('chat-reply');
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  getChatHistory: () => ipcRenderer.invoke('get-chat-history')
+  getChatHistory: (contactId) => ipcRenderer.invoke('get-chat-history', contactId)
 });

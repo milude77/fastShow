@@ -4,28 +4,32 @@ import fs from 'fs';
 
 const isDev = process.env.NODE_ENV === "development"
 
-// 定义聊天记录文件的路径
-const chatHistoryPath = path.join(app.getPath('userData'), 'chatHistory.json');
+// 获取指定联系人的聊天记录文件路径
+function getChatHistoryPath(contactId) {
+    return path.join(app.getPath('userData'), `chatHistory_${contactId}.json`);
+}
 
-// 读取聊天记录
-function readChatHistory() {
+// 读取指定联系人的聊天记录
+function readChatHistory(contactId) {
+    const chatHistoryPath = getChatHistoryPath(contactId);
     try {
         if (fs.existsSync(chatHistoryPath)) {
             const data = fs.readFileSync(chatHistoryPath, 'utf8');
             return JSON.parse(data);
         }
     } catch (error) {
-        console.error('Failed to read chat history:', error);
+        console.error(`Failed to read chat history for contact ${contactId}:`, error);
     }
     return [];
 }
 
-// 写入聊天记录
-function writeChatHistory(history) {
+// 写入指定联系人的聊天记录
+function writeChatHistory(contactId, history) {
+    const chatHistoryPath = getChatHistoryPath(contactId);
     try {
         fs.writeFileSync(chatHistoryPath, JSON.stringify(history, null, 2));
     } catch (error) {
-        console.error('Failed to write chat history:', error);
+        console.error(`Failed to write chat history for contact ${contactId}:`, error);
     }
 }
 
@@ -55,17 +59,17 @@ app.whenReady().then(() => {
   })
 })
 
-ipcMain.on('chat-message', (event, msg) => {
-    console.log('收到前端消息:', msg);
-    const history = readChatHistory();
+ipcMain.on('chat-message', (event, { contactId, msg }) => {
+    console.log(`收到来自 ${contactId} 的消息:`, msg);
+    const history = readChatHistory(contactId);
     history.push(msg);
-    writeChatHistory(history);
+    writeChatHistory(contactId, history);
     // 可以在这里广播给所有窗口，或做后端处理
-    event.reply('chat-reply', msg);
+    event.reply('chat-reply', { contactId, msg });
 });
 
-ipcMain.handle('get-chat-history', () => {
-    return readChatHistory();
+ipcMain.handle('get-chat-history', (event, contactId) => {
+    return readChatHistory(contactId);
 });
 
 ipcMain.handle('get-app-version', () => {

@@ -60,6 +60,46 @@
 
 .message-list {
     list-style: none;
-    padding-bottom: 0;
+    padding: 10px;
     margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-item {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+    max-width: 70%;
+}
+
+.message-item.sent {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.message-item.received {
+    align-self: flex-start;
+    align-items: flex-start;
+}
+
+.message-content {
+    padding: 8px 12px;
+    border-radius: 18px;
+    word-wrap: break-word;
+}
+
+.message-item.sent .message-content {
+    background-color: #dcf8c6;
+}
+
+.message-item.received .message-content {
+    background-color: #f1f0f0;
+}
+
+.message-timestamp {
+    text-align: center;
+    font-size: 0.75em;
+    color: #999;
+    margin-top: 4px;
 }
