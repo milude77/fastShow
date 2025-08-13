@@ -98,6 +98,8 @@
 }
 
 .message-timestamp {
+    display: flex;
+    flex-direction: column;
     text-align: center;
     font-size: 0.75em;
     color: #999;

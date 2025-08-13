@@ -9,13 +9,32 @@ function getChatHistoryPath(contactId) {
     return path.join(app.getPath('userData'), `chatHistory_${contactId}.json`);
 }
 
-// 读取指定联系人的聊天记录
-function readChatHistory(contactId) {
+// 读取指定联系人的所有聊天记录
+function readAllChatHistory(contactId) {
     const chatHistoryPath = getChatHistoryPath(contactId);
     try {
         if (fs.existsSync(chatHistoryPath)) {
             const data = fs.readFileSync(chatHistoryPath, 'utf8');
             return JSON.parse(data);
+        }
+    } catch (error) {
+        console.error(`Failed to read all chat history for contact ${contactId}:`, error);
+    }
+    return [];
+}
+
+// 读取指定联系人的聊天记录
+function readChatHistory(contactId, page = 1, pageSize = 20) {
+    const chatHistoryPath = getChatHistoryPath(contactId);
+    try {
+        if (fs.existsSync(chatHistoryPath)) {
+            const data = fs.readFileSync(chatHistoryPath, 'utf8');
+            const history = JSON.parse(data);
+            // 实现分页逻辑
+            const totalMessages = history.length;
+            const startIndex = Math.max(0, totalMessages - (page * pageSize));
+            const endIndex = Math.max(0, totalMessages - ((page - 1) * pageSize));
+            return history.slice(startIndex, endIndex);
         }
     } catch (error) {
         console.error(`Failed to read chat history for contact ${contactId}:`, error);
@@ -31,6 +50,26 @@ function writeChatHistory(contactId, history) {
     } catch (error) {
         console.error(`Failed to write chat history for contact ${contactId}:`, error);
     }
+}
+
+function createSearchWindow() {
+    const searchWindow = new BrowserWindow({
+        width: 500,
+        height: 400,
+        parent: BrowserWindow.getAllWindows()[0], // 设置父窗口
+        modal: true, // 设置为模态窗口
+        webPreferences: {
+            preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
+            devTools: isDev
+        }
+    });
+
+    if (isDev) {
+        searchWindow.loadURL("http://localhost:5234/search.html");
+    } else {
+        searchWindow.loadFile(path.join(app.getAppPath(), "dist", "search.html"));
+    }
+    searchWindow.setMenu(null);
 }
 
 function createMainWindow() {
@@ -61,19 +100,23 @@ app.whenReady().then(() => {
 
 ipcMain.on('chat-message', (event, { contactId, msg }) => {
     console.log(`收到来自 ${contactId} 的消息:`, msg);
-    const history = readChatHistory(contactId);
+    const history = readAllChatHistory(contactId); // 使用新函数读取完整的历史记录
     history.push(msg);
     writeChatHistory(contactId, history);
     // 可以在这里广播给所有窗口，或做后端处理
     event.reply('chat-reply', { contactId, msg });
 });
 
-ipcMain.handle('get-chat-history', (event, contactId) => {
-    return readChatHistory(contactId);
+ipcMain.handle('get-chat-history', (event, { contactId, page, pageSize }) => {
+    return readChatHistory(contactId, page, pageSize);
 });
 
 ipcMain.handle('get-app-version', () => {
     return app.getVersion();
+});
+
+ipcMain.on('open-search-window', () => {
+    createSearchWindow();
 });
 
 app.on('window-all-closed', function () {

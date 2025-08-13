@@ -1,0 +1,18 @@
+.tool-bar {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.base-tool-bar {
+    display: flex;
+    flex-direction: column;
+    height: 80%;
+    width: 100%;
+    gap: 20px;
+}
+.add-function-bar{
+    flex: 1;
+    margin-top: auto;
+    margin-bottom: 20px;
+}

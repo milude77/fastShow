@@ -1,12 +1,13 @@
 import React from 'react';
+import '../css/contactList.css';
 
 const ContactList = ({ contacts, onSelectContact }) => {
   return (
     <div>
       <h3>联系人列表</h3>
-      <ul>
+      <ul className='contact-list'>
         {contacts.map(contact => (
-          <li key={contact.id} onClick={() => onSelectContact(contact)} style={{ padding: '5px 0', listStyle: 'none', cursor: 'pointer' }}>
+          <li key={contact.id} className='contact-item' onClick={() => onSelectContact(contact)} >
             {contact.name}
           </li>
         ))}

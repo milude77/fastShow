@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('chat-reply');
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  getChatHistory: (contactId) => ipcRenderer.invoke('get-chat-history', contactId)
+  getChatHistory: (contactId, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, page, pageSize }),
+  openSearchWindow: () => ipcRenderer.send('open-search-window')
 });

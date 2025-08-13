@@ -11,8 +11,6 @@
   width: 50px;
   flex-direction: column;
   padding-top: 30px;
-  gap: 10px;
-  /* 添加此行来增加元素间的间隔 */
   background-color: rgb(238, 238, 238);
 }
 
