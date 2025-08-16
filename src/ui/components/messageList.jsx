@@ -8,12 +8,11 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     const [prevScrollHeight, setPrevScrollHeight] = useState(null);
 
     const handleScroll = async () => {
-        if (messageContainerRef.current.scrollTop === 0 && !isLoadingMore) {
+        if (messageContainerRef.current.scrollTop < 1 && !isLoadingMore) { // 更改为 < 1 增加健壮性
+            let scrollHeight = messageContainerRef.current.scrollHeight;
             setIsLoadingMore(true);
-            console.log(messageContainerRef.current.scrollHeight)
             await onLoadMore();
-            console.log(messageContainerRef.current.scrollHeight)
-            setPrevScrollHeight(messageContainerRef.current.scrollHeight);
+            setPrevScrollHeight(scrollHeight);
             setIsLoadingMore(false);
         }
     };
@@ -78,15 +77,17 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                 <ul className='message-list'>
                     {messages && messages.map((msg, index) => {
                         const showTimestamp = shouldShowTimestamp(msg.timestamp, messages[index - 1]?.timestamp);
+                        // Use a stable and unique key, like msg.id or msg.timestamp
+                        const key = msg.id || `${msg.timestamp}-${index}`;
                         return (
-                            <>
+                            <React.Fragment key={key}>
                                 {showTimestamp && <span className="message-timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
-                                <li key={index} className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}>
+                                <li className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}>
                                     <div className="message-content">
                                         <span className="message-text">{msg.text}</span>
                                     </div>
                                 </li>
-                            </>
+                            </React.Fragment>
                         );
                     })}
                     <div ref={messagesEndRef} />

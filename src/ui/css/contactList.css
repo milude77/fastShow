@@ -15,4 +15,25 @@
     text-align: center;
     flex-direction: column;
     border-bottom: 1px solid black;
+    justify-content: center; /* 垂直居中 */
+    padding-left: 10px; /* 左侧内边距 */
+    box-sizing: border-box; /* 包含内边距和边框在宽度内 */
+    position: relative; /* 用于定位在线状态 */
+}
+
+.contact-item span {
+    margin-left: 10px; /* 在线状态与用户名之间留白 */
+    font-size: 0.8em;
+    position: absolute; /* 绝对定位 */
+    right: 10px; /* 距离右侧 10px */
+    top: 50%; /* 垂直居中 */
+    transform: translateY(-50%); /* 精确垂直居中 */
+}
+
+.online-indicator {
+    color: green;
+}
+
+.offline-indicator {
+    color: gray;
 }

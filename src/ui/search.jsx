@@ -1,10 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import SearchUser from './components/SearchUser';
+import SearchApp from './SearchApp';
 import './css/index.css';
+import { SocketProvider } from './context/SocketContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <SearchUser />
+    <SocketProvider>
+      <SearchApp />
+    </SocketProvider>
   </React.StrictMode>
 );

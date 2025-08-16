@@ -1,25 +1,28 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-const SearchUser = () => {
-    const [userId, setUserId] = useState('');
-
-    const handleSearch = () => {
-        // Placeholder for search logic
-        console.log('Searching for user with ID:', userId);
-    };
-
-    return (
-        <div>
-            <h3>Search for User</h3>
-            <input
-                type="text"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="Enter User ID"
-            />
-            <button onClick={handleSearch}>Search</button>
-        </div>
-    );
-};
+function SearchUser({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) {
+  return (
+    <div>
+      <form onSubmit={onSearch}>
+        <input
+          type="text"
+          placeholder="按用户名搜索"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ marginRight: '5px' }}
+        />
+        <button type="submit">搜索</button>
+      </form>
+      <div style={{ marginTop: '10px' }}>
+        {searchResults.map(user => (
+          <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+            <span>{user.username} ({user.id})</span>
+            <button onClick={() => onAddFriend(user.id)}>添加好友</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default SearchUser;

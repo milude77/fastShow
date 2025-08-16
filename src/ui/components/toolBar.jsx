@@ -1,9 +1,17 @@
 import React from 'react';
 import '../css/toolBar.css';
+import { useAuth } from '../hooks/useAuth';
 
 const ToolBar = ({ setSelectFeatures }) => {
+    const { currentUser } = useAuth();
+
     const handleAddContactClick = () => {
-        window.electronAPI.openSearchWindow();
+        if (currentUser && currentUser.userId) {
+            window.electronAPI.openSearchWindow(currentUser.id);
+        } else {
+            console.error("Cannot open search window without a logged in user.");
+            console.log(currentUser);
+        }
     };
 
     return (
@@ -18,6 +26,5 @@ const ToolBar = ({ setSelectFeatures }) => {
         </div>
     );
 };
-
 
 export default ToolBar;
