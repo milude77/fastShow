@@ -1,7 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  sendMessage: (contactId, msg) => ipcRenderer.send('chat-message', { contactId, msg }),
+  sendMessage: (contactId, msg) => ipcRenderer.send('send-chat-message', { contactId, msg }),
+  receiverMessage:(contactId, msg) => ipcRenderer.send('receiver-chat-message', { contactId, msg }),
   onReply: (callback) => {
     const handler = (event, data) => callback(data);
     ipcRenderer.on('chat-reply', handler);

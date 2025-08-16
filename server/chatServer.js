@@ -193,8 +193,6 @@ io.on('connection', (socket) => {
       // 接收方离线，消息状态保持 'sent' (待投递)
       console.log(`用户 ${receiverUser.username} 离线，消息将等待上线后投递`);
     }
-    // 发送给发送者确认，以便更新UI
-    socket.emit('new-message', savedMessage);
   });
 
   // 用户正在输入

@@ -30,57 +30,31 @@ function App() {
     };
 
     const handleNewMessage = (msg) => {
-      if (!currentUser) return; // Guard against updates when logged out
+      const contactId = msg.senderId;
+      const tempId = `temp_${Date.now()}`;
+      const newMessage = {
+        id: tempId,
+        text: msg.content,
+        sender: 'other',
+        timestamp: msg.timestamp,
+        username: msg.username
+      };
 
-      const contactId = msg.senderId === currentUser.id ? msg.receiverId : msg.senderId;
-      const contactUsername = msg.senderId === currentUser.id ? msg.receiverUsername : msg.senderUsername;
-
-      if (window.electronAPI) {
-        window.electronAPI.sendMessage(contactId, {
-          text: msg.content,
-          sender: msg.senderId === currentUser.id ? 'user' : 'other',
-          timestamp: msg.timestamp,
-          username: contactUsername
-        });
-      }
+      window.electronAPI.receiverMessage(contactId, newMessage);
 
       setMessages(prev => {
         const contactMessages = prev[contactId] || [];
-        const isOwnMessage = msg.senderId === currentUser.id;
 
-        // If it's a message sent by the current user, try to replace the temporary one
-        if (isOwnMessage) {
-          let messageReplaced = false;
-          const updatedMessages = contactMessages.map(m => {
-            // Find the temporary message by comparing content
-            if (String(m.id).startsWith('temp_') && m.text === msg.content) {
-              messageReplaced = true;
-              // Replace with server data, ensuring sender is still 'user'
-              return { ...msg, sender: 'user', username: currentUser.username };
-            }
-            return m;
-          });
-
-          if (messageReplaced) {
-            return { ...prev, [contactId]: updatedMessages };
-          }
-        }
-
-        // If it's a message from others, or no temp message was found, add it if it's not a duplicate
-        if (!contactMessages.some(m => m.id === msg.id)) {
-          return {
-            ...prev,
-            [contactId]: [...contactMessages, {
-              id: msg.id,
-              text: msg.content,
-              sender: 'other',
-              timestamp: msg.timestamp,
-              username: contactUsername
-            }]
-          };
-        }
-
-        return prev; // No changes needed
+        return {
+          ...prev,
+          [contactId]: [...contactMessages, {
+            id: msg.id,
+            text: msg.content,
+            sender: 'other',
+            timestamp: msg.timestamp,
+            username: contacts
+          }]
+        };
       });
     };
 
