@@ -111,30 +111,34 @@ io.on('connection', (socket) => {
       socket.emit('login-success', { userId: user.id, username: user.username });
       console.log(`${user.username} (ID: ${user.id}) 已登录`);
 
-      // 检查并发送离线消息
-      const undeliveredMessages = await db('messages')
-        .where({ receiver_id: user.id, status: 'sent' })
-        .orderBy('timestamp', 'asc');
-
-      for (const msg of undeliveredMessages) {
-        const senderUser = await db('users').where({ id: msg.sender_id }).first();
-        if (senderUser) {
-          socket.emit('new-message', {
-            id: msg.id,
-            username: senderUser.username,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            type: 'private',
-            senderId: msg.sender_id,
-            receiverId: msg.receiver_id
-          });
-          await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
-        }
-      }
+      // 检查并发送离线消
 
     } catch (error) {
       console.error('登录失败:', error);
       socket.emit('error', { message: '登录失败，请稍后再试' });
+    }
+  });
+
+  socket.on('send-disconnect-message', async(user) => {
+    const undeliveredMessages = await db('messages')
+      .where({ receiver_id: user.userId, status: 'sent' })
+      .orderBy('timestamp', 'asc');
+    console.log(` ${user.username}  ${undeliveredMessages} `);
+
+    for (const msg of undeliveredMessages) {
+      const senderUser = await db('users').where({ id: msg.sender_id }).first();
+      if (senderUser) {
+        socket.emit('new-message', {
+          id: msg.id,
+          username: senderUser.username,
+          content: msg.content,
+          timestamp: msg.timestamp,
+          type: 'private',
+          senderId: msg.sender_id,
+          receiverId: msg.receiver_id
+        });
+        await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
+      }
     }
   });
 
@@ -269,7 +273,7 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: '用户未登录，无法添加好友' });
       return;
     }
-    
+
     if (!friendId) {
       socket.emit('error', { message: '需要提供好友ID' });
       return;
@@ -302,14 +306,14 @@ io.on('connection', (socket) => {
       // 查找对方是否在线，以便发送实时通知
       const targetSocketId = Array.from(onlineUsers.entries())
         .find(([, uInfo]) => uInfo.userId === friendId)?.[0];
-      
+
       if (targetSocketId) {
         // 发送完整的用户信息（ID和用户名）
-        io.to(targetSocketId).emit('new-friend-request', { 
+        io.to(targetSocketId).emit('new-friend-request', {
           from: {
             id: senderInfo.userId,
             username: senderInfo.username
-          } 
+          }
         });
       }
 

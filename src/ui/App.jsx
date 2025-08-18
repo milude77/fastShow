@@ -14,9 +14,10 @@ function App() {
   const [drafts, setDrafts] = useState({});
   const [messagePages, setMessagePages] = useState({});
   const [contacts, setContacts] = useState([]);
-  
+
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
+
 
   useEffect(() => {
     if (!socket) return;
@@ -29,34 +30,8 @@ function App() {
       setContacts(friends);
     };
 
-    const handleNewMessage = (msg) => {
-      const contactId = msg.senderId;
-      const tempId = `temp_${Date.now()}`;
-      const newMessage = {
-        id: tempId,
-        text: msg.content,
-        sender: 'other',
-        timestamp: msg.timestamp,
-        username: msg.username
-      };
+    console.log(currentUser)
 
-      window.electronAPI.receiverMessage(contactId, newMessage);
-
-      setMessages(prev => {
-        const contactMessages = prev[contactId] || [];
-
-        return {
-          ...prev,
-          [contactId]: [...contactMessages, {
-            id: msg.id,
-            text: msg.content,
-            sender: 'other',
-            timestamp: msg.timestamp,
-            username: contacts
-          }]
-        };
-      });
-    };
 
     socket.on('login-success', handleLoginSuccess);
     socket.on('user-registered', handleLoginSuccess); // Also treat registration as a login
@@ -79,15 +54,55 @@ function App() {
   useEffect(() => {
     if (currentUser && socket) {
       socket.emit('get-friends');
+      socket.emit('send-disconnect-message', currentUser);
     }
   }, [currentUser, socket]);
 
+  const handleNewMessage = (msg) => {
+    // Safety check: Do not process messages if the user is not logged in.
+    if (!currentUser) {
+      console.log('Received message from unknown user:');
+      return;
+    }
+
+    const contactId = msg.senderId;
+    const tempId = `temp_${Date.now()}`;
+
+    // When receiving a message from others, save it to local history.
+    if (msg.senderId !== currentUser.userId) {
+      const newMessage = {
+        id: tempId,
+        text: msg.content,
+        sender: 'other',
+        timestamp: msg.timestamp,
+        username: msg.username
+      };
+      if (window.electronAPI) {
+        window.electronAPI.chatMessage(contactId, currentUser.userId, newMessage);
+      }
+    }
+
+    setMessages(prev => {
+      const contactMessages = prev[contactId] || [];
+
+      return {
+        ...prev,
+        [contactId]: [...contactMessages, {
+          id: msg.id,
+          text: msg.content,
+          sender: 'other',
+          timestamp: msg.timestamp,
+          username: contacts
+        }]
+      };
+    });
+  };
   const handleSelectContact = async (contact) => {
     setSelectedContact(contact);
     setMessagePages({ [contact.id]: 1 });
-    if (window.electronAPI) {
-      const localHistory = await window.electronAPI.getChatHistory(contact.id, 1, 20);
-      setMessages(prev => ({ ...prev, [contact.id]: localHistory.map(msg => ({ ...msg, sender: msg.sender === 'user' ? 'user' : 'other' })) }));
+    if (window.electronAPI && currentUser) {
+      const localHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 1, 20);
+      setMessages(prev => ({ ...prev, [contact.id]: localHistory }));
     }
   };
 
@@ -102,7 +117,7 @@ function App() {
         timestamp: new Date().toISOString(),
         username: currentUser.username // Use current user's name for sent messages
       };
-      
+
       // Add the temporary message to the UI immediately
       setMessages(prev => ({
         ...prev,
@@ -110,12 +125,13 @@ function App() {
       }));
 
       if (window.electronAPI) {
-        window.electronAPI.sendMessage(selectedContact.id, newMessage);
+        console.log(currentUser)
+        window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
       }
-      
+
       // Send the message to the server
       socket.emit('send-private-message', { message, receiverId: selectedContact.id });
-      
+
       // Clear the draft
       setDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
     }
@@ -128,13 +144,13 @@ function App() {
   const loadMoreMessages = async (contactId) => {
     const currentPage = messagePages[contactId] || 1;
     const nextPage = currentPage + 1;
-    
-    if (window.electronAPI) {
-      const olderMessages = await window.electronAPI.getChatHistory(contactId, nextPage, 20);
+
+    if (window.electronAPI && currentUser) {
+      const olderMessages = await window.electronAPI.getChatHistory(contactId, currentUser.userId, nextPage, 20);
       if (olderMessages.length > 0) {
         setMessages(prev => ({
           ...prev,
-          [contactId]: [...olderMessages.map(msg => ({ ...msg, sender: msg.sender === 'user' ? 'user' : 'other' })), ...prev[contactId]]
+          [contactId]: [...olderMessages, ...prev[contactId]]
         }));
         setMessagePages(prev => ({ ...prev, [contactId]: nextPage }));
       }

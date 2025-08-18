@@ -12,13 +12,13 @@ let socket;
 
 
 // 获取指定联系人的聊天记录文件路径
-function getChatHistoryPath(contactId) {
-    return path.join(app.getPath('userData'), `chatHistory_${contactId}.json`);
+function getChatHistoryPath(contactId, currentUserID) {
+    return path.join(app.getPath('userData'), `${currentUserID}` ,`chatHistory_${contactId}.json`);
 }
 
 // 读取指定联系人的所有聊天记录
-function readAllChatHistory(contactId) {
-    const chatHistoryPath = getChatHistoryPath(contactId);
+function readAllChatHistory(contactId ,currentUserID) {
+    const chatHistoryPath = getChatHistoryPath(contactId, currentUserID);
     try {
         if (fs.existsSync(chatHistoryPath)) {
             const data = fs.readFileSync(chatHistoryPath, { encoding: 'utf8' });
@@ -31,8 +31,8 @@ function readAllChatHistory(contactId) {
 }
 
 // 读取指定联系人的聊天记录
-function readChatHistory(contactId, page = 1, pageSize = 20) {
-    const chatHistoryPath = getChatHistoryPath(contactId);
+function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20) {
+    const chatHistoryPath = getChatHistoryPath(contactId, currentUserID);
     try {
         if (fs.existsSync(chatHistoryPath)) {
             const data = fs.readFileSync(chatHistoryPath, { encoding: 'utf8' });
@@ -50,9 +50,12 @@ function readChatHistory(contactId, page = 1, pageSize = 20) {
 }
 
 // 写入指定联系人的聊天记录
-function writeChatHistory(contactId, history) {
-    const chatHistoryPath = getChatHistoryPath(contactId);
+function writeChatHistory(contactId, currentUserID, history) {
+    const chatHistoryPath = getChatHistoryPath(contactId, currentUserID);
+    const userFolderPath = path.dirname(chatHistoryPath); // Get the directory path
     try {
+        // Ensure the user's directory exists before writing the file
+        fs.mkdirSync(userFolderPath, { recursive: true });
         fs.writeFileSync(chatHistoryPath, JSON.stringify(history, null, 2), { encoding: 'utf8' });
     } catch (error) {
         console.error(`Failed to write chat history for contact ${contactId}:`, error);
@@ -140,22 +143,20 @@ app.whenReady().then(() => {
   })
 })
 
-ipcMain.on('send-chat-message', (event, { contactId, msg }) => {
-    const history = readAllChatHistory(contactId); 
+ipcMain.on('chat-message', (event, { contactId, currentUserID, msg }) => {
+    // Safety check to prevent writing undefined data
+    if (!msg) {
+        console.error('Received chat-message with undefined msg object.');
+        return;
+    }
+    console.log(`Received chat message for user ${currentUserID} with contact ${contactId}:`, msg);
+    const history = readAllChatHistory(contactId, currentUserID); 
     history.push(msg);
-    writeChatHistory(contactId, history);
-    // 可以在这里广播给所有窗口，或做后端处理
-    event.reply('chat-reply', { contactId, msg });
+    writeChatHistory(contactId, currentUserID, history);
 });
 
-ipcMain.on('receiver-chat-message', (event, { contactId, msg }) => {
-    const history = readAllChatHistory(contactId); 
-    history.push(msg);
-    writeChatHistory(contactId, history);
-});
-
-ipcMain.handle('get-chat-history', (event, { contactId, page, pageSize }) => {
-    return readChatHistory(contactId, page, pageSize);
+ipcMain.handle('get-chat-history', (event, { contactId, currentUserID, page, pageSize }) => {
+    return readChatHistory(contactId, currentUserID, page, pageSize);
 });
 
 ipcMain.handle('get-app-version', () => {
