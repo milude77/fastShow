@@ -5,6 +5,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize }),
   openSearchWindow: (userId) => ipcRenderer.send('open-search-window', userId),
+  openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
+
+  saveUserCredentials: (credentials) => ipcRenderer.send('save-user-credentials', credentials),
+  getUserCredentials: () => ipcRenderer.invoke('get-user-credentials'),
 
   // --- Socket.IO IPC ---
   socketEmit: (event, ...args) => {

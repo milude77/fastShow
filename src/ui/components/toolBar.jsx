@@ -23,6 +23,9 @@ const ToolBar = ({ setSelectFeatures }) => {
             <div className='add-function-bar'>
                 <button onClick={handleAddContactClick}>添加联系人</button>
             </div>
+            <div className='setting-bth'>
+                <button onClick={() => window.electronAPI.openSettingsWindow()}>设置</button>
+            </div>
         </div>
     );
 };

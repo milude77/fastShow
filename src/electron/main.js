@@ -2,8 +2,10 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { io } from 'socket.io-client';
+import Store from 'electron-store';
 
 const isDev = process.env.NODE_ENV === "development"
+const store = new Store();
 
 // --- Socket.IO Main Process Setup ---
 const SOCKET_SERVER_URL = 'http://localhost:3001';
@@ -62,6 +64,30 @@ function writeChatHistory(contactId, currentUserID, history) {
     }
 }
 
+function createSettingsWindow() {
+    const settingsWindow = new BrowserWindow({
+        width: 500,
+        height: 400,
+        parent: BrowserWindow.getAllWindows()[0], // 设置父窗口
+        modal: true, // 设置为模态窗口
+        webPreferences: {
+            preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
+            devTools: isDev
+        }
+    });
+    const settingsUrl = isDev
+        ? `http://localhost:5234/settings.html`
+        : `file://${path.join(app.getAppPath(), "dist", "settings.html")}`;
+    
+    settingsWindow.loadURL(settingsUrl).catch(err => console.error('Failed to load settings URL:', err));
+    
+    if(isDev) {
+        settingsWindow.webContents.openDevTools();
+    }
+
+    settingsWindow.setMenu(null);
+}
+
 function createSearchWindow(userId) {
     console.log(`Attempting to create search window for user ID: ${userId}`);
     const searchWindow = new BrowserWindow({
@@ -79,7 +105,6 @@ function createSearchWindow(userId) {
         ? `http://localhost:5234/search.html?userId=${userId}`
         : `file://${path.join(app.getAppPath(), "dist", "search.html")}?userId=${userId}`;
     
-    console.log(`Loading URL: ${searchUrl}`);
     searchWindow.loadURL(searchUrl).catch(err => console.error('Failed to load search URL:', err));
     
     if(isDev) {
@@ -164,9 +189,22 @@ ipcMain.handle('get-app-version', () => {
 });
 
 ipcMain.on('open-search-window', (event, userId) => {
-    console.log(`IPC event 'open-search-window' received with userId: ${userId}`);
     createSearchWindow(userId);
 });
+
+ipcMain.on('open-settings-window', () => {
+    createSettingsWindow();
+});
+
+// --- User Credentials IPC Handlers ---
+ipcMain.on('save-user-credentials', (event, credentials) => {
+    store.set('userCredentials', credentials);
+});
+
+ipcMain.handle('get-user-credentials', () => {
+    return store.get('userCredentials');
+});
+// --- End User Credentials IPC Handlers ---
 
 // --- IPC Handlers for Socket.IO ---
 // Listen for a renderer to send a message

@@ -17,7 +17,6 @@ function SearchApp() {
     const handleFriendRequests = (requests) => setFriendRequests(requests);
     const handleSearchResults = (results) => {
       setSearchResults(results);
-      console.log('Search results:', results);
     };
     // When a new request comes in or is accepted, refresh the list
     const handleRefreshRequests = () => socket.emit('get-friend-requests');

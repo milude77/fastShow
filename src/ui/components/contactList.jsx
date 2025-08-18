@@ -8,7 +8,7 @@ const ContactList = ({ contacts, onSelectContact }) => {
       <ul className='contact-list'>
         {contacts.map(contact => (
           <li key={contact.id} className='contact-item' onClick={() => onSelectContact(contact)} >
-            {contact.username} {/* 使用 contact.username 而不是 contact.name */}
+            {contact.username} 
             {contact.isOnline ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>}
           </li>
         ))}

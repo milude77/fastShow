@@ -123,7 +123,6 @@ io.on('connection', (socket) => {
     const undeliveredMessages = await db('messages')
       .where({ receiver_id: user.userId, status: 'sent' })
       .orderBy('timestamp', 'asc');
-    console.log(` ${user.username}  ${undeliveredMessages} `);
 
     for (const msg of undeliveredMessages) {
       const senderUser = await db('users').where({ id: msg.sender_id }).first();
@@ -358,7 +357,7 @@ io.on('connection', (socket) => {
       }
 
       // 重新获取好友列表
-      socket.emit('get-friends');
+      socket.emit('friend-request-accepted', { requesterId });
     } catch (error) {
       console.error('Error accepting friend request:', error);
     }

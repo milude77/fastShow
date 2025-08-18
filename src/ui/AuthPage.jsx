@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 
@@ -11,7 +11,17 @@ const AuthPage = () => {
   useAuth();
   const socket = useSocket();
 
-  // No need for useEffect to listen to events here, App.jsx handles it.
+  useEffect(() => {
+    const attemptAutoLogin = async () => {
+      if (socket && window.electronAPI) {
+        const credentials = await window.electronAPI.getUserCredentials();
+        if (credentials && credentials.userId && credentials.password) {
+          socket.emit('login-user', credentials);
+        }
+      }
+    };
+    attemptAutoLogin();
+  }, [socket]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -24,10 +34,17 @@ const AuthPage = () => {
       return;
     }
 
+    const credentials = { userId: username, password };
+
+    // Save credentials on manual login/register
+    if (window.electronAPI) {
+      window.electronAPI.saveUserCredentials(credentials);
+    }
+
     if (isRegistering) {
       socket.emit('register-user', { username, password });
     } else {
-      socket.emit('login-user', { userId: username, password });
+      socket.emit('login-user', credentials);
     }
   };
 

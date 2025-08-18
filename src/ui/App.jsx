@@ -30,7 +30,10 @@ function App() {
       setContacts(friends);
     };
 
-    console.log(currentUser)
+    const friendsRequestAccepted = () => {
+      socket.emit('get-friends');
+    };
+
 
 
     socket.on('login-success', handleLoginSuccess);
@@ -41,12 +44,14 @@ function App() {
       setCurrentUser(null);
       setContacts([]);
     });
+    socket.on('friend-request-accepted',friendsRequestAccepted)
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
       socket.off('user-registered', handleLoginSuccess);
       socket.off('friends-list', handleFriendsList);
       socket.off('new-message', handleNewMessage);
+      socket.off('friend-request-accepted', friendsRequestAccepted);
       socket.off('disconnect');
     };
   }, [socket, currentUser, setCurrentUser]); // Add currentUser to dependency array
@@ -61,7 +66,6 @@ function App() {
   const handleNewMessage = (msg) => {
     // Safety check: Do not process messages if the user is not logged in.
     if (!currentUser) {
-      console.log('Received message from unknown user:');
       return;
     }
 
