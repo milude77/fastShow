@@ -204,6 +204,18 @@ ipcMain.on('save-user-credentials', (event, credentials) => {
 ipcMain.handle('get-user-credentials', () => {
     return store.get('userCredentials');
 });
+
+ipcMain.on('switch-user', () => {
+    store.delete('userCredentials');
+    app.relaunch();
+    app.exit();
+});
+
+ipcMain.on('logout', () => {
+    store.delete('userCredentials');
+    app.relaunch();
+    app.exit();
+});
 // --- End User Credentials IPC Handlers ---
 
 // --- IPC Handlers for Socket.IO ---

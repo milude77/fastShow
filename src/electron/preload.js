@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   saveUserCredentials: (credentials) => ipcRenderer.send('save-user-credentials', credentials),
   getUserCredentials: () => ipcRenderer.invoke('get-user-credentials'),
+  switchUser: () => ipcRenderer.send('switch-user'),
+  logout: () => ipcRenderer.send('logout'),
 
   // --- Socket.IO IPC ---
   socketEmit: (event, ...args) => {
