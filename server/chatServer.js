@@ -5,6 +5,7 @@ import cors from 'cors';
 import knex from 'knex';
 import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
 import bcrypt from 'bcrypt'; // 导入 bcrypt
+import jwt from 'jsonwebtoken'; // 导入 jsonwebtoken
 
 // 初始化 Knex 数据库连接
 const db = knex(knexConfig.development);
@@ -107,8 +108,9 @@ io.on('connection', (socket) => {
       }
 
       // 登录成功
+      const token = jwt.sign({ userId: user.id, username: user.username }, 'your_secret_key', { expiresIn: '1h' });
       onlineUsers.set(socket.id, { userId: user.id, username: user.username });
-      socket.emit('login-success', { userId: user.id, username: user.username });
+      socket.emit('login-success', { userId: user.id, username: user.username, token });
       console.log(`${user.username} (ID: ${user.id}) 已登录`);
 
       // 检查并发送离线消
@@ -116,6 +118,32 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('登录失败:', error);
       socket.emit('error', { message: '登录失败，请稍后再试' });
+    }
+  });
+
+  socket.on('login-with-token', async (data) => {
+    const token = data;
+
+    if (!token) {
+      socket.emit('error', { message: '需要提供Token' });
+      return;
+    }
+
+    try {
+      const decoded = jwt.verify(token, 'your_secret_key');
+      const user = await db('users').where({ id: decoded.userId }).first();
+
+      if (!user) {
+        socket.emit('error', { message: '无效的Token' });
+        return;
+      }
+
+      onlineUsers.set(socket.id, { userId: user.id, username: user.username });
+      socket.emit('login-success', { userId: user.id, username: user.username });
+      console.log(`${user.username} (ID: ${user.id}) 已通过Token登录`);
+    } catch (error) {
+      console.error('Token验证失败:', error);
+      socket.emit('error', { message: 'Token验证失败' });
     }
   });
 

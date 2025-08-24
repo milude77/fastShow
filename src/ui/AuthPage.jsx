@@ -14,9 +14,9 @@ const AuthPage = () => {
   useEffect(() => {
     const attemptAutoLogin = async () => {
       if (socket && window.electronAPI) {
-        const credentials = await window.electronAPI.getUserCredentials();
-        if (credentials && credentials.userId && credentials.password) {
-          socket.emit('login-user', credentials);
+        const credentials = await window.electronAPI.getCurrentUserCredentials();
+        if (credentials) {
+          socket.emit('login-with-token', credentials.token);
         }
       }
     };
@@ -34,11 +34,16 @@ const AuthPage = () => {
       return;
     }
 
+    socket.on('error', () => {
+      setMessage('用户名或密码错误，请重试。');
+    });
+
     const credentials = { userId: username, password };
 
     // Save credentials on manual login/register
     if (window.electronAPI) {
-      window.electronAPI.saveUserCredentials(credentials);
+      window.electronAPI.saveCurrentUserCredentials(credentials);
+      window.electronAPI.saveUserListCredentials(credentials);
     }
 
     if (isRegistering) {
@@ -100,7 +105,7 @@ const AuthPage = () => {
             {isRegistering ? '去登录' : '去注册'}
           </span>
         </p>
-        {message && <p style={{ textAlign: 'center', marginTop: '15px', color: message.startsWith('错误') ? 'red' : 'green' }}>{message}</p>}
+        {message && <p style={{ textAlign: 'center', marginTop: '15px', color: 'red'}}>{message}</p>}
       </div>
     </div>
   );

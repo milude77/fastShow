@@ -23,6 +23,8 @@ function App() {
     if (!socket) return;
 
     const handleLoginSuccess = (user) => {
+      window.electronAPI.saveCurrentUserCredentials({userId:user.userId, userName: user.username, token: user.token});
+      window.electronAPI.saveUserListCredentials({userId:user.userId, userName: user.username, token: user.token});
       setCurrentUser(user);
     };
 

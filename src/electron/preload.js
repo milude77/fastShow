@@ -7,8 +7,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openSearchWindow: (userId) => ipcRenderer.send('open-search-window', userId),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
 
-  saveUserCredentials: (credentials) => ipcRenderer.send('save-user-credentials', credentials),
-  getUserCredentials: () => ipcRenderer.invoke('get-user-credentials'),
+  saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
+  getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
+
+  saveUserListCredentials: (credentials) => ipcRenderer.send('save-user-credentials-list', credentials),
+  getUserListCredentials: () => ipcRenderer.invoke('get-user-credentials-list'),
   switchUser: () => ipcRenderer.send('switch-user'),
   logout: () => ipcRenderer.send('logout'),
 

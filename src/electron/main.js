@@ -197,22 +197,36 @@ ipcMain.on('open-settings-window', () => {
 });
 
 // --- User Credentials IPC Handlers ---
-ipcMain.on('save-user-credentials', (event, credentials) => {
-    store.set('userCredentials', credentials);
+ipcMain.on('save-user-credentials-list', (event, credentials) => {
+    store.delete('userCredentials');
+    let originalUserList = store.get('userCredentials') || {};
+    originalUserList[credentials.userId] = {
+        userName: credentials.userName,
+        jwt: credentials.token
+    };
+    store.set('userCredentials', originalUserList);
 });
 
-ipcMain.handle('get-user-credentials', () => {
+ipcMain.handle('get-user-credentials-list', () => {
     return store.get('userCredentials');
 });
 
+ipcMain.on('save-current-user-credentials', (event, credentials) => {
+    store.set('currentUserCredentials', credentials);
+});
+
+ipcMain.handle('get-current-user-credentials', () => {
+    return store.get('currentUserCredentials');
+});
+
 ipcMain.on('switch-user', () => {
-    store.delete('userCredentials');
+    store.delete('currentUserCredentials');
     app.relaunch();
     app.exit();
 });
 
 ipcMain.on('logout', () => {
-    store.delete('userCredentials');
+    store.delete('currentUserCredentials');
     app.relaunch();
     app.exit();
 });
@@ -222,7 +236,6 @@ ipcMain.on('logout', () => {
 // Listen for a renderer to send a message
 ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
   if (socket && socket.connected) {
-    console.log(`Received socket-emit '${eventName}' from renderer, sending to server.`);
     socket.emit(eventName, ...args);
   } else {
     console.error('Socket not connected, cannot emit event.');
