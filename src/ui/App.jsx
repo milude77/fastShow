@@ -23,8 +23,8 @@ function App() {
     if (!socket) return;
 
     const handleLoginSuccess = (user) => {
-      window.electronAPI.saveCurrentUserCredentials({userId:user.userId, userName: user.username, token: user.token});
-      window.electronAPI.saveUserListCredentials({userId:user.userId, userName: user.username, token: user.token});
+      window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token??user.newToken });
+      window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token??user.newToken });
       setCurrentUser(user);
     };
 
@@ -36,17 +36,15 @@ function App() {
       socket.emit('get-friends');
     };
 
-
-
     socket.on('login-success', handleLoginSuccess);
-    socket.on('user-registered', handleLoginSuccess); // Also treat registration as a login
-    socket.on('friends-list', handleFriendsList);
+    socket.on('user-registered', handleLoginSuccess);
     socket.on('new-message', handleNewMessage);
+    socket.on('friends-list', handleFriendsList);
     socket.on('disconnect', () => {
       setCurrentUser(null);
       setContacts([]);
     });
-    socket.on('friend-request-accepted',friendsRequestAccepted)
+    socket.on('friend-request-accepted', friendsRequestAccepted)
 
     return () => {
       socket.off('login-success', handleLoginSuccess);

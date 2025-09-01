@@ -2,10 +2,8 @@
 .settings-app {
   display: flex;
   justify-content: space-between; 
-
   width: 100%; 
   box-sizing: border-box; 
-  
   padding: 15px; 
 }
 
@@ -24,5 +22,12 @@
 
 .tool-bar-item:hover{
   background-color: rgb(235, 235, 235)
+}
 
+.content-area{
+  flex: 1;
+  height: 100%;
+  justify-content: left;
+  padding-left: 20px;
+  padding-top: 20px;
 }

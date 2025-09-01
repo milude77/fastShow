@@ -7,9 +7,9 @@ const AuthPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  
+
   useAuth();
-  const socket = useSocket();
+  const socket = useSocket(); 
 
   useEffect(() => {
     const attemptAutoLogin = async () => {
@@ -23,6 +23,22 @@ const AuthPage = () => {
     attemptAutoLogin();
   }, [socket]);
 
+  useEffect(() => {
+
+    const handleErrorMessage = (message) => {
+      setMessage(message.message);
+      window.electronAPI.showErrowMessage(message.message);
+    };
+
+    socket.on('error', handleErrorMessage);
+
+
+
+    return () => {
+      socket.off('error', handleErrorMessage);
+    }
+  }, [socket]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!socket) {
@@ -34,17 +50,7 @@ const AuthPage = () => {
       return;
     }
 
-    socket.on('error', () => {
-      setMessage('用户名或密码错误，请重试。');
-    });
-
     const credentials = { userId: username, password };
-
-    // Save credentials on manual login/register
-    if (window.electronAPI) {
-      window.electronAPI.saveCurrentUserCredentials(credentials);
-      window.electronAPI.saveUserListCredentials(credentials);
-    }
 
     if (isRegistering) {
       socket.emit('register-user', { username, password });
@@ -105,7 +111,7 @@ const AuthPage = () => {
             {isRegistering ? '去登录' : '去注册'}
           </span>
         </p>
-        {message && <p style={{ textAlign: 'center', marginTop: '15px', color: 'red'}}>{message}</p>}
+        {message && <p style={{ textAlign: 'center', marginTop: '15px', color: 'red' }}>{message}</p>}
       </div>
     </div>
   );

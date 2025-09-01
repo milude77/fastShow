@@ -132,6 +132,28 @@ function createMainWindow() {
     mainWindow.setMenu(null); // 隐藏菜单栏
 }
 
+function createErrorWindow(error) {
+    const errorWindow = new BrowserWindow({
+        width: 500,
+        height: 200,
+        parent: BrowserWindow.getAllWindows()[0], // 设置父窗口
+        modal: true, // 设置为模态窗口
+        webPreferences: {
+            preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
+            devTools: isDev
+        }
+    });
+    const searchUrl = isDev
+        ? `http://localhost:5234/errorMessage.html`
+        : `file://${path.join(app.getAppPath(), "dist", "errorMessage.html")}`;
+
+    errorWindow.loadURL(searchUrl).catch(err => console.error('Failed to load error URL:', err));
+    errorWindow.webContents.on('did-finish-load', () => {
+        errorWindow.webContents.send('error-message', error);
+    });
+    errorWindow.setMenu(null);
+}
+
 app.whenReady().then(() => {
   // --- Socket.IO Connection ---
   socket = io(SOCKET_SERVER_URL);
@@ -196,15 +218,20 @@ ipcMain.on('open-settings-window', () => {
     createSettingsWindow();
 });
 
+ipcMain.on('show-error-window', (event, error) => {
+    createErrorWindow(error);
+});
+
 // --- User Credentials IPC Handlers ---
 ipcMain.on('save-user-credentials-list', (event, credentials) => {
-    store.delete('userCredentials');
     let originalUserList = store.get('userCredentials') || {};
     originalUserList[credentials.userId] = {
-        userName: credentials.userName,
-        jwt: credentials.token
+        userId: credentials.userId, 
+        userName: credentials.userName, 
+        token: credentials.token 
     };
     store.set('userCredentials', originalUserList);
+    console.log('Saved user credentials list:', store.get('userCredentials'));
 });
 
 ipcMain.handle('get-user-credentials-list', () => {
@@ -212,15 +239,20 @@ ipcMain.handle('get-user-credentials-list', () => {
 });
 
 ipcMain.on('save-current-user-credentials', (event, credentials) => {
-    store.set('currentUserCredentials', credentials);
+    store.set('currentUserCredentials', {
+        userId: credentials.userId, 
+        userName: credentials.userName, 
+        token: credentials.token 
+    });
 });
 
 ipcMain.handle('get-current-user-credentials', () => {
     return store.get('currentUserCredentials');
 });
 
-ipcMain.on('switch-user', () => {
-    store.delete('currentUserCredentials');
+ipcMain.on('switch-user', (event, switchUserID) => {
+    const userList = store.get('userCredentials') || {};
+    store.set('currentUserCredentials', userList[switchUserID]);
     app.relaunch();
     app.exit();
 });

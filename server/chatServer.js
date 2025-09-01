@@ -108,10 +108,9 @@ io.on('connection', (socket) => {
       }
 
       // 登录成功
-      const token = jwt.sign({ userId: user.id, username: user.username }, 'your_secret_key', { expiresIn: '1h' });
+      const token = jwt.sign({ userId: user.id, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
       onlineUsers.set(socket.id, { userId: user.id, username: user.username });
       socket.emit('login-success', { userId: user.id, username: user.username, token });
-      console.log(`${user.username} (ID: ${user.id}) 已登录`);
 
       // 检查并发送离线消
 
@@ -137,13 +136,16 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: '无效的Token' });
         return;
       }
-
+      const newToken = jwt.sign({ userId: user.id, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
       onlineUsers.set(socket.id, { userId: user.id, username: user.username });
-      socket.emit('login-success', { userId: user.id, username: user.username });
-      console.log(`${user.username} (ID: ${user.id}) 已通过Token登录`);
+      socket.emit('login-success', { userId: user.id, username: user.username, newToken });
     } catch (error) {
-      console.error('Token验证失败:', error);
-      socket.emit('error', { message: 'Token验证失败' });
+      console.error('登录失败:', error);
+      if (error.name === 'TokenExpiredError'){
+        socket.emit('error', { message: 'Token已过期，请重新登录' });
+      } else {
+        socket.emit('error', { message: '登录失败，请稍后再试' });
+      }
     }
   });
 

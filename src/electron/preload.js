@@ -6,13 +6,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getChatHistory: (contactId, currentUserID, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize }),
   openSearchWindow: (userId) => ipcRenderer.send('open-search-window', userId),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
+  
+  showErrowMessage: (message) => ipcRenderer.send('show-error-window', message),
+  receiveErrorMessage: (callback) => ipcRenderer.on('error-message', (event, message) => callback(message)),
+  removeErrorListeners: () => ipcRenderer.removeAllListeners('error-message'),
 
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
 
   saveUserListCredentials: (credentials) => ipcRenderer.send('save-user-credentials-list', credentials),
   getUserListCredentials: () => ipcRenderer.invoke('get-user-credentials-list'),
-  switchUser: () => ipcRenderer.send('switch-user'),
+  switchUser: (switchUserId) => ipcRenderer.send('switch-user', switchUserId),
   logout: () => ipcRenderer.send('logout'),
 
   // --- Socket.IO IPC ---

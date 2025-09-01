@@ -17,6 +17,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "antd": "^5.27.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "electron-store": "^10.1.0",

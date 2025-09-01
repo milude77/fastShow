@@ -5,7 +5,9 @@ import  UserManagement  from './components/userManagement.jsx';
 
 
 function SettingsAPP() {
+
     const [tooBarState, setToolBarState] = useState('userManagement');
+
     const handleSwitchUser = () => {
         window.electronAPI.switchUser();
     }
@@ -17,7 +19,7 @@ function SettingsAPP() {
 
 
     return (
-        <div className="settings-app" style={{ display: 'flex', alignItems: 'center' }}>
+        <div className="settings-app">
             <div className='tool-bar'>
                 <div className={tooBarState === 'userManagement' ? 'tool-bar-item active' : 'tool-bar-item'} onClick={() => setToolBarState('userManagement')}>
                     用户管理
@@ -26,7 +28,7 @@ function SettingsAPP() {
                     通用
                 </div>
             </div>
-            <div>
+            <div className='content-area'>
                 <UserManagement />
                 <button onClick={handleSwitchUser}>切换用户</button>
                 <button onClick={handleLogout}>退出登录</button>
