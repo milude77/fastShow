@@ -1,8 +1,10 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
-import fs from 'fs';
 import { io } from 'socket.io-client';
 import Store from 'electron-store';
+import knex from 'knex';
+import { console } from 'inspector';
+import fs from 'fs';
 
 const isDev = process.env.NODE_ENV === "development"
 const store = new Store();
@@ -12,64 +14,92 @@ const SOCKET_SERVER_URL = 'http://localhost:3001';
 let socket;
 // --- End Socket.IO Setup ---
 
+let dbPath;
+let db;
 
-// 获取指定联系人的聊天记录文件路径
-function getChatHistoryPath(contactId, currentUserID) {
-    return path.join(app.getPath('userData'), `${currentUserID}` ,`chatHistory_${contactId}.json`);
-}
-
-// 读取指定联系人的所有聊天记录
-function readAllChatHistory(contactId ,currentUserID) {
-    const chatHistoryPath = getChatHistoryPath(contactId, currentUserID);
+async function initializeDatabase(db) {
+    const exists = await db.schema.hasTable('messages');
     try {
-        if (fs.existsSync(chatHistoryPath)) {
-            const data = fs.readFileSync(chatHistoryPath, { encoding: 'utf8' });
-            return JSON.parse(data);
+        if (!exists) {
+            await db.schema.createTable('messages', (table) => {
+                table.string('id').primary();
+                table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
+                table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
+                table.text('text').notNullable();
+                table.timestamp('timestamp').defaultTo(db.fn.now());
+                table.string('username').notNullable();
+                table.string('sender').notNullable().defaultTo('user');
+            });
         }
-    } catch (error) {
-        console.error(`Failed to read all chat history for contact ${contactId}:`, error);
     }
-    return [];
+    catch (error) {
+        console.error('Failed to initialize database:', error);
+    }
 }
 
 // 读取指定联系人的聊天记录
-function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20) {
-    const chatHistoryPath = getChatHistoryPath(contactId, currentUserID);
+async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20) {
     try {
-        if (fs.existsSync(chatHistoryPath)) {
-            const data = fs.readFileSync(chatHistoryPath, { encoding: 'utf8' });
-            const history = JSON.parse(data);
-            // 实现分页逻辑
-            const totalMessages = history.length;
-            const startIndex = Math.max(0, totalMessages - (page * pageSize));
-            const endIndex = Math.max(0, totalMessages - ((page - 1) * pageSize));
-            return history.slice(startIndex, endIndex);
+        const exists = await db.schema.hasTable('messages');
+        if (!exists) {
+            return [];
         }
+
+        const offset = (page - 1) * pageSize;
+
+        const history = await db('messages')
+            .select('*')
+            .where(function() {
+                this.where('sender_id', currentUserID).andWhere('receiver_id', contactId);
+            })
+            .orWhere(function() {
+                this.where('sender_id', contactId).andWhere('receiver_id', currentUserID);
+            })
+            .orderBy('timestamp', 'desc')
+            .limit(pageSize)
+            .offset(offset);
+        
+        return history.reverse(); // 保证消息按时间升序排列
     } catch (error) {
         console.error(`Failed to read chat history for contact ${contactId}:`, error);
+        return [];
     }
-    return [];
 }
 
 // 写入指定联系人的聊天记录
-function writeChatHistory(contactId, currentUserID, history) {
-    const chatHistoryPath = getChatHistoryPath(contactId, currentUserID);
-    const userFolderPath = path.dirname(chatHistoryPath); // Get the directory path
+async function writeChatHistory(contactId, currentUserID, msg) {
+    const exists = await db.schema.hasTable('messages');
+    if  (!exists) return 
     try {
-        // Ensure the user's directory exists before writing the file
-        fs.mkdirSync(userFolderPath, { recursive: true });
-        fs.writeFileSync(chatHistoryPath, JSON.stringify(history, null, 2), { encoding: 'utf8' });
-    } catch (error) {
+        await db('messages').insert({
+            id: msg.id,
+            sender_id: currentUserID,
+            receiver_id: contactId,
+            text: msg.text,
+            username: msg.username,
+            timestamp: msg.timestamp,
+            sender: msg.sender
+        });
+    }catch (error) {
         console.error(`Failed to write chat history for contact ${contactId}:`, error);
     }
 }
+    // await db.schema.createTable('messages', (table) => {
+    //     table.string('id').primary();
+    //     table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
+    //     table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
+    //     table.text('text').notNullable();
+    //     table.timestamp('timestamp').defaultTo(db.fn.now());
+    //     table.string('username').notNullable();
+    //     table.string('sender').notNullable().defaultTo('user');
+    // });
+    
+
 
 function createSettingsWindow() {
     const settingsWindow = new BrowserWindow({
         width: 500,
         height: 400,
-        parent: BrowserWindow.getAllWindows()[0], // 设置父窗口
-        modal: true, // 设置为模态窗口
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -78,10 +108,10 @@ function createSettingsWindow() {
     const settingsUrl = isDev
         ? `http://localhost:5234/settings.html`
         : `file://${path.join(app.getAppPath(), "dist", "settings.html")}`;
-    
+
     settingsWindow.loadURL(settingsUrl).catch(err => console.error('Failed to load settings URL:', err));
-    
-    if(isDev) {
+
+    if (isDev) {
         settingsWindow.webContents.openDevTools();
     }
 
@@ -89,12 +119,9 @@ function createSettingsWindow() {
 }
 
 function createSearchWindow(userId) {
-    console.log(`Attempting to create search window for user ID: ${userId}`);
     const searchWindow = new BrowserWindow({
         width: 500,
         height: 400,
-        parent: BrowserWindow.getAllWindows()[0], // 设置父窗口
-        modal: true, // 设置为模态窗口
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -104,10 +131,10 @@ function createSearchWindow(userId) {
     const searchUrl = isDev
         ? `http://localhost:5234/search.html?userId=${userId}`
         : `file://${path.join(app.getAppPath(), "dist", "search.html")}?userId=${userId}`;
-    
+
     searchWindow.loadURL(searchUrl).catch(err => console.error('Failed to load search URL:', err));
-    
-    if(isDev) {
+
+    if (isDev) {
         searchWindow.webContents.openDevTools();
     }
 
@@ -130,14 +157,16 @@ function createMainWindow() {
         mainWindow.loadFile(path.join(app.getAppPath(), "dist", "index.html"));
     }
     mainWindow.setMenu(null); // 隐藏菜单栏
+
+    mainWindow.on('closed', () => {
+        app.quit();
+    });
 }
 
 function createErrorWindow(error) {
     const errorWindow = new BrowserWindow({
         width: 500,
         height: 200,
-        parent: BrowserWindow.getAllWindows()[0], // 设置父窗口
-        modal: true, // 设置为模态窗口
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -154,40 +183,58 @@ function createErrorWindow(error) {
     errorWindow.setMenu(null);
 }
 
-app.whenReady().then(() => {
-  // --- Socket.IO Connection ---
-  socket = io(SOCKET_SERVER_URL);
+app.whenReady().then(async () => {
+    // --- Socket.IO Connection ---
+    socket = io(SOCKET_SERVER_URL);
 
-  socket.on('connect', () => {
-    console.log('Socket connected to server in main process:', socket.id);
-    // Notify all windows that connection is established
-    BrowserWindow.getAllWindows().forEach(win => {
-      win.webContents.send('socket-event', { event: 'connect', id: socket.id });
+    socket.on('connect', () => {
+        console.log('Socket connected to server in main process:', socket.id);
+        // Notify all windows that connection is established
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event: 'connect', id: socket.id });
+        });
     });
-  });
 
-  socket.on('disconnect', () => {
-    console.log('Socket disconnected from server in main process');
-    // Notify all windows
-    BrowserWindow.getAllWindows().forEach(win => {
-      win.webContents.send('socket-event', { event: 'disconnect' });
+    socket.on('disconnect', () => {
+        console.log('Socket disconnected from server in main process');
+        // Notify all windows
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event: 'disconnect' });
+        });
     });
-  });
 
-  // Generic listener to forward all server events to renderer processes
-  socket.onAny((event, ...args) => {
-    console.log(`Received socket event '${event}' from server, forwarding to renderers.`);
-    BrowserWindow.getAllWindows().forEach(win => {
-      win.webContents.send('socket-event', { event, args });
+    // Generic listener to forward all server events to renderer processes
+    socket.onAny((event, ...args) => {
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event, args });
+        });
     });
-  });
-  // --- End Socket.IO Connection ---
+    // --- End Socket.IO Connection ---
 
-  createMainWindow()
+    createMainWindow()
 
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
-  })
+    app.on('activate', function () {
+        if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+    })
+})
+
+ipcMain.on('login-success', (event, userID) => {
+    const userDbPath = path.join(app.getPath('userData'), `${userID}`);
+
+    if (!fs.existsSync(userDbPath)) {
+        fs.mkdirSync(userDbPath, { recursive: true });
+    }
+    dbPath = path.join(userDbPath, 'chat_history.sqlite3');
+
+    db = knex({
+        client: 'sqlite3',
+        connection: {
+            filename: dbPath,
+        },
+        useNullAsDefault: true
+    });
+
+    initializeDatabase(db)
 })
 
 ipcMain.on('chat-message', (event, { contactId, currentUserID, msg }) => {
@@ -196,14 +243,11 @@ ipcMain.on('chat-message', (event, { contactId, currentUserID, msg }) => {
         console.error('Received chat-message with undefined msg object.');
         return;
     }
-    console.log(`Received chat message for user ${currentUserID} with contact ${contactId}:`, msg);
-    const history = readAllChatHistory(contactId, currentUserID); 
-    history.push(msg);
-    writeChatHistory(contactId, currentUserID, history);
+    writeChatHistory(contactId, currentUserID, msg);
 });
 
-ipcMain.handle('get-chat-history', (event, { contactId, currentUserID, page, pageSize }) => {
-    return readChatHistory(contactId, currentUserID, page, pageSize);
+ipcMain.handle('get-chat-history', async (event, { contactId, currentUserID, page, pageSize }) => {
+    return await readChatHistory(contactId, currentUserID, page, pageSize);
 });
 
 ipcMain.handle('get-app-version', () => {
@@ -226,9 +270,9 @@ ipcMain.on('show-error-window', (event, error) => {
 ipcMain.on('save-user-credentials-list', (event, credentials) => {
     let originalUserList = store.get('userCredentials') || {};
     originalUserList[credentials.userId] = {
-        userId: credentials.userId, 
-        userName: credentials.userName, 
-        token: credentials.token 
+        userId: credentials.userId,
+        userName: credentials.userName,
+        token: credentials.token
     };
     store.set('userCredentials', originalUserList);
     console.log('Saved user credentials list:', store.get('userCredentials'));
@@ -240,9 +284,9 @@ ipcMain.handle('get-user-credentials-list', () => {
 
 ipcMain.on('save-current-user-credentials', (event, credentials) => {
     store.set('currentUserCredentials', {
-        userId: credentials.userId, 
-        userName: credentials.userName, 
-        token: credentials.token 
+        userId: credentials.userId,
+        userName: credentials.userName,
+        token: credentials.token
     });
 });
 
@@ -267,13 +311,13 @@ ipcMain.on('logout', () => {
 // --- IPC Handlers for Socket.IO ---
 // Listen for a renderer to send a message
 ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
-  if (socket && socket.connected) {
-    socket.emit(eventName, ...args);
-  } else {
-    console.error('Socket not connected, cannot emit event.');
-    // Optionally, send an error back to the renderer
-    event.sender.send('socket-error', 'Socket not connected');
-  }
+    if (socket && socket.connected) {
+        socket.emit(eventName, ...args);
+    } else {
+        console.error('Socket not connected, cannot emit event.');
+        // Optionally, send an error back to the renderer
+        event.sender.send('socket-error', 'Socket not connected');
+    }
 });
 // --- End IPC Handlers ---
 

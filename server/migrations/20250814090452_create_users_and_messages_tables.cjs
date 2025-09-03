@@ -1,7 +1,7 @@
 exports.up = function(knex) {
   return knex.schema
     .createTable('users', function (table) {
-      table.increments('id').primary();
+      table.string('id').primary();
       table.string('username', 255).notNullable(); // 移除 unique 约束
       table.string('password_hash', 255); // For future authentication
       table.timestamps(true, true); // created_at and updated_at

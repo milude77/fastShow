@@ -83,6 +83,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                             <React.Fragment key={key}>
                                 {showTimestamp && <span className="message-timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
                                 <li className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}>
+                                    <span style={{ fontSize:'10px' }}>{msg.username}</span>
                                     <div className="message-content">
                                         <span className="message-text">{msg.text}</span>
                                     </div>

@@ -69,7 +69,7 @@ io.on('connection', (socket) => {
           socket.emit('new-message', {
             id: msg.id,
             username: senderUser.username,
-            content: msg.content,
+            text: msg.content,
             timestamp: msg.timestamp,
             type: 'private',
             senderId: msg.sender_id,

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   receiveErrorMessage: (callback) => ipcRenderer.on('error-message', (event, message) => callback(message)),
   removeErrorListeners: () => ipcRenderer.removeAllListeners('error-message'),
 
+  loginSuccess: (userId)=> ipcRenderer.send('login-success', userId),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
 

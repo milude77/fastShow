@@ -25,6 +25,7 @@ function App() {
     const handleLoginSuccess = (user) => {
       window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token??user.newToken });
       window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token??user.newToken });
+      window.electronAPI.loginSuccess( user.userId )
       setCurrentUser(user);
     };
 
@@ -70,17 +71,17 @@ function App() {
     }
 
     const contactId = msg.senderId;
-    const tempId = `temp_${Date.now()}`;
+
 
     // When receiving a message from others, save it to local history.
     if (msg.senderId !== currentUser.userId) {
       const newMessage = {
-        id: tempId,
+        id: msg.id,
         text: msg.content,
         sender: 'other',
-        timestamp: msg.timestamp,
+        timestamp: new Date(msg.timestamp).toISOString(),
         username: msg.username
-      };
+      }
       if (window.electronAPI) {
         window.electronAPI.chatMessage(contactId, currentUser.userId, newMessage);
       }
@@ -121,6 +122,7 @@ function App() {
         timestamp: new Date().toISOString(),
         username: currentUser.username // Use current user's name for sent messages
       };
+      console.log('Sending message:', newMessage);
 
       // Add the temporary message to the UI immediately
       setMessages(prev => ({
@@ -129,7 +131,6 @@ function App() {
       }));
 
       if (window.electronAPI) {
-        console.log(currentUser)
         window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
       }
 
