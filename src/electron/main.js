@@ -12,6 +12,76 @@ const store = new Store();
 // --- Socket.IO Main Process Setup ---
 const SOCKET_SERVER_URL = 'http://localhost:3001';
 let socket;
+let heartbeatInterval;
+let reconnectionTimer;
+let heartbeatTimeout;
+
+function connectSocket() {
+    // Clean up existing socket and timers before creating a new one
+    if (socket) {
+        socket.disconnect();
+    }
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+    }
+    if (heartbeatTimeout) {
+        clearTimeout(heartbeatTimeout);
+    }
+    if (reconnectionTimer) {
+        clearTimeout(reconnectionTimer);
+    }
+
+    socket = io(SOCKET_SERVER_URL, {
+        reconnection: false // We are handling reconnection manually
+    });
+
+    socket.on('connect', () => {
+        console.log('Socket connected to server in main process:', socket.id);
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event: 'connect', id: socket.id });
+        });
+
+        // Start heartbeat
+        heartbeatInterval = setInterval(() => {
+            heartbeatTimeout = setTimeout(() => {
+                console.log('Heartbeat timeout. Disconnecting.');
+                if (socket) {
+                    socket.disconnect();
+                }
+            }, 2000); // Assume timeout if no pong in 2 seconds
+            socket.emit('heartbeat', 'ping');
+        }, 5000); // Send ping every 5 seconds
+    });
+
+    socket.on('heartbeat', (payload) => {
+        if (payload === 'pong') {
+            clearTimeout(heartbeatTimeout); // Pong received, clear timeout
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Socket disconnected from server in main process');
+        clearInterval(heartbeatInterval);
+        clearTimeout(heartbeatTimeout);
+
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event: 'disconnect' });
+        });
+
+        // Attempt to reconnect after a delay
+        reconnectionTimer = setTimeout(connectSocket, 5000);
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event: 'reconnecting' });
+        });
+    });
+
+    // Generic listener to forward all server events to renderer processes
+    socket.onAny((event, ...args) => {
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event, args });
+        });
+    });
+}
 // --- End Socket.IO Setup ---
 
 let dbPath;
@@ -185,30 +255,7 @@ function createErrorWindow(error) {
 
 app.whenReady().then(async () => {
     // --- Socket.IO Connection ---
-    socket = io(SOCKET_SERVER_URL);
-
-    socket.on('connect', () => {
-        console.log('Socket connected to server in main process:', socket.id);
-        // Notify all windows that connection is established
-        BrowserWindow.getAllWindows().forEach(win => {
-            win.webContents.send('socket-event', { event: 'connect', id: socket.id });
-        });
-    });
-
-    socket.on('disconnect', () => {
-        console.log('Socket disconnected from server in main process');
-        // Notify all windows
-        BrowserWindow.getAllWindows().forEach(win => {
-            win.webContents.send('socket-event', { event: 'disconnect' });
-        });
-    });
-
-    // Generic listener to forward all server events to renderer processes
-    socket.onAny((event, ...args) => {
-        BrowserWindow.getAllWindows().forEach(win => {
-            win.webContents.send('socket-event', { event, args });
-        });
-    });
+    connectSocket();
     // --- End Socket.IO Connection ---
 
     createMainWindow()

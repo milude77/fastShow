@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Alert } from 'antd';
 import './css/App.css';
 import ContactList from './components/contactList';
 import MessageList from './components/messageList';
@@ -10,6 +11,7 @@ import { useSocket } from './hooks/useSocket';
 function App() {
   const [selectFeatures, setSelectFeatures] = useState('message');
   const [selectedContact, setSelectedContact] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('connected');
   const [messages, setMessages] = useState({});
   const [drafts, setDrafts] = useState({});
   const [messagePages, setMessagePages] = useState({});
@@ -37,15 +39,27 @@ function App() {
       socket.emit('get-friends');
     };
 
+    const handleConnect = () => {
+      setConnectionStatus('connected');
+      // Re-authenticate and fetch data on successful reconnection
+      if (currentUser) {
+        socket.emit('login-with-token', currentUser.token);
+        socket.emit('get-friends');
+      }
+    };
+    const handleDisconnect = () => setConnectionStatus('disconnected');
+    const handleReconnecting = () => setConnectionStatus('reconnecting');
+
     socket.on('login-success', handleLoginSuccess);
     socket.on('user-registered', handleLoginSuccess);
     socket.on('new-message', handleNewMessage);
     socket.on('friends-list', handleFriendsList);
-    socket.on('disconnect', () => {
-      setCurrentUser(null);
-      setContacts([]);
-    });
-    socket.on('friend-request-accepted', friendsRequestAccepted)
+    socket.on('friend-request-accepted', friendsRequestAccepted);
+    
+    // Add the status listeners using the socket context
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('reconnecting', handleReconnecting);
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
@@ -53,7 +67,11 @@ function App() {
       socket.off('friends-list', handleFriendsList);
       socket.off('new-message', handleNewMessage);
       socket.off('friend-request-accepted', friendsRequestAccepted);
-      socket.off('disconnect');
+      
+      // Clean up the status listeners
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('reconnecting', handleReconnecting);
     };
   }, [socket, currentUser, setCurrentUser]); // Add currentUser to dependency array
 
@@ -172,6 +190,16 @@ function App() {
     }
   };
 
+  const renderConnectionStatus = () => {
+    if (connectionStatus === 'disconnected') {
+      return <Alert message="已断开连接" type="error" showIcon />;
+    }
+    if (connectionStatus === 'reconnecting') {
+      return <Alert message="正在重新连接..." type="warning" showIcon />;
+    }
+    return null;
+  };
+
   const renderInformationFunctionBar = () => {
     if (selectFeatures === 'message' && selectedContact) {
       return (
@@ -198,6 +226,7 @@ function App() {
         <ToolBar setSelectFeatures={setSelectFeatures} />
       </div>
       <div className='contact-list'>
+        {renderConnectionStatus()}
         {renderFeature()}
       </div>
       <div className='message-box'>

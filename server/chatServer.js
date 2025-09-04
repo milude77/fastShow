@@ -393,6 +393,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Heartbeat
+  socket.on('heartbeat', (payload) => {
+    if (payload === 'ping') {
+      socket.emit('heartbeat', 'pong');
+    }
+  });
+
   // 用户断开连接
   socket.on('disconnect', () => {
     const userInfo = onlineUsers.get(socket.id);

@@ -25,14 +25,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('socket-emit', { event, args });
   },
   socketOn: (event, callback) => {
-    const handler = (e, data) => {
+    // This handler is for generic socket events forwarded from the main process
+    const genericHandler = (e, data) => {
+      // Check if the event name matches what the listener is for
       if (data.event === event) {
-        callback(...data.args);
+        // If there are args, spread them. Otherwise, send the whole data object.
+        // This handles both regular socket events and our custom status events.
+        if (data.args) {
+          callback(...data.args);
+        } else {
+          callback(data); // Pass the whole object for events like 'disconnect'
+        }
       }
     };
-    ipcRenderer.on('socket-event', handler);
-    // Return a function to remove the listener
-    return () => ipcRenderer.removeListener('socket-event', handler);
+    ipcRenderer.on('socket-event', genericHandler);
+
+    return () => ipcRenderer.removeListener('socket-event', genericHandler);
   }
   // --- End Socket.IO IPC ---
 });
