@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Alert } from 'antd';
 import './css/App.css';
+import AppHeaderBar from './components/appHeaderBar';
 import ContactList from './components/contactList';
 import MessageList from './components/messageList';
 import ToolBar from './components/toolBar';
@@ -25,9 +26,9 @@ function App() {
     if (!socket) return;
 
     const handleLoginSuccess = (user) => {
-      window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token??user.newToken });
-      window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token??user.newToken });
-      window.electronAPI.loginSuccess( user.userId )
+      window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
+      window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
+      window.electronAPI.loginSuccess(user.userId)
       setCurrentUser(user);
     };
 
@@ -55,7 +56,7 @@ function App() {
     socket.on('new-message', handleNewMessage);
     socket.on('friends-list', handleFriendsList);
     socket.on('friend-request-accepted', friendsRequestAccepted);
-    
+
     // Add the status listeners using the socket context
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
@@ -67,13 +68,13 @@ function App() {
       socket.off('friends-list', handleFriendsList);
       socket.off('new-message', handleNewMessage);
       socket.off('friend-request-accepted', friendsRequestAccepted);
-      
+
       // Clean up the status listeners
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting);
     };
-  }, [socket, currentUser, setCurrentUser]); // Add currentUser to dependency array
+  }, [socket, currentUser ]); // Add currentUser to dependency array
 
   useEffect(() => {
     if (currentUser && socket) {
@@ -140,7 +141,6 @@ function App() {
         timestamp: new Date().toISOString(),
         username: currentUser.username // Use current user's name for sent messages
       };
-      console.log('Sending message:', newMessage);
 
       // Add the temporary message to the UI immediately
       setMessages(prev => ({
@@ -221,16 +221,19 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <div className='app-features-bar'>
-        <ToolBar setSelectFeatures={setSelectFeatures} />
-      </div>
-      <div className='contact-list'>
-        {renderConnectionStatus()}
-        {renderFeature()}
-      </div>
-      <div className='message-box'>
-        {renderInformationFunctionBar()}
+    <div className="app-wrapper">
+      <AppHeaderBar />
+      <div className="app">
+        <div className='app-features-bar'>
+          <ToolBar setSelectFeatures={setSelectFeatures} />
+        </div>
+        <div className='contact-list'>
+          {renderConnectionStatus()}
+          {renderFeature()}
+        </div>
+        <div className='message-box'>
+          {renderInformationFunctionBar()}
+        </div>
       </div>
     </div>
   );

@@ -16,7 +16,7 @@ const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
-  }
+  },
 });
 
 // 中间件
@@ -28,8 +28,9 @@ app.use(express.json());
 const onlineUsers = new Map();
 
 // Socket.IO 连接处理
+console.log('Socket.IO server initialized, waiting for connections...'); // 新增日志
 io.on('connection', (socket) => {
-  console.log(`用户连接: ${socket.id}`);
+  console.log(`用户连接: ${socket.id}`); // 这个日志应该在连接成功时显示
 
   // 用户注册
   socket.on('register-user', async (data) => {

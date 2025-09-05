@@ -3,7 +3,6 @@ import path from 'path';
 import { io } from 'socket.io-client';
 import Store from 'electron-store';
 import knex from 'knex';
-import { console } from 'inspector';
 import fs from 'fs';
 
 const isDev = process.env.NODE_ENV === "development"
@@ -18,25 +17,44 @@ let heartbeatTimeout;
 
 function connectSocket() {
     // Clean up existing socket and timers before creating a new one
-    if (socket) {
-        socket.disconnect();
-    }
+    // Note: Removed redundant socket.disconnect() here as io() creates a new instance.
     if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
     }
     if (heartbeatTimeout) {
         clearTimeout(heartbeatTimeout);
+        heartbeatTimeout = null;
     }
     if (reconnectionTimer) {
         clearTimeout(reconnectionTimer);
+        reconnectionTimer = null;
     }
 
     socket = io(SOCKET_SERVER_URL, {
-        reconnection: false // We are handling reconnection manually
+        reconnection: false, 
+    });
+
+    // Add a listener for connection errors
+    socket.on('connect_error', (err) => {
+        console.error('Socket connection error in main process:', err.message);
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event: 'connect_error', args: [err.message] });
+        });
+        // If connection fails, also attempt to reconnect after a delay
+        if (!reconnectionTimer) { // Only start a new timer if one isn't already running
+            reconnectionTimer = setTimeout(connectSocket, 5000);
+            BrowserWindow.getAllWindows().forEach(win => {
+                win.webContents.send('socket-event', { event: 'reconnecting' });
+            });
+        }
     });
 
     socket.on('connect', () => {
         console.log('Socket connected to server in main process:', socket.id);
+        if (reconnectionTimer) {
+            clearTimeout(reconnectionTimer);
+            reconnectionTimer = null;
+        }
         BrowserWindow.getAllWindows().forEach(win => {
             win.webContents.send('socket-event', { event: 'connect', id: socket.id });
         });
@@ -215,6 +233,7 @@ function createMainWindow() {
     const mainWindow = new BrowserWindow({
         width: 900,
         height: 600,
+        frame: false, // Hide the default frame
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -264,6 +283,32 @@ app.whenReady().then(async () => {
         if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
     })
 })
+
+// IPC handlers for custom window controls
+ipcMain.on('minimize-window', () => {
+    const window = BrowserWindow.getFocusedWindow();
+    if (window) {
+        window.minimize();
+    }
+});
+
+ipcMain.on('maximize-window', () => {
+    const window = BrowserWindow.getFocusedWindow();
+    if (window) {
+        if (window.isMaximized()) {
+            window.unmaximize();
+        } else {
+            window.maximize();
+        }
+    }
+});
+
+ipcMain.on('close-window', () => {
+    const window = BrowserWindow.getFocusedWindow();
+    if (window) {
+        window.close();
+    }
+});
 
 ipcMain.on('login-success', (event, userID) => {
     const userDbPath = path.join(app.getPath('userData'), `${userID}`);
@@ -355,7 +400,7 @@ ipcMain.on('logout', () => {
 });
 // --- End User Credentials IPC Handlers ---
 
-// --- IPC Handlers for Socket.IO ---
+// --- Socket.IO IPC ---
 // Listen for a renderer to send a message
 ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
     if (socket && socket.connected) {
@@ -366,7 +411,12 @@ ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
         event.sender.send('socket-error', 'Socket not connected');
     }
 });
-// --- End IPC Handlers ---
+
+// IPC handler to get current socket connection status
+ipcMain.handle('get-socket-status', () => {
+    return socket ? socket.connected : false;
+});
+// --- End Socket.IO IPC ---
 
 app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit()

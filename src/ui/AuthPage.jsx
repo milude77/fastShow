@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 
 const AuthPage = () => {
@@ -8,8 +7,45 @@ const AuthPage = () => {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
 
-  useAuth();
   const socket = useSocket(); 
+
+  useEffect(() => {
+
+    if (!socket) return;
+    
+    const handleConnect = () => {
+      setMessage('');
+    };
+
+    const handleDisconnect = () => {
+      setMessage('已断开与服务器的连接');
+    };
+
+    const handleReconnecting = () => {
+      setMessage('正在重新连接到服务器...');
+    };
+
+    // 立即检查当前连接状态
+    const checkInitialStatus = async () => {
+      const isConnected = await window.electronAPI.getSocketStatus();
+      if (!isConnected) {
+        setMessage('错误: 无法连接服务器');
+      } else {
+        setMessage(''); // 如果已连接，清除任何旧的错误信息
+      }
+    };
+    checkInitialStatus();
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('reconnecting', handleReconnecting);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('reconnecting', handleReconnecting)
+    };
+  }, [socket]);
 
   useEffect(() => {
     const attemptAutoLogin = async () => {
@@ -18,6 +54,9 @@ const AuthPage = () => {
         if (credentials) {
           socket.emit('login-with-token', credentials.token);
         }
+      }
+      if (!socket){
+        setMessage('错误: 无法连接服务器');
       }
     };
     attemptAutoLogin();
@@ -33,7 +72,6 @@ const AuthPage = () => {
     socket.on('error', handleErrorMessage);
 
 
-
     return () => {
       socket.off('error', handleErrorMessage);
     }
@@ -41,11 +79,10 @@ const AuthPage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!socket) {
-      setMessage('错误: 正在连接服务器...');
-      return;
+    if (socket == null) {
+      setMessage('错误: 无法连接服务器');
     }
-    if (!username || !password) {
+    if (username.trim() === '' || password.trim() === '') {
       setMessage('用户名和密码不能为空。');
       return;
     }

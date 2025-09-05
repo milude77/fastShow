@@ -1,7 +1,13 @@
+.app-wrapper {
+  height: 100vh;
+  padding-top: 32px; /* Height of the title bar */
+  box-sizing: border-box;
+}
+
 .app {
   display: flex;
   width: 100%;
-  height: 100vh;
+  height: 100%; /* Fill the wrapper, not the whole viewport */
   overflow: hidden;
 }
 

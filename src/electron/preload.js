@@ -20,10 +20,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   switchUser: (switchUserId) => ipcRenderer.send('switch-user', switchUserId),
   logout: () => ipcRenderer.send('logout'),
 
+  // --- Window Controls ---
+  minimizeWindow: () => ipcRenderer.send('minimize-window'),
+  maximizeWindow: () => ipcRenderer.send('maximize-window'),
+  closeWindow: () => ipcRenderer.send('close-window'),
+
   // --- Socket.IO IPC ---
   socketEmit: (event, ...args) => {
     ipcRenderer.send('socket-emit', { event, args });
   },
+  getSocketStatus: () => ipcRenderer.invoke('get-socket-status'), // 新增：获取 socket 连接状态
   socketOn: (event, callback) => {
     // This handler is for generic socket events forwarded from the main process
     const genericHandler = (e, data) => {
