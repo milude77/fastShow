@@ -1,7 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Button } from 'antd';
+import { PushpinOutlined, PushpinFilled, MinusOutlined, BorderOutlined, CloseOutlined } from '@ant-design/icons';
 import '../css/appHeaderBar.css';
 
-const AppHeaderBar = () => {
+const AppHeaderBar = ({ style }) => {
+  const [isPinned, setIsPinned] = useState(false);
+
+  const customSetIsPinned = (newIsPinnedState) => {
+    setIsPinned(newIsPinnedState);
+  };
+
+  useEffect(() => {
+    const fetchInitialState = async () => {
+      const initialState = await window.electronAPI.getInitialIsPinned();
+      customSetIsPinned(initialState);
+    };
+
+    fetchInitialState();
+
+    const cleanup = window.electronAPI.onAlwaysOnTopChanged(customSetIsPinned);
+    return cleanup;
+  }, []);
+
   const handleMinimize = () => {
     window.electronAPI.minimizeWindow();
   };
@@ -14,20 +34,17 @@ const AppHeaderBar = () => {
     window.electronAPI.closeWindow();
   };
 
+  const handlePin = () => {
+    window.electronAPI.toggleAlwaysOnTop();
+  };
+
   return (
-    <div className="title-bar">
-      <div className="title-bar-drag-region"></div>
-      <div className="title-bar-title">FastShow</div>
+    <div className="title-bar" style={style}>
       <div className="title-bar-controls">
-        <button className="title-bar-button" id="minimize-btn" onClick={handleMinimize}>
-          &#xE921;
-        </button>
-        <button className="title-bar-button" id="maximize-btn" onClick={handleMaximize}>
-          &#xE922;
-        </button>
-        <button className="title-bar-button" id="close-btn" onClick={handleClose}>
-          &#xE8BB;
-        </button>
+        <Button className='title-bar-button' type="text" icon={isPinned ? <PushpinFilled /> : <PushpinOutlined />} onClick={handlePin} />
+        <Button className='title-bar-button' type="text" icon={<MinusOutlined />} onClick={handleMinimize} />
+        <Button className='title-bar-button' type="text" icon={<BorderOutlined />} onClick={handleMaximize} />
+        <Button className='title-bar-button' type="text" icon={<CloseOutlined />} onClick={handleClose} />
       </div>
     </div>
   );

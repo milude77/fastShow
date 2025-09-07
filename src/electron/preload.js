@@ -24,6 +24,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),
+  toggleAlwaysOnTop: () => ipcRenderer.send('toggle-always-on-top'),
+  getInitialIsPinned: () => ipcRenderer.invoke('get-initial-always-on-top'),
+  onAlwaysOnTopChanged: (callback) => {
+    const handler = (event, isAlwaysOnTop) => callback(isAlwaysOnTop);
+    
+    ipcRenderer.on('always-on-top-changed', handler);
+    
+    return () => {
+      ipcRenderer.removeListener('always-on-top-changed', handler);
+    };
+  },
 
   // --- Socket.IO IPC ---
   socketEmit: (event, ...args) => {

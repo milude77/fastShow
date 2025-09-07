@@ -188,6 +188,7 @@ function createSettingsWindow() {
     const settingsWindow = new BrowserWindow({
         width: 500,
         height: 400,
+        frame: false,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -210,6 +211,7 @@ function createSearchWindow(userId) {
     const searchWindow = new BrowserWindow({
         width: 500,
         height: 400,
+        frame: false,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -233,7 +235,7 @@ function createMainWindow() {
     const mainWindow = new BrowserWindow({
         width: 900,
         height: 600,
-        frame: false, // Hide the default frame
+        frame: false,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -310,6 +312,23 @@ ipcMain.on('close-window', () => {
     }
 });
 
+ipcMain.on('toggle-always-on-top', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender); // 确保操作的是发送消息的窗口
+    if (window) {
+        const isAlwaysOnTop = !window.isAlwaysOnTop();
+        window.setAlwaysOnTop(isAlwaysOnTop);
+        event.sender.send('always-on-top-changed', isAlwaysOnTop);
+    }
+});
+
+ipcMain.handle('get-initial-always-on-top', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+        return window.isAlwaysOnTop();
+    }
+    return false;
+});
+
 ipcMain.on('login-success', (event, userID) => {
     const userDbPath = path.join(app.getPath('userData'), `${userID}`);
 
@@ -367,7 +386,6 @@ ipcMain.on('save-user-credentials-list', (event, credentials) => {
         token: credentials.token
     };
     store.set('userCredentials', originalUserList);
-    console.log('Saved user credentials list:', store.get('userCredentials'));
 });
 
 ipcMain.handle('get-user-credentials-list', () => {

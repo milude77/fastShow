@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import SearchUser from './components/SearchUser';
+import SearchUser from './components/searchUser';
 import { useSocket } from './hooks/useSocket';
+import AppHeaderBar from './components/appHeaderBar';
 
 function SearchApp() {
   const socket = useSocket();
@@ -54,9 +55,8 @@ function SearchApp() {
   };
 
   return (
-    <div className="search-container" style={{ padding: '10px' }}>
-      <h3>好友管理</h3>
-      
+    <div className="search-container">
+      <AppHeaderBar />
       <div style={{ marginBottom: '20px' }}>
         <h4>好友请求</h4>
         {friendRequests.length > 0 ? (

@@ -1,36 +1,23 @@
 .title-bar {
+  position: relative; 
   display: flex;
-  justify-content: space-between;
+  justify-content: end;
   align-items: center;
   height: 32px;
-  background-color: #f0f0f0;
-  color: #333;
-  position: fixed;
+  background-color: white;
   top: 0;
-  left: 0;
   right: 0;
   z-index: 1000;
   user-select: none;
+  width: 100%;
+  -webkit-app-region: drag; 
 }
 
-.title-bar-drag-region {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 96px; /* Width of the 3 buttons */
-  bottom: 0;
-  -webkit-app-region: drag;
-}
-
-.title-bar-title {
-  margin-left: 12px;
-  font-size: 14px;
-  font-family: sans-serif;
-}
 
 .title-bar-controls {
   display: flex;
   height: 100%;
+  right: 0;
 }
 
 .title-bar-button {
@@ -42,6 +29,7 @@
   font-size: 12px;
   cursor: pointer;
   outline: none;
+  -webkit-app-region: no-drag; 
 }
 
 .title-bar-button:hover {

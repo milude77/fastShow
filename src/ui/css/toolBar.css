@@ -7,12 +7,21 @@
 .base-tool-bar {
     display: flex;
     flex-direction: column;
-    height: 80%;
+    flex-grow: 1; 
     width: 100%;
     gap: 20px;
+    padding-top: 20px; 
 }
-.add-function-bar{
-    flex: 1;
+.add-function-bar {
     margin-top: auto;
     margin-bottom: 20px;
+}
+
+.setting-bth {
+    margin-top: auto;
+    margin-bottom: 20px; 
+}
+
+.tool-bar .ant-btn {
+    width: 100%; 
 }

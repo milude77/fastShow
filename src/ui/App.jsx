@@ -8,6 +8,7 @@ import ToolBar from './components/toolBar';
 import AuthPage from './AuthPage';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
+import titleImage from './assets/title.png';
 
 function App() {
   const [selectFeatures, setSelectFeatures] = useState('message');
@@ -74,7 +75,7 @@ function App() {
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting);
     };
-  }, [socket, currentUser ]); // Add currentUser to dependency array
+  }, [socket, currentUser]); // Add currentUser to dependency array
 
   useEffect(() => {
     if (currentUser && socket) {
@@ -132,17 +133,15 @@ function App() {
 
   const handleSendMessage = (message) => {
     if (selectedContact && currentUser && socket) {
-      // Create a temporary message with a unique temporary ID
       const tempId = `temp_${Date.now()}`;
       const newMessage = {
         id: tempId, // Assign temporary ID
         text: message,
         sender: 'user',
         timestamp: new Date().toISOString(),
-        username: currentUser.username // Use current user's name for sent messages
+        username: currentUser.username
       };
 
-      // Add the temporary message to the UI immediately
       setMessages(prev => ({
         ...prev,
         [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
@@ -152,10 +151,8 @@ function App() {
         window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
       }
 
-      // Send the message to the server
       socket.emit('send-private-message', { message, receiverId: selectedContact.id });
 
-      // Clear the draft
       setDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
     }
   };
@@ -183,6 +180,7 @@ function App() {
   const renderFeature = () => {
     switch (selectFeatures) {
       case 'contact':
+        return <ContactList contacts={contacts} onSelectContact={handleSelectContact} />;
       case 'message':
         return <ContactList contacts={contacts} onSelectContact={handleSelectContact} />;
       default:
@@ -213,16 +211,19 @@ function App() {
         />
       );
     }
-    return <div>请选择一个联系人以开始聊天</div>;
+    return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
   };
 
   if (!currentUser) {
-    return <AuthPage />;
+    return (
+      <div>
+        <AppHeaderBar />
+        <AuthPage />
+      </div>);
   }
 
   return (
     <div className="app-wrapper">
-      <AppHeaderBar />
       <div className="app">
         <div className='app-features-bar'>
           <ToolBar setSelectFeatures={setSelectFeatures} />
@@ -232,6 +233,15 @@ function App() {
           {renderFeature()}
         </div>
         <div className='message-box'>
+          <div className='message-box-header' style={{ boxShadow: '0 1px 1px rgba(0, 0, 0, 0.15)' }}>
+            <AppHeaderBar />
+            {selectedContact && selectFeatures == "message" &&
+              <div className='contact-info'>
+                <strong>
+                  {selectedContact.username}
+                </strong>
+              </div>}
+          </div>
           {renderInformationFunctionBar()}
         </div>
       </div>
