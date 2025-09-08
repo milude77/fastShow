@@ -6,6 +6,7 @@ import ContactList from './components/contactList';
 import MessageList from './components/messageList';
 import ToolBar from './components/toolBar';
 import AuthPage from './AuthPage';
+import AddressBook from './components/addressBook';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import titleImage from './assets/title.png';
@@ -179,10 +180,10 @@ function App() {
 
   const renderFeature = () => {
     switch (selectFeatures) {
-      case 'contact':
-        return <ContactList contacts={contacts} onSelectContact={handleSelectContact} />;
       case 'message':
         return <ContactList contacts={contacts} onSelectContact={handleSelectContact} />;
+      case 'contact':
+        return <AddressBook contacts={contacts} />;
       default:
         return <div>默认列表</div>;
     }

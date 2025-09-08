@@ -31,3 +31,9 @@
   padding-left: 20px;
   padding-top: 20px;
 }
+
+.logout-button {
+  position: absolute;
+  right: 20px; 
+  bottom: 20px; 
+}

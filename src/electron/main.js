@@ -411,6 +411,12 @@ ipcMain.on('switch-user', (event, switchUserID) => {
     app.exit();
 });
 
+ipcMain.on('delete-saved-user', (event, removeUserID) => {
+    let userList = store.get('userCredentials') || {};
+    delete userList[removeUserID];
+    store.set('userCredentials', userList);
+});
+
 ipcMain.on('logout', () => {
     store.delete('currentUserCredentials');
     app.relaunch();

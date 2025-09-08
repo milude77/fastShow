@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveUserListCredentials: (credentials) => ipcRenderer.send('save-user-credentials-list', credentials),
   getUserListCredentials: () => ipcRenderer.invoke('get-user-credentials-list'),
   switchUser: (switchUserId) => ipcRenderer.send('switch-user', switchUserId),
+  deleteUser: (removeUserId) => ipcRenderer.send('delete-saved-user', removeUserId),
   logout: () => ipcRenderer.send('logout'),
 
   // --- Window Controls ---
