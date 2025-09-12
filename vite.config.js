@@ -16,7 +16,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        search: resolve(__dirname, 'search.html')
+        search: resolve(__dirname, 'search.html'),
+        settings: resolve(__dirname, 'settings.html'),
+        errorMessage: resolve(__dirname, 'errorMessage.html')
       }
     }
   },

@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 *.sqlite3
+
+release

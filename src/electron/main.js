@@ -4,20 +4,21 @@ import { io } from 'socket.io-client';
 import Store from 'electron-store';
 import knex from 'knex';
 import fs from 'fs';
+import { readFileSync } from 'fs';
 
 const isDev = process.env.NODE_ENV === "development"
 const store = new Store();
 
 // --- Socket.IO Main Process Setup ---
-const SOCKET_SERVER_URL = 'http://localhost:3001';
+const config = JSON.parse(readFileSync('./config.json'));
+const SOCKET_SERVER_URL = config.SOCKET_SERVER_URL;
 let socket;
 let heartbeatInterval;
 let reconnectionTimer;
 let heartbeatTimeout;
 
 function connectSocket() {
-    // Clean up existing socket and timers before creating a new one
-    // Note: Removed redundant socket.disconnect() here as io() creates a new instance.
+
     if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
     }

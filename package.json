@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "main": "src/electron/main.js",
+  "license": "MIT",
   "scripts": {
     "dev": "npm-run-all --parallel dev:react dev:electron",
     "dev:react": "vite",
@@ -13,6 +14,7 @@
     "server": "node server/start.js",
     "test:server": "node test/test-server.js",
     "build": "vite build",
+    "build:electron": "vite build && electron-builder",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -38,11 +40,41 @@
     "@vitejs/plugin-react": "^4.6.0",
     "cross-env": "^10.0.0",
     "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
     "npm-run-all": "^4.1.5",
     "vite": "^7.0.4"
+  },
+  "build": {
+    "appId": "com.example.fastShow",
+    "productName": "fastShow",
+    "files": [
+      "dist/**/*",
+      "src/electron/main.js",
+      "src/electron/preload.js",
+      "index.html",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "uninstallDisplayName": "fastShow Uninstaller",
+      "license": "LICENSE.txt",
+      "oneClick": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
