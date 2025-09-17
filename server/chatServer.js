@@ -46,39 +46,14 @@ io.on('connection', (socket) => {
 
       // 获取当前最大ID，并生成新ID
       const maxIdResult = await db('users').max('id as maxId').first();
-      const nextId = (maxIdResult.maxId || 0) + 1;
-      // 格式化为 6 位字符串，例如 1 -> "000001"
+      const nextId = (+maxIdResult.maxId || 0) + 1;
       const formattedId = String(nextId).padStart(6, '0');
 
       // 插入用户，并指定ID
       await db('users').insert({ id: formattedId, username, password_hash: hashedPassword });
-      const user = { id: formattedId, username }; // 使用格式化后的ID
 
-      // 注册成功后自动登录
-      onlineUsers.set(socket.id, { userId: user.id, username: user.username });
-      socket.emit('user-registered', { userId: user.id, username: user.username });
-      console.log(`${user.username} (ID: ${user.id}) 已注册并登录`);
+      socket.emit('user-registered', { userId: formattedId, username });
 
-      // 检查并发送离线消息 (同登录逻辑)
-      const undeliveredMessages = await db('messages')
-        .where({ receiver_id: user.id, status: 'sent' })
-        .orderBy('timestamp', 'asc');
-
-      for (const msg of undeliveredMessages) {
-        const senderUser = await db('users').where({ id: msg.sender_id }).first();
-        if (senderUser) {
-          socket.emit('new-message', {
-            id: msg.id,
-            username: senderUser.username,
-            text: msg.content,
-            timestamp: msg.timestamp,
-            type: 'private',
-            senderId: msg.sender_id,
-            receiverId: msg.receiver_id
-          });
-          await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
-        }
-      }
 
     } catch (error) {
       console.error('注册用户失败:', error);
@@ -109,11 +84,11 @@ io.on('connection', (socket) => {
       }
 
       // 登录成功
-      const token = jwt.sign({ userId: user.id, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
-      onlineUsers.set(socket.id, { userId: user.id, username: user.username });
-      socket.emit('login-success', { userId: user.id, username: user.username, token });
+      const formattedId = String(user.id).padStart(6, '0');
+      const token = jwt.sign({ userId: formattedId, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
+      onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
+      socket.emit('login-success', { userId: formattedId, username: user.username, token });
 
-      // 检查并发送离线消
 
     } catch (error) {
       console.error('登录失败:', error);
@@ -137,9 +112,12 @@ io.on('connection', (socket) => {
         socket.emit('error', { message: '无效的Token' });
         return;
       }
-      const newToken = jwt.sign({ userId: user.id, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
-      onlineUsers.set(socket.id, { userId: user.id, username: user.username });
-      socket.emit('login-success', { userId: user.id, username: user.username, newToken });
+
+      const formattedId = String(user.id).padStart(6, '0');
+
+      const newToken = jwt.sign({ userId: formattedId, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
+      onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
+      socket.emit('login-success', { userId: formattedId, username: user.username, newToken });
     } catch (error) {
       console.error('登录失败:', error);
       if (error.name === 'TokenExpiredError'){
@@ -260,17 +238,21 @@ io.on('connection', (socket) => {
       const friendIds = friendships.map(f => f.user_id === senderInfo.userId ? f.friend_id : f.user_id);
 
       if (friendIds.length === 0) {
-        socket.emit('friends-list', []);
+        socket.emit('friends-list', {});
         return;
       }
 
       const friends = await db('users').whereIn('id', friendIds).select('id', 'username');
       const onlineUserIds = new Set(Array.from(onlineUsers.values()).map(u => u.userId));
 
-      const friendsWithStatus = friends.map(friend => ({
-        ...friend,
-        isOnline: onlineUserIds.has(friend.id)
-      }));
+      const friendsWithStatus = friends.reduce((acc, friend) => {
+        acc[friend.id] = {
+          id: friend.id,
+          username: friend.username,
+          isOnline: onlineUserIds.has(friend.id)
+        };
+        return acc;
+      }, {});
 
       socket.emit('friends-list', friendsWithStatus);
     } catch (error) {
@@ -491,3 +473,4 @@ process.on('SIGTERM', () => {
 });
 
 export default app;
+
