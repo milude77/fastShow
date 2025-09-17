@@ -4,7 +4,7 @@ import { UserOutlined, TeamOutlined, CaretRightOutlined } from '@ant-design/icon
 
 const { Panel } = Collapse;
 
-const AddressBook = ({ contacts = null, groups = null }) => {
+const AddressBook = ({ contacts = null, groups = null, onSelectContact }) => {
 
   return (
     <div style={{ paddingTop: '20px' }}>
@@ -21,9 +21,9 @@ const AddressBook = ({ contacts = null, groups = null }) => {
           </div>
         } key="1" className="site-collapse-custom-panel">
           {/* 这里可以放置好友列表 */}
-          {contacts && contacts.length > 0 ? (
-            contacts.map(contact => (
-              <div key={contact.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {contacts && Object.keys(contacts).length > 0 ? (
+            Object.values(contacts).map((contact) => (
+              <div key={contact.id} onClick={() => { onSelectContact(contact.id)}} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>{contact.username}</span>
                 {contact.isOnline ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>}
               </div>

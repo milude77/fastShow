@@ -17,6 +17,7 @@ let heartbeatInterval;
 let reconnectionTimer;
 let heartbeatTimeout;
 
+
 function connectSocket() {
 
     if (heartbeatInterval) {

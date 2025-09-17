@@ -5,7 +5,7 @@ import { Button } from 'antd';
 const LastLoginUser = ({ credentials, onLogin, message }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', backgroundColor: 'white', width: '300px' }}>
-      <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '20px'}}>快速登录</span>
+      <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '20px' }}>快速登录</span>
       <span>ID ：{credentials.userId}</span>
       <span>{credentials.userName}</span>
       <Button
@@ -15,7 +15,7 @@ const LastLoginUser = ({ credentials, onLogin, message }) => {
       >
         登录
       </Button>
-      {message && <span style={{ color: 'red', marginTop: '10px'}}>{message}</span>}
+      {message && <span style={{ color: 'red', marginTop: '10px' }}>{message}</span>}
     </div>
   )
 }
@@ -24,6 +24,7 @@ const AuthPage = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(true);
   const [lastLoginUser, setLastLoginUser] = useState(null);
@@ -85,6 +86,16 @@ const AuthPage = () => {
 
   useEffect(() => {
 
+    const handleRegisterSuccess = (data) => {
+      setIsRegistering(false);
+      setMessage('');
+      setUsername('');
+      setPassword('');
+      setConfirmPassword('');
+      window.electronAPI.showErrowMessage("注册成功，您的账号ID为: " + data.userId);
+    };
+
+
     const handleErrorMessage = (message) => {
       setShowAttemptAutoLogin(false);
       setMessage(message.message);
@@ -92,10 +103,12 @@ const AuthPage = () => {
     };
 
     socket.on('error', handleErrorMessage);
+    socket.on('user-registered', handleRegisterSuccess);
 
 
     return () => {
       socket.off('error', handleErrorMessage);
+      socket.off('user-registered', handleRegisterSuccess);
     }
   }, [socket]);
 
@@ -106,6 +119,11 @@ const AuthPage = () => {
     }
     if (username.trim() === '' || password.trim() === '') {
       setMessage('用户名和密码不能为空。');
+      return;
+    }
+
+    if (isRegistering && password !== confirmPassword) {
+      setMessage('两次输入的密码不一致。');
       return;
     }
 
@@ -153,6 +171,12 @@ const AuthPage = () => {
               onChange={(e) => setPassword(e.target.value)}
               style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
             />
+            {isRegistering && (<input type="password"
+              placeholder="确认密码"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+            />)}
             <button
               type="submit"
               style={{ padding: '10px', borderRadius: '4px', border: 'none', backgroundColor: '#007bff', color: 'white', fontSize: '16px', cursor: 'pointer' }}
@@ -168,6 +192,7 @@ const AuthPage = () => {
                 setMessage('');
                 setUsername('');
                 setPassword('');
+                setConfirmPassword('');
               }}
               style={{ color: '#007bff', cursor: 'pointer', marginLeft: '5px' }}
             >

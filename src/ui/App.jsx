@@ -4,6 +4,7 @@ import './css/App.css';
 import AppHeaderBar from './components/appHeaderBar';
 import ContactList from './components/contactList';
 import MessageList from './components/messageList';
+import ContactInformation from './components/contactInformation';
 import ToolBar from './components/toolBar';
 import AuthPage from './AuthPage';
 import AddressBook from './components/addressBook';
@@ -14,11 +15,12 @@ import titleImage from './assets/title.png';
 function App() {
   const [selectFeatures, setSelectFeatures] = useState('message');
   const [selectedContact, setSelectedContact] = useState(null);
+  const [selectedContactInformation, setSelectedContactInformation] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [messages, setMessages] = useState({});
   const [drafts, setDrafts] = useState({});
   const [messagePages, setMessagePages] = useState({});
-  const [contacts, setContacts] = useState([]);
+  const [contacts, setContacts] = useState({});
 
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
@@ -54,7 +56,6 @@ function App() {
     const handleReconnecting = () => setConnectionStatus('reconnecting');
 
     socket.on('login-success', handleLoginSuccess);
-    socket.on('user-registered', handleLoginSuccess);
     socket.on('new-message', handleNewMessage);
     socket.on('friends-list', handleFriendsList);
     socket.on('friend-request-accepted', friendsRequestAccepted);
@@ -76,8 +77,9 @@ function App() {
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting);
     };
-  }, [socket, currentUser]); // Add currentUser to dependency array
+  }, [socket, currentUser]);
 
+  // 获取好友列表并发送离线消息
   useEffect(() => {
     if (currentUser && socket) {
       socket.emit('get-friends');
@@ -123,13 +125,17 @@ function App() {
       };
     });
   };
-  const handleSelectContact = async (contact) => {
+  const handleMessageListSelectContact = async (contact) => {
     setSelectedContact(contact);
     setMessagePages({ [contact.id]: 1 });
     if (window.electronAPI && currentUser) {
       const localHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 1, 20);
       setMessages(prev => ({ ...prev, [contact.id]: localHistory }));
     }
+  };
+
+  const handleAddressBookSelectContact = (contact) => {
+    setSelectedContactInformation(contact);
   };
 
   const handleSendMessage = (message) => {
@@ -178,12 +184,17 @@ function App() {
     }
   };
 
+  const handleToSendMessage = (contact) => {
+    setSelectFeatures('message')
+    setSelectedContact(contact)
+  }
+
   const renderFeature = () => {
     switch (selectFeatures) {
       case 'message':
-        return <ContactList contacts={contacts} onSelectContact={handleSelectContact} />;
+        return <ContactList contacts={contacts} onSelectContact={handleMessageListSelectContact} />;
       case 'contact':
-        return <AddressBook contacts={contacts} />;
+        return <AddressBook contacts={contacts} onSelectContact={handleAddressBookSelectContact} />;
       default:
         return <div>默认列表</div>;
     }
@@ -211,6 +222,13 @@ function App() {
           onLoadMore={() => loadMoreMessages(selectedContact.id)}
         />
       );
+    }
+    if (selectFeatures === 'contact' && selectedContactInformation) {
+      return (
+        <ContactInformation
+          contactInformation={contacts[selectedContactInformation]}
+          toSendMessage={handleToSendMessage}
+        />);
     }
     return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
   };

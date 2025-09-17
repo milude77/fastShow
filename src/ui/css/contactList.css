@@ -10,24 +10,31 @@
 .contact-item {
     height: 64px;
     width: 100%;
-    background-color: aqua;
     display: flex;
     text-align: center;
     flex-direction: column;
-    border-bottom: 1px solid black;
     justify-content: center; /* 垂直居中 */
     padding-left: 10px; /* 左侧内边距 */
     box-sizing: border-box; /* 包含内边距和边框在宽度内 */
     position: relative; /* 用于定位在线状态 */
 }
 
+.contact-item:hover {
+    background-color: #f5f5f5;
+}
+
+.contact-item.selected{
+    background-color: aqua;
+    border-bottom: #cacaca 1px solid;
+}
+
 .contact-item span {
-    margin-left: 10px; /* 在线状态与用户名之间留白 */
+    margin-left: 10px;
     font-size: 0.8em;
-    position: absolute; /* 绝对定位 */
-    right: 10px; /* 距离右侧 10px */
-    top: 50%; /* 垂直居中 */
-    transform: translateY(-50%); /* 精确垂直居中 */
+    position: absolute; 
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%); 
 }
 
 .online-indicator {

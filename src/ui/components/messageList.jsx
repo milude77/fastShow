@@ -69,9 +69,6 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 
     return (
         <>
-            <div className="message-header">
-                <h3>{contact.name}</h3>
-            </div>
             <div className='history-message-box' ref={messageContainerRef} onScroll={handleScroll}>
                 {isLoadingMore && <div className="loading-spinner">Loading...</div>}
                 <ul className='message-list'>
