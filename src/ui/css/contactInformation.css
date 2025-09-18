@@ -2,6 +2,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  background-color: var(--background-color);
+  color: var(--text-color);
   align-items: center;
   justify-content: center;
   height: 100%;

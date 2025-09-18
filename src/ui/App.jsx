@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Alert } from 'antd';
+import { Alert, Button } from 'antd';
 import './css/App.css';
+import './css/dark-mode.css';
 import AppHeaderBar from './components/appHeaderBar';
 import ContactList from './components/contactList';
 import MessageList from './components/messageList';
@@ -13,6 +14,7 @@ import { useSocket } from './hooks/useSocket';
 import titleImage from './assets/title.png';
 
 function App() {
+  const [darkMode, setDarkMode] = useState(false);
   const [selectFeatures, setSelectFeatures] = useState('message');
   const [selectedContact, setSelectedContact] = useState(null);
   const [selectedContactInformation, setSelectedContactInformation] = useState(null);
@@ -25,7 +27,17 @@ function App() {
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
 
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
 
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [darkMode]);
   useEffect(() => {
     if (!socket) return;
 
@@ -192,9 +204,16 @@ function App() {
   const renderFeature = () => {
     switch (selectFeatures) {
       case 'message':
-        return <ContactList contacts={contacts} onSelectContact={handleMessageListSelectContact} />;
+        return <ContactList
+          selectedContact={selectedContact}
+          contacts={contacts}
+          onSelectContact={handleMessageListSelectContact}
+        />;
       case 'contact':
-        return <AddressBook contacts={contacts} onSelectContact={handleAddressBookSelectContact} />;
+        return <AddressBook
+          contacts={contacts}
+          onSelectContact={handleAddressBookSelectContact}
+        />;
       default:
         return <div>默认列表</div>;
     }
@@ -245,7 +264,11 @@ function App() {
     <div className="app-wrapper">
       <div className="app">
         <div className='app-features-bar'>
-          <ToolBar setSelectFeatures={setSelectFeatures} />
+          <ToolBar
+            setSelectFeatures={setSelectFeatures}
+            isDarkMode={darkMode}
+            toggleDarkMode={toggleDarkMode}
+          />
         </div>
         <div className='contact-list'>
           {renderConnectionStatus()}

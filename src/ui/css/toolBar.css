@@ -2,6 +2,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    background-color: var(--background-color);
+    color: var(--text-color);
 }
 
 .base-tool-bar {
@@ -19,7 +21,9 @@
 
 .setting-bth {
     margin-top: auto;
-    margin-bottom: 20px; 
+    margin-bottom: 20px;
+    background-color: var(--background-color);
+    color: var(--text-color);
 }
 
 .tool-bar .ant-btn {

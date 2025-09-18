@@ -1,12 +1,9 @@
 import '../css/contactList.css';
-import { useState, React } from 'react';
 
-const ContactList = ({ contacts, onSelectContact }) => {
+const ContactList = ({ contacts,selectedContact, onSelectContact }) => {
 
-  const [selectedContact, setSelectedContact] = useState(null);
 
   const handleSelectContact = (contact) => {
-    setSelectedContact(contact);
     onSelectContact(contact);
   }
 

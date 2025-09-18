@@ -1,3 +1,13 @@
+:root {
+  --background-color: white;
+  --text-color: black;
+}
+
+.dark-mode {
+  --background-color: #333;
+  --text-color: white;
+}
+
 .app-wrapper {
   height: 100vh;
   box-sizing: border-box;
@@ -16,7 +26,7 @@
   width: 50px;
   flex-direction: column;
   padding-top: 30px;
-  background-color: rgb(238, 238, 238);
+  background-color: var(--background-color);
 }
 
 .message-box-header{
@@ -46,6 +56,6 @@
   flex: 1; 
   background-size: contain; 
   background-repeat: no-repeat; 
-  background-position: center; 
-  opacity: 0.1; 
+  background-position: center;
+  opacity: 0.1;
 }

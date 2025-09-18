@@ -4,10 +4,11 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   width: 100%;
-  overflow: hidden; 
+  overflow: hidden;
 }
 
 :root {
@@ -15,14 +16,24 @@ html, body {
   line-height: 1.5;
   font-weight: 400;
   margin: 0;
-
+  --background-color: white;
+  --text-color: black;
   color-scheme: light dark;
-  color: black;
-  background-color: white;
-
-  font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --history-message-user-color: #d5f6c1;
+  --history-message-other-color: rgb(230, 229, 229);
+  --selected-contact-background-color: #42b7ed;
+  --hover-contact-background-color: #d6d6d6;
+}
+
+body.dark-mode {
+  --history-message-user-color: #656464;
+  --history-message-other-color: #4a4a4a;
+  --hover-contact-background-color: #727272;
+  --selected-contact-background-color: #1182b6;
+  --background-color: #333;
+  --text-color: white;
 }
 

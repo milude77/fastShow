@@ -1,0 +1,32 @@
+.address-book-container {
+  padding-top: 20px;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.address-book-header {
+  display: flex;
+  align-items: center;
+}
+
+.address-book-header-icon {
+  margin-right: 8px;
+}
+
+.address-book-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.address-book-no-data {
+  padding-left: 24px;
+}
+
+.online-indicator {
+  color: green;
+}
+
+.offline-indicator {
+  color: gray;
+}
