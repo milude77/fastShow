@@ -5,6 +5,9 @@ import Store from 'electron-store';
 import knex from 'knex';
 import fs from 'fs';
 import { readFileSync } from 'fs';
+import fetch from 'node-fetch';
+import { console } from 'inspector/promises';
+
 
 const isDev = process.env.NODE_ENV === "development"
 const store = new Store();
@@ -119,6 +122,10 @@ async function initializeDatabase(db) {
                 table.timestamp('timestamp').defaultTo(db.fn.now());
                 table.string('username').notNullable();
                 table.string('sender').notNullable().defaultTo('user');
+                table.string('messageType').defaultTo('text')
+                table.string('fileName').nullable()
+                table.string('fileUrl').nullable()
+                table.string('fileSize').nullable()
             });
         }
     }
@@ -160,6 +167,7 @@ async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20
 async function writeChatHistory(contactId, currentUserID, msg) {
     const exists = await db.schema.hasTable('messages');
     if  (!exists) return 
+    console.log('writeChatHistory', msg)
     try {
         await db('messages').insert({
             id: msg.id,
@@ -168,22 +176,28 @@ async function writeChatHistory(contactId, currentUserID, msg) {
             text: msg.text,
             username: msg.username,
             timestamp: msg.timestamp,
-            sender: msg.sender
+            sender: msg.sender,
+            messageType: msg.messageType ? msg.messageType : 'text',
+            fileName: msg.fileName ? msg.fileName : null,
+            fileUrl: msg.fileUrl ? msg.fileUrl : null,
+            fileSize: msg.fileSize ? msg.fileSize : null
         });
     }catch (error) {
         console.error(`Failed to write chat history for contact ${contactId}:`, error);
     }
 }
-    // await db.schema.createTable('messages', (table) => {
-    //     table.string('id').primary();
-    //     table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
-    //     table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
-    //     table.text('text').notNullable();
-    //     table.timestamp('timestamp').defaultTo(db.fn.now());
-    //     table.string('username').notNullable();
-    //     table.string('sender').notNullable().defaultTo('user');
-    // });
-    
+        // table.string('id').primary();
+        // table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
+        // table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
+        // table.text('text').notNullable();
+        // table.timestamp('timestamp').defaultTo(db.fn.now());
+        // table.string('username').notNullable();
+        // table.string('sender').notNullable().defaultTo('user');
+        // table.string('messageType').defaultTo('text')
+        // table.string('fileName').nullable()
+        // table.string('fileUrl').nullable()
+        // table.string('fileSize').nullable()
+
 
 
 function createSettingsWindow() {
@@ -437,6 +451,34 @@ ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
         event.sender.send('socket-error', 'Socket not connected');
     }
 });
+
+
+ipcMain.handle('upload-file', async (event, {contactId, currentUserID, fileName, fileContent }) => {
+    try {
+        const response = await fetch(`${SOCKET_SERVER_URL}/api/upload`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fileName,
+                fileContent,
+                receiverId: contactId,
+                senderId: currentUserID
+            })
+        });
+        if (!response.ok) {
+            throw new Error('文件上传失败');
+        }
+
+        const result = await response.json();
+        return { success: true, filePath: result.filePath };
+    } catch (error) {
+        console.error('Failed to upload file:', error);
+        return { success: false, error: error.message };
+    }
+});
+
 
 // IPC handler to get current socket connection status
 ipcMain.handle('get-socket-status', () => {

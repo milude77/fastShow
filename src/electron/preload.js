@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   chatMessage: (contactId, currentUserID, msg) => ipcRenderer.send('chat-message', { contactId, currentUserID, msg }),
+  uploadFile: (contactId, currentUserID, fileName, fileContent) => ipcRenderer.invoke('upload-file', { contactId, currentUserID, fileName, fileContent }),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize }),
   openSearchWindow: (userId) => ipcRenderer.send('open-search-window', userId),
@@ -43,16 +44,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getSocketStatus: () => ipcRenderer.invoke('get-socket-status'), // 新增：获取 socket 连接状态
   socketOn: (event, callback) => {
-    // This handler is for generic socket events forwarded from the main process
     const genericHandler = (e, data) => {
-      // Check if the event name matches what the listener is for
       if (data.event === event) {
-        // If there are args, spread them. Otherwise, send the whole data object.
-        // This handles both regular socket events and our custom status events.
         if (data.args) {
           callback(...data.args);
         } else {
-          callback(data); // Pass the whole object for events like 'disconnect'
+          callback(data); 
         }
       }
     };

@@ -1,11 +1,20 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import knex from 'knex';
 import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
-import bcrypt from 'bcrypt'; // 导入 bcrypt
-import jwt from 'jsonwebtoken'; // 导入 jsonwebtoken
+import bcrypt from 'bcrypt'; 
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto'; 
+
+
+// 获取当前文件的目录路径（ES模块中需要这样处理）
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 初始化 Knex 数据库连接
 const db = knex(knexConfig.development);
@@ -21,7 +30,7 @@ const io = new Server(server, {
 
 // 中间件
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increase the limit to 50mb or adjust as needed
 
 // 存储在线用户和聊天室信息
 // onlineUsers: socketId -> { userId, username }
@@ -30,7 +39,97 @@ const onlineUsers = new Map();
 // Socket.IO 连接处理
 console.log('Socket.IO server initialized, waiting for connections...'); // 新增日志
 io.on('connection', (socket) => {
-  console.log(`用户连接: ${socket.id}`); // 这个日志应该在连接成功时显示
+// 文件上传处理
+app.post('/api/upload', async (req, res) => {
+  const { fileName, fileContent, receiverId, senderId } = req.body;
+  if (!fileName || !fileContent || !receiverId || !senderId) {
+    return res.status(400).json({ error: '所有字段都是必需的' });
+  }
+
+
+  try {
+    // 生成唯一的文件ID和文件名
+    const fileId = crypto.randomBytes(8).toString('hex');
+    const fileExtension = path.extname(fileName);
+    const safeFileName = `${fileId}_${Date.now()}${fileExtension}`;
+    
+    // 确保上传目录存在
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)){
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    // 保存文件
+    const filePath = path.join(uploadDir, safeFileName);
+    const fileBuffer = Buffer.from(fileContent, 'base64');
+    fs.writeFileSync(filePath, fileBuffer);
+    
+    // 获取文件大小
+    const fileSize = fileBuffer.length;
+    
+    // 检查接收者是否存在
+    const receiverUser = await db('users').where({ id: receiverId }).first();
+    if (!receiverUser) {
+      return res.status(404).json({ error: `用户ID ${receiverId} 不存在` });
+    }
+
+    // 创建文件消息记录
+    const newMessage = {
+      sender_id: senderId,
+      receiver_id: receiverId,
+      content: `[文件] ${fileName}`,
+      room_id: `private_${Math.min(receiverId, senderId)}_${Math.max(receiverId, senderId)}`,
+      message_type: 'file',
+      file_name: fileName,
+      file_path: safeFileName,
+      file_url: `/api/download/${fileId}`,
+      file_size: fileSize,
+      file_id: fileId,
+      timestamp: new Date(),
+      status: 'sent'
+    };
+
+    // 存储消息到数据库
+    const [messageId] = await db('messages').insert(newMessage);
+    
+    // 构建要发送的消息对象
+    const savedMessage = {
+      id: messageId,
+      content: newMessage.content,
+      timestamp: newMessage.timestamp,
+      senderId: newMessage.sender_id,
+      receiverId: newMessage.receiver_id,
+      senderUsername: senderId, 
+      receiverUsername: receiverUser.username,
+      type: 'private',
+      messageType: 'file',
+      fileName: fileName,
+      fileUrl: newMessage.file_url,
+      fileSize: fileSize,
+      fileId: fileId
+    };
+
+    // 返回成功响应
+    res.status(200).json({ message: '文件上传成功', messageData: savedMessage });
+
+    // 查找接收方是否在线
+    const targetSocketId = Array.from(onlineUsers.entries())
+      .find(([, uInfo]) => uInfo.userId === receiverId)?.[0];
+
+    if (targetSocketId) {
+      // 接收方在线，直接发送
+      io.to(targetSocketId).emit('new-message', savedMessage);
+      await db('messages').where({ id: messageId }).update({ status: 'delivered' });
+    } else {
+      // 接收方离线，消息状态保持 'sent' (待投递)
+      console.log(`用户 ${receiverUser.username} 离线，文件消息将等待上线后投递`);
+    }
+  } catch (error) {
+    console.error('文件上传失败:', error);
+    res.status(500).json({ error: '文件上传失败，请稍后再试' });
+  }
+});
+  console.log(`用户连接: ${socket.id}`); 
 
   // 用户注册
   socket.on('register-user', async (data) => {
@@ -143,7 +242,11 @@ io.on('connection', (socket) => {
           timestamp: msg.timestamp,
           type: 'private',
           senderId: msg.sender_id,
-          receiverId: msg.receiver_id
+          receiverId: msg.receiver_id,
+          messageType: msg.message_type,
+          fileName: msg.file_name,
+          fileUrl: msg.file_url,
+          fileSize: msg.file_size,
         });
         await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
       }
@@ -173,7 +276,7 @@ io.on('connection', (socket) => {
     const newMessage = {
       sender_id: senderInfo.userId,
       receiver_id: receiverUser.id,
-      room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`, // 确定性私聊房间ID
+      room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`, 
       content: message,
       timestamp: new Date(),
       status: 'sent'
@@ -396,6 +499,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// 静态文件服务（用于文件下载）
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // REST API 端点
 app.get('/api/health', (req, res) => {
   res.json({
@@ -405,53 +511,39 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/users', async (req, res) => {
+// 文件下载接口
+app.get('/api/download/:fileId', async (req, res) => {
+  const { fileId } = req.params;
+  
   try {
-    const usersList = await db('users').select('id', 'username');
-    const onlineUserIds = new Set(Array.from(onlineUsers.values()).map(u => u.userId));
-
-    const usersWithStatus = usersList.map(user => ({
-      ...user,
-      isOnline: onlineUserIds.has(user.id)
-    }));
-    res.json(usersWithStatus);
+    // 从数据库查找文件信息
+    const fileMessage = await db('messages')
+      .where({ file_id: fileId, message_type: 'file' })
+      .first();
+    
+    if (!fileMessage) {
+      return res.status(404).json({ error: '文件不存在' });
+    }
+    
+    // 构建文件路径
+    const filePath = path.join(__dirname, 'uploads', fileMessage.file_path);
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: '文件不存在' });
+    }
+    
+    // 设置响应头
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileMessage.file_name)}"`);
+    res.setHeader('Content-Type', fileMessage.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Length', fileMessage.file_size);
+    
+    // 发送文件
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
   } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: '无法获取用户列表' });
-  }
-});
-
-app.get('/api/messages/:user1Id/:user2Id', async (req, res) => {
-  const { user1Id, user2Id } = req.params;
-  const roomId = `private_${Math.min(user1Id, user2Id)}_${Math.max(user1Id, user2Id)}`;
-
-  try {
-    const messages = await db('messages')
-      .where({ room_id: roomId })
-      .orderBy('timestamp', 'asc')
-      .limit(100); // 返回最近100条消息
-
-    const messagesWithUsernames = await Promise.all(messages.map(async msg => {
-      const sender = await db('users').where({ id: msg.sender_id }).first();
-      const receiver = await db('users').where({ id: msg.receiver_id }).first();
-      return {
-        id: msg.id,
-        senderId: msg.sender_id,
-        senderUsername: sender ? sender.username : 'Unknown',
-        receiverId: msg.receiver_id,
-        receiverUsername: receiver ? receiver.username : 'Unknown',
-        content: msg.content,
-        timestamp: msg.timestamp,
-        type: msg.type,
-        status: msg.status,
-        roomId: msg.room_id
-      };
-    }));
-
-    res.json(messagesWithUsernames);
-  } catch (error) {
-    console.error(`Error fetching messages for private chat between ${user1Id} and ${user2Id}:`, error);
-    res.status(500).json({ error: '无法获取私聊消息' });
+    console.error('文件下载失败:', error);
+    res.status(500).json({ error: '文件下载失败' });
   }
 });
 

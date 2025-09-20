@@ -106,6 +106,7 @@ function App() {
     }
 
     const contactId = msg.senderId;
+    console.log('new message:', msg);
 
 
     // When receiving a message from others, save it to local history.
@@ -115,7 +116,11 @@ function App() {
         text: msg.content,
         sender: 'other',
         timestamp: new Date(msg.timestamp).toISOString(),
-        username: msg.username
+        username: msg.username,
+        fileName: msg.fileName,
+        messageType: msg.messageType,
+        fileUrl: msg.fileUrl,
+        fileSize: msg.fileSize,
       }
       if (window.electronAPI) {
         window.electronAPI.chatMessage(contactId, currentUser.userId, newMessage);
@@ -196,6 +201,86 @@ function App() {
     }
   };
 
+  const handleUploadFile = async ({ fileName, fileContent }) => {
+    if (currentUser && selectedContact) {
+      try {
+        const result = await window.electronAPI.uploadFile(
+          selectedContact.id,
+          currentUser.userId,
+          fileName,
+          fileContent,
+        );
+
+        if (!result.success) {
+          throw new Error('文件上传失败');
+        }
+
+        const newMessage = {
+          id: `file_${Date.now()}`,
+          text: '',
+          sender: 'user',
+          timestamp: new Date().toISOString(),
+          username: currentUser.username,
+          messageType: 'file',
+          fileName: fileName,
+          fileUrl: result.filePath,
+          fileSize: fileContent.length
+        };
+
+        setMessages(prev => ({
+          ...prev,
+          [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
+        }));
+
+        // 保存到本地历史
+        if (window.electronAPI) {
+          window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
+        }
+      } catch (error) {
+        console.error('文件上传失败:', error);
+      }
+    }
+  };
+
+  // 监听文件上传成功事件
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleFileUploaded = (data) => {
+      const { messageData } = data;
+      if (messageData && selectedContact) {
+        // 将文件消息添加到消息列表
+        const newFileMessage = {
+          id: messageData.id,
+          text: messageData.content,
+          sender: 'user',
+          timestamp: new Date(messageData.timestamp).toISOString(),
+          username: currentUser.username,
+          messageType: 'file',
+          fileName: messageData.fileName,
+          fileUrl: messageData.fileUrl,
+          fileSize: messageData.fileSize,
+        };
+
+        setMessages(prev => ({
+          ...prev,
+          [selectedContact.id]: [...(prev[selectedContact.id] || []), newFileMessage]
+        }));
+
+        // 保存到本地历史
+        if (window.electronAPI) {
+          window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newFileMessage);
+        }
+      }
+    };
+
+    socket.on('file-uploaded', handleFileUploaded);
+
+    return () => {
+      socket.off('file-uploaded', handleFileUploaded);
+    };
+  }, [socket, currentUser, selectedContact]);
+
   const handleToSendMessage = (contact) => {
     setSelectFeatures('message')
     setSelectedContact(contact)
@@ -239,6 +324,7 @@ function App() {
           onDraftChange={handleDraftChange}
           onSendMessage={handleSendMessage}
           onLoadMore={() => loadMoreMessages(selectedContact.id)}
+          onUploadFile={handleUploadFile}
         />
       );
     }
