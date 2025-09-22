@@ -18,17 +18,17 @@ const ToolBar = ({ setSelectFeatures, isDarkMode, toggleDarkMode }) => {
     return (
         <div className='tool-bar'>
             <div className='base-tool-bar'>
-                <Button type="link" title='消息' icon = { <MessageOutlined /> } onClick={() => setSelectFeatures('message')}></Button>
-                <Button type="link" title='联系人' icon = { <TeamOutlined /> } onClick={() => setSelectFeatures('contact')}></Button>
+                <Button style={{color: 'var(--text-color)'}} type="link" title='消息' icon = { <MessageOutlined /> } onClick={() => setSelectFeatures('message')}></Button>
+                <Button style={{color: 'var(--text-color)'}} type="link" title='联系人' icon = { <TeamOutlined /> } onClick={() => setSelectFeatures('contact')}></Button>
             </div>
             <div className='change-theme-bar'>
-                <Button type='link' icon={ isDarkMode ? <SunOutlined /> : <MoonOutlined /> } onClick={() => toggleDarkMode()}></Button>
+                <Button style={{color: 'var(--text-color)'}} type='link' icon={ isDarkMode ? <SunOutlined /> : <MoonOutlined /> } onClick={() => toggleDarkMode()}></Button>
             </div>
             <div className='add-function-bar'>
-                <Button type="link" title='添加' icon = { <UsergroupAddOutlined /> } onClick={handleAddContactClick}></Button>
+                <Button style={{color: 'var(--text-color)'}} type="link" title='添加' icon = { <UsergroupAddOutlined /> } onClick={handleAddContactClick}></Button>
             </div>
             <div className='setting-bth'>
-                <Button type="link" title='设置' icon = { <SettingOutlined /> } onClick={() => window.electronAPI.openSettingsWindow()}></Button>
+                <Button style={{color: 'var(--text-color)'}} type="link" title='设置' icon = { <SettingOutlined /> } onClick={() => window.electronAPI.openSettingsWindow()}></Button>
             </div>
         </div>
     );

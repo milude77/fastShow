@@ -106,7 +106,6 @@ function App() {
     }
 
     const contactId = msg.senderId;
-    console.log('new message:', msg);
 
 
     // When receiving a message from others, save it to local history.
@@ -137,7 +136,11 @@ function App() {
           text: msg.content,
           sender: 'other',
           timestamp: msg.timestamp,
-          username: contacts
+          username: msg.username,
+          messageType: msg.messageType,
+          fileName: msg.fileName,
+          fileUrl: msg.fileUrl,
+          fileSize: msg.fileSize,
         }]
       };
     });
@@ -159,9 +162,10 @@ function App() {
     if (selectedContact && currentUser && socket) {
       const tempId = `temp_${Date.now()}`;
       const newMessage = {
-        id: tempId, // Assign temporary ID
+        id: tempId, 
         text: message,
         sender: 'user',
+        messageType: 'text',
         timestamp: new Date().toISOString(),
         username: currentUser.username
       };
@@ -182,6 +186,7 @@ function App() {
   };
 
   const handleDraftChange = (contactId, text) => {
+    console.log(drafts)
     setDrafts(prev => ({ ...prev, [contactId]: text }));
   };
 

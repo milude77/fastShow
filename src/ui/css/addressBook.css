@@ -15,8 +15,16 @@
 
 .address-book-item {
   display: flex;
+  align-items: center;
+  text-align: center;
+  padding-bottom: 20px;
   justify-content: space-between;
   align-items: center;
+  text-align: center;
+}
+
+.address-book-item:hover {
+  background-color: var(--hover-contact-background-color);
 }
 
 .address-book-no-data {

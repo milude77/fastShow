@@ -23,7 +23,7 @@ const AddressBook = ({ contacts = null, groups = null, onSelectContact }) => {
         } key="1" className="site-collapse-custom-panel">
           {contacts && Object.keys(contacts).length > 0 ? (
             Object.values(contacts).map((contact) => (
-              <div key={contact.id} onClick={() => { onSelectContact(contact.id) }} className="address-book-item">
+              <div className="address-book-item" key={contact.id} onClick={() => { onSelectContact(contact.id) }}>
                 <span style={{ color: 'var(--text-color)' }}>{contact.username}</span>
                 {contact.isOnline ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>}
               </div>

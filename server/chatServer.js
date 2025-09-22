@@ -236,7 +236,7 @@ app.post('/api/upload', async (req, res) => {
       const senderUser = await db('users').where({ id: msg.sender_id }).first();
       if (senderUser) {
         socket.emit('new-message', {
-          id: msg.id,
+          id: `temp_${Date.now()}`,
           username: senderUser.username,
           content: msg.content,
           timestamp: msg.timestamp,

@@ -3,7 +3,53 @@ import { Modal, Card, Button } from 'antd';
 import '../css/messageList.css';
 import { DownloadOutlined } from '@ant-design/icons';
 
+const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) => {
+    const [draft, setDraft] = useState(savedDraft || '');
+
+    const deDounce = (func, delay) => {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        }
+    }
+    const handleDraftChange = (event) => {
+        setDraft(event.target.value);
+        deDounce(onDraftChange(contactID, event.target.value), 500);
+    };
+
+    const handleSendMessage = (message) => {
+        if (message.trim() !== '') {
+            onSendMessage(message);
+            setDraft('');
+        }
+    };
+
+    const handleKeyDown = (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            handleSendMessage(draft);
+        }
+    };
+
+    return (
+        <>
+            <textarea
+                className='message-input-box'
+                type="text"
+                value={draft}
+                onChange={handleDraftChange}
+                onKeyDown={handleKeyDown}
+            />
+            <button className='message-send-btn' onClick={() => handleSendMessage(draft)}>发送</button>
+        </>
+    );
+};
+
 const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onLoadMore, onUploadFile }) => {
+
 
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
@@ -20,8 +66,46 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     const [prevScrollHeight, setPrevScrollHeight] = useState(null);
     const [modal, modalContextHolder] = Modal.useModal();
 
+    const [inputHeight, setInputHeight] = useState(60); // 初始高度与原CSS一致
+    const isResizingRef = useRef(false);
+    const startYRef = useRef(0);
+    const startHeightRef = useRef(60);
+
+    const onResizeMouseMove = (e) => {
+        if (!isResizingRef.current) return;
+        const delta = startYRef.current - e.clientY; // 向上拖动为正数
+        let next = startHeightRef.current + delta;
+        const min = 60;
+        const max = Math.max(min, Math.floor(window.innerHeight * 0.6));
+        next = Math.max(min, Math.min(max, next));
+        setInputHeight(next);
+    };
+
+    const onResizeMouseUp = () => {
+        if (!isResizingRef.current) return;
+        isResizingRef.current = false;
+        document.removeEventListener('mousemove', onResizeMouseMove);
+        document.removeEventListener('mouseup', onResizeMouseUp);
+    };
+
+    const onResizeMouseDown = (e) => {
+        isResizingRef.current = true;
+        startYRef.current = e.clientY;
+        startHeightRef.current = inputHeight;
+        document.addEventListener('mousemove', onResizeMouseMove);
+        document.addEventListener('mouseup', onResizeMouseUp);
+        e.preventDefault();
+    };
+
+    useEffect(() => {
+        return () => {
+            document.removeEventListener('mousemove', onResizeMouseMove);
+            document.removeEventListener('mouseup', onResizeMouseUp);
+        };
+    }, []);
+
     const handleScroll = async () => {
-        if (messageContainerRef.current.scrollTop < 1 && !isLoadingMore) { // 更改为 < 1 增加健壮性
+        if (messageContainerRef.current.scrollTop < 1 && !isLoadingMore) {
             let scrollHeight = messageContainerRef.current.scrollHeight;
             setIsLoadingMore(true);
             await onLoadMore();
@@ -32,52 +116,24 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 
     useLayoutEffect(() => {
         if (prevScrollHeight) {
-            // 正确设置 scrollTop 属性
             messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight - prevScrollHeight;
             setPrevScrollHeight(null);
         }
     }, [messages, prevScrollHeight]);
-
-
-    const lastMessageTimestamp = useRef(messages?.[messages.length - 1]?.timestamp);
 
     const scrollToBottom = (behavior = "auto") => {
         messagesEndRef.current?.scrollIntoView({ behavior });
     };
 
     useEffect(() => {
-        const newLastMessage = messages?.[messages.length - 1];
-        const newLastMessageTimestamp = newLastMessage?.timestamp;
-
-        if (newLastMessageTimestamp && newLastMessageTimestamp !== lastMessageTimestamp.current) {
-            scrollToBottom();
-        } else if (messages?.length > 0 && !lastMessageTimestamp.current) {
-            scrollToBottom();
-        }
-
-        lastMessageTimestamp.current = newLastMessageTimestamp;
+        scrollToBottom();
     }, [messages]);
 
-    // 发送信息
-    function sendMessage() {
-        if (draft.trim() !== '') {
-            onSendMessage(draft);
-        }
-    }
-
-
-    //按下回车即可发送信息
-    const handleKeyDown = (event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            sendMessage();
-        }
-    };
 
     // 判断是否显示时间戳
     const shouldShowTimestamp = (currentTimestamp, previousTimestamp) => {
         if (!previousTimestamp) {
-            return true; // Always show for the first message
+            return true;
         }
         const fiveMinutes = 5 * 60 * 1000;
         return new Date(currentTimestamp) - new Date(previousTimestamp) > fiveMinutes;
@@ -143,26 +199,26 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                 {isLoadingMore && <div className="loading-spinner">Loading...</div>}
                 <ul className='message-list'>
                     {messages && messages.map((msg, index) => {
+                        console.log(messages)
                         const showTimestamp = shouldShowTimestamp(msg.timestamp, messages[index - 1]?.timestamp);
-                        // Use a stable and unique key, like msg.id or msg.timestamp
                         const key = msg.id || `${msg.timestamp}-${index}`;
                         return (
                             <React.Fragment key={key}>
                                 {showTimestamp && <span className="message-timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
                                 <li className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}>
-                                    <span style={{ fontSize: '10px' }}>{msg.username}</span>
+                                    <div style={{ fontSize: '10px' }}>{msg?.username}</div>
                                     {msg.messageType == 'text' ?
-                                        (<>
+                                        (
                                             <div className="message-content">
                                                 <span className="message-text">{msg.text}</span>
                                             </div>
-                                        </>)
+                                        )
                                         :
                                         (
                                             <div className="file-message-content" >
-                                                <div style={{ display: "flex", flexDirection: 'column', width: '60%', justifyContent:'space-between', margin: '5px' }} className="file-information">
+                                                <div style={{ display: "flex", flexDirection: 'column', width: '60%', justifyContent: 'space-between', margin: '5px' }} className="file-information">
                                                     <span className="message-text">{msg.fileName}</span>
-                                                    <span className="message-text">{convertFileSize(msg.fileSize)}</span>
+                                                    <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
                                                 </div>
                                                 <Button style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }} type="primary"><DownloadOutlined /></Button>
                                             </div>
@@ -175,18 +231,14 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                     <div ref={messagesEndRef} />
                 </ul>
             </div>
-            <div className='message-send-box'>
-                <textarea
-                    className='message-input-box'
-                    type="text"
-                    value={draft}
-                    onChange={(e) => onDraftChange(contact.id, e.target.value)}
-                    onKeyDown={handleKeyDown}
-                />
-                <button className='message-send-btn' onClick={sendMessage} >发送</button>
+            <div className='message-send-box' style={{ height: inputHeight }} >
+                <div className="resize-handle" onMouseDown={onResizeMouseDown} />
+                <MessageInput contactID={contact?.id} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={onSendMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
             </div>
         </>
     )
 }
 
 export default MessageList;
+
+

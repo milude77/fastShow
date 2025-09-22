@@ -1,6 +1,6 @@
 import '../css/contactList.css';
 
-const ContactList = ({ contacts,selectedContact, onSelectContact }) => {
+const ContactList = ({ contacts, selectedContact, onSelectContact }) => {
 
 
   const handleSelectContact = (contact) => {

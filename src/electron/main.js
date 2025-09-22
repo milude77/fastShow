@@ -110,11 +110,11 @@ function connectSocket() {
 let dbPath;
 let db;
 
-async function initializeDatabase(db) {
-    const exists = await db.schema.hasTable('messages');
+function initializeDatabase(db) {
+    const exists = db.schema.hasTable('messages');
     try {
         if (!exists) {
-            await db.schema.createTable('messages', (table) => {
+            db.schema.createTable('messages', (table) => {
                 table.string('id').primary();
                 table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
                 table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
@@ -166,8 +166,9 @@ async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20
 // 写入指定联系人的聊天记录
 async function writeChatHistory(contactId, currentUserID, msg) {
     const exists = await db.schema.hasTable('messages');
-    if  (!exists) return 
-    console.log('writeChatHistory', msg)
+    if  (!exists) {
+        initializeDatabase(db);
+    } 
     try {
         await db('messages').insert({
             id: msg.id,
