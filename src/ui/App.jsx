@@ -162,7 +162,7 @@ function App() {
     if (selectedContact && currentUser && socket) {
       const tempId = `temp_${Date.now()}`;
       const newMessage = {
-        id: tempId, 
+        id: tempId,
         text: message,
         sender: 'user',
         messageType: 'text',
@@ -356,6 +356,7 @@ function App() {
       <div className="app">
         <div className='app-features-bar'>
           <ToolBar
+            selectFeatures={selectFeatures}
             setSelectFeatures={setSelectFeatures}
             isDarkMode={darkMode}
             toggleDarkMode={toggleDarkMode}

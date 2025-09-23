@@ -4,6 +4,7 @@
   color: var(--text-color);
 }
 
+
 .address-book-header {
   display: flex;
   align-items: center;
@@ -13,17 +14,21 @@
   margin-right: 8px;
 }
 
+
 .address-book-item {
   display: flex;
   align-items: center;
   text-align: center;
-  padding-bottom: 20px;
+  padding: 15px;
   justify-content: space-between;
-  align-items: center;
-  text-align: center;
+  width: 100%;
 }
 
-.address-book-item:hover {
+.address-book-item.active{
+  background-color: var(--selected-contact-background-color);
+}
+
+.address-book-item.inactive:hover {
   background-color: var(--hover-contact-background-color);
 }
 

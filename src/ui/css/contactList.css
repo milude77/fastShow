@@ -9,14 +9,21 @@
     overflow-x: hidden;
 }
 
+.ant-collapse-content-box{
+    justify-content: space-between !important;
+    padding: 0 !important;
+    padding-bottom: 15px !important;
+}
+
 .contact-item {
     height: 64px;
     width: 100%;
     display: flex;
     text-align: center;
-    flex-direction: column;
-    justify-content: center; 
-    padding-left: 10px; 
+    align-items: center;
+    justify-content: space-between; 
+    padding-left: 20px; 
+    padding-right: 10px;
     box-sizing: border-box; 
     position: relative; 
 }
@@ -30,14 +37,7 @@
     border-bottom: #cacaca 1px solid;
 }
 
-.contact-item span {
-    margin-left: 10px;
-    font-size: 0.8em;
-    position: absolute; 
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%); 
-}
+
 
 .online-indicator {
     color: green;

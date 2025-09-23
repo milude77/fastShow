@@ -6,6 +6,14 @@
     color: var(--text-color);
 }
 
+.tool-bar-button.active{
+    color: var(--tool-bar-selected-color) !important;
+}
+
+.tool-bar-button.inactive:hover{
+    background-color: var(--tool-bar-hover-color) !important;
+}
+
 .base-tool-bar {
     display: flex;
     flex-direction: column;

@@ -200,9 +200,13 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         // table.string('fileSize').nullable()
 
 
-
+let settingsWindow= null;
 function createSettingsWindow() {
-    const settingsWindow = new BrowserWindow({
+    if (settingsWindow) {
+        settingsWindow.focus();
+        return;
+    }
+    settingsWindow = new BrowserWindow({
         width: 500,
         height: 400,
         frame: false,
@@ -222,10 +226,18 @@ function createSettingsWindow() {
     }
 
     settingsWindow.setMenu(null);
+    settingsWindow.on('closed', () => {
+        settingsWindow = null;
+    });
 }
 
+let searchWindow = null;
 function createSearchWindow(userId) {
-    const searchWindow = new BrowserWindow({
+    if (searchWindow) {
+        searchWindow.focus();
+        return;
+    }
+    searchWindow = new BrowserWindow({
         width: 500,
         height: 400,
         frame: false,
@@ -246,6 +258,10 @@ function createSearchWindow(userId) {
     }
 
     searchWindow.setMenu(null);
+
+    searchWindow.on('closed', () => {
+        searchWindow = null;
+    });
 }
 
 function createMainWindow() {

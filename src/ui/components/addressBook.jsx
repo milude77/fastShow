@@ -2,28 +2,40 @@ import React from 'react';
 import { Collapse } from 'antd';
 import { UserOutlined, TeamOutlined, CaretRightOutlined } from '@ant-design/icons';
 import '../css/addressBook.css';
+import { useState } from 'react';
 
 const { Panel } = Collapse;
 
 const AddressBook = ({ contacts = null, groups = null, onSelectContact }) => {
 
+  const [selectedContact, setSelectedContact] = useState(null);
+
+  const handleSelectContact = (contactId) => {
+    setSelectedContact(contactId);
+    onSelectContact(contactId);
+  };
+
   return (
     <div className="address-book-container">
       <Collapse
         bordered={false}
-        defaultActiveKey={['1']}
+        defaultActiveKey={[]}
         expandIcon={({ isActive }) => <CaretRightOutlined style={{ color: 'var(--text-color)' }} rotate={isActive ? 90 : 0} />}
         className="site-collapse-custom-collapse"
       >
-        <Panel header={
-          <div className="address-book-header">
-            <UserOutlined style={{ color: 'var(--text-color)' }} />
-            <span style={{ color: 'var(--text-color)' }}>我的好友</span>
-          </div>
-        } key="1" className="site-collapse-custom-panel">
+        <Panel
+          header={
+            <div className="address-book-header">
+              <UserOutlined style={{ color: 'var(--text-color)' }} />
+              <span style={{ color: 'var(--text-color)' }}>我的好友</span>
+            </div>
+          }
+          key="1"
+          className="site-collapse-custom-panel"
+        >
           {contacts && Object.keys(contacts).length > 0 ? (
             Object.values(contacts).map((contact) => (
-              <div className="address-book-item" key={contact.id} onClick={() => { onSelectContact(contact.id) }}>
+              <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact.id) }}>
                 <span style={{ color: 'var(--text-color)' }}>{contact.username}</span>
                 {contact.isOnline ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>}
               </div>
