@@ -8,8 +8,8 @@ exports.up = function(knex) {
     })
     .createTable('messages', function (table) {
       table.increments('id').primary();
-      table.string('sender_id').unsigned().notNullable();
-      table.string('receiver_id').unsigned().nullable(); // Null for group messages
+      table.string('sender_id').notNullable();
+      table.string('receiver_id').nullable(); // Null for group messages
       table.string('room_id', 255).notNullable(); // 'public' or specific room ID
       table.text('content').notNullable();
       table.timestamp('timestamp').defaultTo(knex.fn.now());

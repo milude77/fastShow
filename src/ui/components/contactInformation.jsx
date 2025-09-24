@@ -4,6 +4,8 @@ import { DashOutlined } from '@ant-design/icons';
 import '../css/contactInformation.css';
 
 const ContactInformation = ({ contactInformation, toSendMessage }) => {
+
+
     const MenuItem = (
         <Menu>
             <Menu.Item className='menu-item-delete' key="1">

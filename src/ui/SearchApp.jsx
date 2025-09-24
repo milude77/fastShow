@@ -44,8 +44,11 @@ function SearchApp() {
 
   const handleAddFriend = (friendId , userId) => {
     if (socket) {
-      socket.emit('add-friend', friendId, userId);
+      return socket.emit('add-friend', friendId, userId);
     }
+    else{
+      return { success: false, message: '连接出错' }
+    } 
   };
 
   const handleAcceptRequest = (requesterId) => {

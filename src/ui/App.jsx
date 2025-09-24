@@ -42,9 +42,9 @@ function App() {
     if (!socket) return;
 
     const handleLoginSuccess = (user) => {
+      window.electronAPI.loginSuccess(user.userId)
       window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
       window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
-      window.electronAPI.loginSuccess(user.userId)
       setCurrentUser(user);
     };
 
@@ -186,7 +186,6 @@ function App() {
   };
 
   const handleDraftChange = (contactId, text) => {
-    console.log(drafts)
     setDrafts(prev => ({ ...prev, [contactId]: text }));
   };
 
@@ -287,8 +286,9 @@ function App() {
   }, [socket, currentUser, selectedContact]);
 
   const handleToSendMessage = (contact) => {
-    setSelectFeatures('message')
     setSelectedContact(contact)
+    setSelectFeatures('message')
+    setSelectedContactInformation(null)
   }
 
   const renderFeature = () => {
@@ -301,6 +301,7 @@ function App() {
         />;
       case 'contact':
         return <AddressBook
+          selectedContact={selectedContactInformation} 
           contacts={contacts}
           onSelectContact={handleAddressBookSelectContact}
         />;

@@ -7,9 +7,9 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import knex from 'knex';
 import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
-import bcrypt from 'bcrypt'; 
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto'; 
+import crypto from 'crypto';
 
 
 // 获取当前文件的目录路径（ES模块中需要这样处理）
@@ -39,97 +39,97 @@ const onlineUsers = new Map();
 // Socket.IO 连接处理
 console.log('Socket.IO server initialized, waiting for connections...'); // 新增日志
 io.on('connection', (socket) => {
-// 文件上传处理
-app.post('/api/upload', async (req, res) => {
-  const { fileName, fileContent, receiverId, senderId } = req.body;
-  if (!fileName || !fileContent || !receiverId || !senderId) {
-    return res.status(400).json({ error: '所有字段都是必需的' });
-  }
-
-
-  try {
-    // 生成唯一的文件ID和文件名
-    const fileId = crypto.randomBytes(8).toString('hex');
-    const fileExtension = path.extname(fileName);
-    const safeFileName = `${fileId}_${Date.now()}${fileExtension}`;
-    
-    // 确保上传目录存在
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)){
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    
-    // 保存文件
-    const filePath = path.join(uploadDir, safeFileName);
-    const fileBuffer = Buffer.from(fileContent, 'base64');
-    fs.writeFileSync(filePath, fileBuffer);
-    
-    // 获取文件大小
-    const fileSize = fileBuffer.length;
-    
-    // 检查接收者是否存在
-    const receiverUser = await db('users').where({ id: receiverId }).first();
-    if (!receiverUser) {
-      return res.status(404).json({ error: `用户ID ${receiverId} 不存在` });
+  // 文件上传处理
+  app.post('/api/upload', async (req, res) => {
+    const { fileName, fileContent, receiverId, senderId } = req.body;
+    if (!fileName || !fileContent || !receiverId || !senderId) {
+      return res.status(400).json({ error: '所有字段都是必需的' });
     }
 
-    // 创建文件消息记录
-    const newMessage = {
-      sender_id: senderId,
-      receiver_id: receiverId,
-      content: `[文件] ${fileName}`,
-      room_id: `private_${Math.min(receiverId, senderId)}_${Math.max(receiverId, senderId)}`,
-      message_type: 'file',
-      file_name: fileName,
-      file_path: safeFileName,
-      file_url: `/api/download/${fileId}`,
-      file_size: fileSize,
-      file_id: fileId,
-      timestamp: new Date(),
-      status: 'sent'
-    };
 
-    // 存储消息到数据库
-    const [messageId] = await db('messages').insert(newMessage);
-    
-    // 构建要发送的消息对象
-    const savedMessage = {
-      id: messageId,
-      content: newMessage.content,
-      timestamp: newMessage.timestamp,
-      senderId: newMessage.sender_id,
-      receiverId: newMessage.receiver_id,
-      senderUsername: senderId, 
-      receiverUsername: receiverUser.username,
-      type: 'private',
-      messageType: 'file',
-      fileName: fileName,
-      fileUrl: newMessage.file_url,
-      fileSize: fileSize,
-      fileId: fileId
-    };
+    try {
+      // 生成唯一的文件ID和文件名
+      const fileId = crypto.randomBytes(8).toString('hex');
+      const fileExtension = path.extname(fileName);
+      const safeFileName = `${fileId}_${Date.now()}${fileExtension}`;
 
-    // 返回成功响应
-    res.status(200).json({ message: '文件上传成功', messageData: savedMessage });
+      // 确保上传目录存在
+      const uploadDir = path.join(__dirname, 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
 
-    // 查找接收方是否在线
-    const targetSocketId = Array.from(onlineUsers.entries())
-      .find(([, uInfo]) => uInfo.userId === receiverId)?.[0];
+      // 保存文件
+      const filePath = path.join(uploadDir, safeFileName);
+      const fileBuffer = Buffer.from(fileContent, 'base64');
+      fs.writeFileSync(filePath, fileBuffer);
 
-    if (targetSocketId) {
-      // 接收方在线，直接发送
-      io.to(targetSocketId).emit('new-message', savedMessage);
-      await db('messages').where({ id: messageId }).update({ status: 'delivered' });
-    } else {
-      // 接收方离线，消息状态保持 'sent' (待投递)
-      console.log(`用户 ${receiverUser.username} 离线，文件消息将等待上线后投递`);
+      // 获取文件大小
+      const fileSize = fileBuffer.length;
+
+      // 检查接收者是否存在
+      const receiverUser = await db('users').where({ id: receiverId }).first();
+      if (!receiverUser) {
+        return res.status(404).json({ error: `用户ID ${receiverId} 不存在` });
+      }
+
+      // 创建文件消息记录
+      const newMessage = {
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content: `[文件] ${fileName}`,
+        room_id: `private_${Math.min(receiverId, senderId)}_${Math.max(receiverId, senderId)}`,
+        message_type: 'file',
+        file_name: fileName,
+        file_path: safeFileName,
+        file_url: `/api/download/${fileId}`,
+        file_size: fileSize,
+        file_id: fileId,
+        timestamp: new Date(),
+        status: 'sent'
+      };
+
+      // 存储消息到数据库
+      const [messageId] = await db('messages').insert(newMessage);
+
+      // 构建要发送的消息对象
+      const savedMessage = {
+        id: messageId,
+        content: newMessage.content,
+        timestamp: newMessage.timestamp,
+        senderId: newMessage.sender_id,
+        receiverId: newMessage.receiver_id,
+        senderUsername: senderId,
+        receiverUsername: receiverUser.username,
+        type: 'private',
+        messageType: 'file',
+        fileName: fileName,
+        fileUrl: newMessage.file_url,
+        fileSize: fileSize,
+        fileId: fileId
+      };
+
+      // 返回成功响应
+      res.status(200).json({ message: '文件上传成功', messageData: savedMessage });
+
+      // 查找接收方是否在线
+      const targetSocketId = Array.from(onlineUsers.entries())
+        .find(([, uInfo]) => uInfo.userId === receiverId)?.[0];
+
+      if (targetSocketId) {
+        // 接收方在线，直接发送
+        io.to(targetSocketId).emit('new-message', savedMessage);
+        await db('messages').where({ id: messageId }).update({ status: 'delivered' });
+      } else {
+        // 接收方离线，消息状态保持 'sent' (待投递)
+        console.log(`用户 ${receiverUser.username} 离线，文件消息将等待上线后投递`);
+      }
+    } catch (error) {
+      console.error('文件上传失败:', error);
+      res.status(500).json({ error: '文件上传失败，请稍后再试' });
     }
-  } catch (error) {
-    console.error('文件上传失败:', error);
-    res.status(500).json({ error: '文件上传失败，请稍后再试' });
-  }
-});
-  console.log(`用户连接: ${socket.id}`); 
+  });
+  console.log(`用户连接: ${socket.id}`);
 
   // 用户注册
   socket.on('register-user', async (data) => {
@@ -219,7 +219,7 @@ app.post('/api/upload', async (req, res) => {
       socket.emit('login-success', { userId: formattedId, username: user.username, newToken });
     } catch (error) {
       console.error('登录失败:', error);
-      if (error.name === 'TokenExpiredError'){
+      if (error.name === 'TokenExpiredError') {
         socket.emit('error', { message: 'Token已过期，请重新登录' });
       } else {
         socket.emit('error', { message: '登录失败，请稍后再试' });
@@ -227,7 +227,7 @@ app.post('/api/upload', async (req, res) => {
     }
   });
 
-  socket.on('send-disconnect-message', async(user) => {
+  socket.on('send-disconnect-message', async (user) => {
     const undeliveredMessages = await db('messages')
       .where({ receiver_id: user.userId, status: 'sent' })
       .orderBy('timestamp', 'asc');
@@ -276,7 +276,7 @@ app.post('/api/upload', async (req, res) => {
     const newMessage = {
       sender_id: senderInfo.userId,
       receiver_id: receiverUser.id,
-      room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`, 
+      room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`,
       content: message,
       timestamp: new Date(),
       status: 'sent'
@@ -371,8 +371,10 @@ app.post('/api/upload', async (req, res) => {
 
     try {
       const users = await db('users')
-        .where('username', 'like', `%${searchTerm}%`)
-        .select('id', 'username');
+        .where('id', 'like', `%${searchTerm}%`)
+        .orWhere('username', 'like', `%${searchTerm}%`)
+        .select('id', 'username')
+        .limit(15);
       socket.emit('search-results', users);
     } catch (error) {
       console.error('Error searching users:', error);
@@ -383,20 +385,15 @@ app.post('/api/upload', async (req, res) => {
   socket.on('add-friend', async (friendId) => {
     const senderInfo = onlineUsers.get(socket.id);
 
-    // 安全检查：确保用户已登录
-    if (!senderInfo) {
-      socket.emit('error', { message: '用户未登录，无法添加好友' });
-      return;
-    }
 
     if (!friendId) {
-      socket.emit('error', { message: '需要提供好友ID' });
-      return;
+      socket.emit('add-friends-msg',{ success: false, message: '好友id不可为空' });
+      return 
     }
 
     // 用户不能添加自己为好友
-    if (senderInfo.userId === friendId) {
-      socket.emit('error', { message: '不能添加自己为好友' });
+    if (senderInfo.userId == friendId) {
+      socket.emit('add-friends-msg',{ success: false, message: '不能添加自己为好友' });
       return;
     }
 
@@ -408,7 +405,7 @@ app.post('/api/upload', async (req, res) => {
         .first();
 
       if (existingFriendship) {
-        socket.emit('error', { message: '已经是好友或已发送请求' });
+        socket.emit('add-friends-msg', { success: false, message: '已经是好友或已发送请求' });
         return;
       }
 
@@ -432,10 +429,10 @@ app.post('/api/upload', async (req, res) => {
         });
       }
 
-      socket.emit('friend-request-sent');
+      socket.emit('add-friends-msg', { success: true });
     } catch (error) {
       console.error('Error adding friend:', error);
-      socket.emit('error', { message: '添加好友失败' });
+      socket.emit('add-friends-msg', { success: false, message: '添加好友失败' });
     }
   });
 
@@ -514,30 +511,30 @@ app.get('/api/health', (req, res) => {
 // 文件下载接口
 app.get('/api/download/:fileId', async (req, res) => {
   const { fileId } = req.params;
-  
+
   try {
     // 从数据库查找文件信息
     const fileMessage = await db('messages')
       .where({ file_id: fileId, message_type: 'file' })
       .first();
-    
+
     if (!fileMessage) {
       return res.status(404).json({ error: '文件不存在' });
     }
-    
+
     // 构建文件路径
     const filePath = path.join(__dirname, 'uploads', fileMessage.file_path);
-    
+
     // 检查文件是否存在
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: '文件不存在' });
     }
-    
+
     // 设置响应头
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileMessage.file_name)}"`);
     res.setHeader('Content-Type', fileMessage.mime_type || 'application/octet-stream');
     res.setHeader('Content-Length', fileMessage.file_size);
-    
+
     // 发送文件
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);

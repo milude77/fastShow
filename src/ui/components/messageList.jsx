@@ -49,8 +49,6 @@ const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) =
 };
 
 const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onLoadMore, onUploadFile }) => {
-
-
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
         if (sizeInBytes < 1024) return sizeInBytes + ' B';
@@ -121,14 +119,27 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
         }
     }, [messages, prevScrollHeight]);
 
+    const lastMessageTimestamp = useRef(messages?.[messages.length - 1]?.timestamp)
     const scrollToBottom = (behavior = "auto") => {
         messagesEndRef.current?.scrollIntoView({ behavior });
     };
 
-    useEffect(() => {
+    useEffect(() => { 
         scrollToBottom();
+    }, []);
+
+    useEffect(() => {
+        const newLastMessageTimestamp = messages?.[messages.length - 1]?.timestamp;
+        if (newLastMessageTimestamp && newLastMessageTimestamp!== lastMessageTimestamp.current) {
+            scrollToBottom()
+        }
+        lastMessageTimestamp.current = newLastMessageTimestamp;
     }, [messages]);
 
+    const handleSendMessage = (message) =>{
+        onSendMessage(message);
+        scrollToBottom();
+    }
 
     // 判断是否显示时间戳
     const shouldShowTimestamp = (currentTimestamp, previousTimestamp) => {
@@ -173,6 +184,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                         onUploadFile({ fileName: file.name, fileContent });
                     };
                     reader.readAsDataURL(file);
+                    scrollToBottom()
                 }
             });
         }
@@ -199,7 +211,6 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                 {isLoadingMore && <div className="loading-spinner">Loading...</div>}
                 <ul className='message-list'>
                     {messages && messages.map((msg, index) => {
-                        console.log(messages)
                         const showTimestamp = shouldShowTimestamp(msg.timestamp, messages[index - 1]?.timestamp);
                         const key = msg.id || `${msg.timestamp}-${index}`;
                         return (
@@ -233,7 +244,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
             </div>
             <div className='message-send-box' style={{ height: inputHeight }} >
                 <div className="resize-handle" onMouseDown={onResizeMouseDown} />
-                <MessageInput contactID={contact?.id} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={onSendMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
+                <MessageInput contactID={contact?.id} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
             </div>
         </>
     )

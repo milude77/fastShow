@@ -1,26 +1,42 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert } from 'antd';
+import { useSocket } from '../hooks/useSocket';
 
 function SearchUser({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) {
+  const socket = useSocket();
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertType, setAlertType] = useState('success');
 
-  const handleAddFriend = async (userId) => {
-    try {
-      await onAddFriend(userId);
-      setAlertMessage('发送好友请求成功');
-      setAlertType('success');
+  const handleAddFriendCall = (message) => {
+    if (message.success) {
+      setAlertType('success')
+      setAlertMessage('发送好友请求成功')
       setShowAlert(true);
-      setTimeout(() => setShowAlert(false), 3000); // 3秒后自动关闭
-    } catch (error) {
-      setAlertMessage('发送好友请求失败');
-      setAlertType('error');
-      setShowAlert(true);
-      setTimeout(() => setShowAlert(false), 3000); // 3秒后自动关闭
-      console.error('添加好友失败:', error);
+      setTimeout(() => {
+        setShowAlert(false);
+      }, 3000);
     }
-  };
+    else {
+      setAlertType('error')
+      setAlertMessage(`发送好友请求失败 错误原因：${message.message}`)
+      setShowAlert(true);
+      setTimeout(() => {
+        setShowAlert(false);
+      }, 3000);
+    }
+  }
+
+  useEffect(() => {
+    socket.on('add-friends-msg', (message) => { handleAddFriendCall(message) })
+
+    return () => {
+      socket.off('add-friends-msg');
+    }
+  })
+  const handleAddFriend = async (userId) => {
+    await onAddFriend(userId);
+  }
 
   return (
     <div>

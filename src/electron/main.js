@@ -64,6 +64,12 @@ function connectSocket() {
             win.webContents.send('socket-event', { event: 'connect', id: socket.id });
         });
 
+        // Auto re-authenticate using saved token after reconnect
+        const creds = store.get('currentUserCredentials');
+        if (creds && creds.token) {
+            socket.emit('login-with-token', creds.token);
+        }
+
         // Start heartbeat
         heartbeatInterval = setInterval(() => {
             heartbeatTimeout = setTimeout(() => {
@@ -110,36 +116,75 @@ function connectSocket() {
 let dbPath;
 let db;
 
-function initializeDatabase(db) {
-    const exists = db.schema.hasTable('messages');
+async function initializeDatabase(db) {
     try {
+        console.log('Initializing database...');
+
+        // 检查表是否存在，使用更可靠的方法
+        let exists;
+        try {
+            exists = await db.schema.hasTable('messages');
+            console.log('Messages table exists:', exists);
+        } catch (error) {
+            console.log('Error checking if messages table exists:', error.message);
+            exists = false;
+        }
+
         if (!exists) {
-            db.schema.createTable('messages', (table) => {
+            console.log('Creating messages table...');
+
+            // 使用 await 确保表创建完成
+            await db.schema.createTable('messages', (table) => {
                 table.string('id').primary();
-                table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
-                table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
+                table.string('sender_id').notNullable();
+                table.string('receiver_id').notNullable();
                 table.text('text').notNullable();
                 table.timestamp('timestamp').defaultTo(db.fn.now());
                 table.string('username').notNullable();
                 table.string('sender').notNullable().defaultTo('user');
-                table.string('messageType').defaultTo('text')
-                table.string('fileName').nullable()
-                table.string('fileUrl').nullable()
-                table.string('fileSize').nullable()
+                table.string('messageType').defaultTo('text');
+                table.string('fileName').nullable();
+                table.string('fileUrl').nullable();
+                table.string('fileSize').nullable();
             });
+
+            console.log('Messages table created successfully');
+
+            // 验证表是否真的创建成功
+            const tablesExist = await db.schema.hasTable('messages');
+            console.log('Verified messages table exists:', tablesExist);
+        } else {
+            console.log('Messages table already exists');
         }
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Failed to initialize database:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            sql: error.sql,
+            bindings: error.bindings
+        });
+        throw error; // 重新抛出错误
     }
 }
 
 // 读取指定联系人的聊天记录
 async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20) {
     try {
+        console.log('Reading chat history for contact:', contactId, 'page:', page);
+
+        // 确保数据库已初始化
         const exists = await db.schema.hasTable('messages');
         if (!exists) {
-            return [];
+            console.log('Messages table does not exist in readChatHistory, initializing...');
+            await initializeDatabase(db);
+            // 重新检查表是否存在
+            const existsAfterInit = await db.schema.hasTable('messages');
+            if (!existsAfterInit) {
+                console.error('Failed to create messages table');
+                return [];
+            }
         }
 
         const offset = (page - 1) * pageSize;
@@ -147,44 +192,66 @@ async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20
         const history = await db('messages')
             .select('*')
             .where(function() {
-                this.where('sender_id', currentUserID).andWhere('receiver_id', contactId);
+                this.where('sender_id', String(currentUserID)).andWhere('receiver_id', String(contactId));
             })
             .orWhere(function() {
-                this.where('sender_id', contactId).andWhere('receiver_id', currentUserID);
+                this.where('sender_id', String(contactId)).andWhere('receiver_id', String(currentUserID));
             })
             .orderBy('timestamp', 'desc')
             .limit(pageSize)
             .offset(offset);
-        
+
+        console.log(`Found ${history.length} messages for contact ${contactId}`);
         return history.reverse(); // 保证消息按时间升序排列
     } catch (error) {
         console.error(`Failed to read chat history for contact ${contactId}:`, error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            sql: error.sql,
+            bindings: error.bindings
+        });
         return [];
     }
 }
 
 // 写入指定联系人的聊天记录
 async function writeChatHistory(contactId, currentUserID, msg) {
-    const exists = await db.schema.hasTable('messages');
-    if  (!exists) {
-        initializeDatabase(db);
-    } 
     try {
-        await db('messages').insert({
+        // 确保数据库已初始化
+        const exists = await db.schema.hasTable('messages');
+        if (!exists) {
+            await initializeDatabase(db);
+        }
+
+        // 确保所有必需字段都存在并转换为正确的类型
+        const messageData = {
             id: msg.id,
             sender_id: currentUserID,
             receiver_id: contactId,
-            text: msg.text,
-            username: msg.username,
-            timestamp: msg.timestamp,
-            sender: msg.sender,
-            messageType: msg.messageType ? msg.messageType : 'text',
-            fileName: msg.fileName ? msg.fileName : null,
-            fileUrl: msg.fileUrl ? msg.fileUrl : null,
-            fileSize: msg.fileSize ? msg.fileSize : null
-        });
-    }catch (error) {
+            text: msg.text || '',
+            username: msg.username || '',
+            timestamp: msg.timestamp || new Date().toISOString(),
+            sender: msg.sender || 'user',
+            messageType: msg.messageType || 'text',
+            fileName: msg.fileName || null,
+            fileUrl: msg.fileUrl || null,
+            fileSize: msg.fileSize || null
+        };
+
+        await db('messages').insert(messageData);
+
+    } catch (error) {
         console.error(`Failed to write chat history for contact ${contactId}:`, error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            sql: error.sql,
+            bindings: error.bindings
+        });
+        throw error; // 重新抛出错误以便调用方处理
     }
 }
         // table.string('id').primary();
@@ -362,23 +429,44 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
     return false;
 });
 
-ipcMain.on('login-success', (event, userID) => {
-    const userDbPath = path.join(app.getPath('userData'), `${userID}`);
+ipcMain.on('login-success', async (event, userID) => {
+    try {
+        console.log('Login success event received for user:', userID);
 
-    if (!fs.existsSync(userDbPath)) {
-        fs.mkdirSync(userDbPath, { recursive: true });
+        const userDbPath = path.join(app.getPath('userData'), `${userID}`);
+
+        if (!fs.existsSync(userDbPath)) {
+            fs.mkdirSync(userDbPath, { recursive: true });
+            console.log('Created user database directory:', userDbPath);
+        }
+
+        dbPath = path.join(userDbPath, 'chat_history.sqlite3');
+        console.log('Database path:', dbPath);
+
+        // 创建数据库连接
+        db = knex({
+            client: 'sqlite3',
+            connection: {
+                filename: dbPath,
+            },
+            useNullAsDefault: true
+        });
+
+        console.log('Database connection created');
+
+        // 初始化数据库（确保表存在）
+        await initializeDatabase(db);
+        console.log('Database initialization completed');
+    } catch (error) {
+        console.error('Error in login-success handler:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            sql: error.sql,
+            bindings: error.bindings
+        });
     }
-    dbPath = path.join(userDbPath, 'chat_history.sqlite3');
-
-    db = knex({
-        client: 'sqlite3',
-        connection: {
-            filename: dbPath,
-        },
-        useNullAsDefault: true
-    });
-
-    initializeDatabase(db)
 })
 
 ipcMain.on('chat-message', (event, { contactId, currentUserID, msg }) => {

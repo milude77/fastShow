@@ -2,16 +2,14 @@ import React from 'react';
 import { Collapse } from 'antd';
 import { UserOutlined, TeamOutlined, CaretRightOutlined } from '@ant-design/icons';
 import '../css/addressBook.css';
-import { useState } from 'react';
 
 const { Panel } = Collapse;
 
-const AddressBook = ({ contacts = null, groups = null, onSelectContact }) => {
+const AddressBook = ({ selectedContact, contacts = null, groups = null, onSelectContact }) => {
 
-  const [selectedContact, setSelectedContact] = useState(null);
+
 
   const handleSelectContact = (contactId) => {
-    setSelectedContact(contactId);
     onSelectContact(contactId);
   };
 
