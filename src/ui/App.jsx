@@ -6,6 +6,7 @@ import AppHeaderBar from './components/appHeaderBar';
 import ContactList from './components/contactList';
 import MessageList from './components/messageList';
 import ContactInformation from './components/contactInformation';
+import FriendsRequestManagement from './components/friendsRequesetManagement';
 import ToolBar from './components/toolBar';
 import AuthPage from './AuthPage';
 import AddressBook from './components/addressBook';
@@ -301,7 +302,7 @@ function App() {
         />;
       case 'contact':
         return <AddressBook
-          selectedContact={selectedContactInformation} 
+          selectedContact={selectedContactInformation}
           contacts={contacts}
           onSelectContact={handleAddressBookSelectContact}
         />;
@@ -335,12 +336,20 @@ function App() {
       );
     }
     if (selectFeatures === 'contact' && selectedContactInformation) {
-      return (
-        <ContactInformation
-          contactInformation={contacts[selectedContactInformation]}
-          toSendMessage={handleToSendMessage}
-        />);
+      if (selectedContactInformation !== 'friendsRequest') {
+        return (
+          <ContactInformation
+            contactInformation={contacts[selectedContactInformation]}
+            toSendMessage={handleToSendMessage}
+          />);
+      }
+      else {
+        return (
+          <FriendsRequestManagement />
+        );
+      }
     }
+    
     return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
   };
 

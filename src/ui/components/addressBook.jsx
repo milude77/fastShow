@@ -7,14 +7,16 @@ const { Panel } = Collapse;
 
 const AddressBook = ({ selectedContact, contacts = null, groups = null, onSelectContact }) => {
 
-
-
   const handleSelectContact = (contactId) => {
     onSelectContact(contactId);
   };
 
   return (
     <div className="address-book-container">
+      <div className="friend-request-manager"  onClick = {()=>{onSelectContact('friendsRequest')}} >
+        <UserOutlined style={{ color: 'var(--text-color)' }} />
+        <span style={{ color: 'var(--text-color)' }}>好友申请</span>
+      </div>
       <Collapse
         bordered={false}
         defaultActiveKey={[]}

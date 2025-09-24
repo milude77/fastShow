@@ -44,7 +44,7 @@ function SearchUser({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
       <form onSubmit={onSearch}>
         <input
           type="text"
-          placeholder="按用户名搜索"
+          placeholder="按 用户名/id 搜索"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{ marginRight: '5px' }}

@@ -31,6 +31,7 @@ body {
   --selected-contact-background-color: #42b7ed;
   --hover-contact-background-color: #d6d6d6;
   --history-file--color: #ffffff;
+  --border-color: #e9e9e9;
 }
 
 body.dark-mode {
@@ -43,4 +44,5 @@ body.dark-mode {
   --selected-contact-background-color: #1182b6;
   --background-color: #333;
   --text-color: white;
+  --border-color: #5a5a5a;
 }

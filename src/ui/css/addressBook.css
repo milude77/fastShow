@@ -1,9 +1,22 @@
 .address-book-container {
-  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly ;
   background-color: var(--background-color);
   color: var(--text-color);
 }
 
+.friend-request-manager{
+  display: flex;
+  padding-top: 10px;
+  padding-bottom: 5px;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.friend-request-manager:hover{
+  background-color: var(--hover-contact-background-color);
+}
 
 .address-book-header {
   display: flex;
