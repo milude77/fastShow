@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Alert, Button } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import './css/App.css';
 import './css/dark-mode.css';
 import AppHeaderBar from './components/appHeaderBar';
@@ -13,6 +14,32 @@ import AddressBook from './components/addressBook';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import titleImage from './assets/title.png';
+
+const SearchBar = (currentUser) => {
+
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && searchTerm.trim()) {
+      window.electronAPI.openSearchWindow(currentUser.id, searchTerm);
+    }
+  };
+
+  return (
+
+    <div className="search-bar-container">
+      <SearchOutlined />
+      <input
+        className='search-input'
+        type="text"
+        placeholder="搜索"
+        onChange={(e) => setSearchTerm(e.target.value)} 
+        value={searchTerm}
+        onKeyDown={handleKeyDown}
+        />
+    </div>
+  );
+};
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -349,7 +376,7 @@ function App() {
         );
       }
     }
-    
+
     return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
   };
 
@@ -374,6 +401,7 @@ function App() {
         </div>
         <div className='contact-list'>
           {renderConnectionStatus()}
+          <SearchBar currentUser={currentUser} />
           {renderFeature()}
         </div>
         <div className='message-box'>

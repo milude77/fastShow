@@ -1,6 +1,6 @@
 import React from 'react';
 import { Collapse } from 'antd';
-import { UserOutlined, TeamOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { UserOutlined, TeamOutlined, CaretRightOutlined, UsergroupAddOutlined } from '@ant-design/icons';
 import '../css/addressBook.css';
 
 const { Panel } = Collapse;
@@ -14,7 +14,7 @@ const AddressBook = ({ selectedContact, contacts = null, groups = null, onSelect
   return (
     <div className="address-book-container">
       <div className="friend-request-manager"  onClick = {()=>{onSelectContact('friendsRequest')}} >
-        <UserOutlined style={{ color: 'var(--text-color)' }} />
+        <UsergroupAddOutlined style={{ color: 'var(--text-color)' }} />
         <span style={{ color: 'var(--text-color)' }}>好友申请</span>
       </div>
       <Collapse

@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   uploadFile: (contactId, currentUserID, fileName, fileContent) => ipcRenderer.invoke('upload-file', { contactId, currentUserID, fileName, fileContent }),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize }),
-  openSearchWindow: (userId) => ipcRenderer.send('open-search-window', userId),
+  openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
   
   showErrowMessage: (message) => ipcRenderer.send('show-error-window', message),

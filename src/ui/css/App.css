@@ -8,6 +8,23 @@
   --text-color: white;
 }
 
+.search-bar-container{
+  display: flex;
+  align-items: center;
+  margin: 20px 15px 10px 10px;
+  border-radius: 5px;
+  padding: 5px;
+  background: var(--toobar-background-color)
+}
+
+.search-input {
+  background: inherit;
+  width: 100%;
+  border: none;
+  outline: none;
+  border-radius: 5px;
+}
+
 .app-wrapper {
   height: 100vh;
   box-sizing: border-box;

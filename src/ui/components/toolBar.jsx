@@ -1,19 +1,9 @@
 import React from 'react';
 import '../css/toolBar.css';
-import { useAuth } from '../hooks/useAuth';
 import { Button } from 'antd';
 import { TeamOutlined, MessageOutlined, UsergroupAddOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons'
 
 const ToolBar = ({ selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
-    const { currentUser } = useAuth();
-
-    const handleAddContactClick = () => {
-        if (currentUser && currentUser.userId) {
-            window.electronAPI.openSearchWindow(currentUser.id);
-        } else {
-            console.error("Cannot open search window without a logged in user.");
-        }
-    };
 
     return (
         <div className='tool-bar'>
@@ -23,9 +13,6 @@ const ToolBar = ({ selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode
             </div>
             <div className='change-theme-bar'>
                 <Button style={{color: 'var(--text-color)'}} type='link' icon={ isDarkMode ? <SunOutlined /> : <MoonOutlined /> } onClick={() => toggleDarkMode()}></Button>
-            </div>
-            <div className='add-function-bar'>
-                <Button style={{color: 'var(--text-color)'}} type="link" title='添加' icon = { <UsergroupAddOutlined /> } onClick={handleAddContactClick}></Button>
             </div>
             <div className='setting-bth'>
                 <Button style={{color: 'var(--text-color)'}} type="link" title='设置' icon = { <SettingOutlined /> } onClick={() => window.electronAPI.openSettingsWindow()}></Button>

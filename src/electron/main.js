@@ -299,7 +299,7 @@ function createSettingsWindow() {
 }
 
 let searchWindow = null;
-function createSearchWindow(userId) {
+function createSearchWindow(userId, selectInformation) {
     if (searchWindow) {
         searchWindow.focus();
         return;
@@ -315,8 +315,8 @@ function createSearchWindow(userId) {
     });
 
     const searchUrl = isDev
-        ? `http://localhost:5234/search.html?userId=${userId}`
-        : `file://${path.join(app.getAppPath(), "dist", "search.html")}?userId=${userId}`;
+        ? `http://localhost:5234/search.html?userId=${userId}&selectInformation=${selectInformation}`
+        : `file://${path.join(app.getAppPath(), "dist", "search.html")}?userId=${userId}&selectInformation=${selectInformation}`;
 
     searchWindow.loadURL(searchUrl).catch(err => console.error('Failed to load search URL:', err));
 
@@ -486,8 +486,8 @@ ipcMain.handle('get-app-version', () => {
     return app.getVersion();
 });
 
-ipcMain.on('open-search-window', (event, userId) => {
-    createSearchWindow(userId);
+ipcMain.on('open-search-window', (event, { userId, selectInformation }) => {
+    createSearchWindow(userId, selectInformation);
 });
 
 ipcMain.on('open-settings-window', () => {

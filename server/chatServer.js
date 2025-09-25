@@ -438,7 +438,6 @@ io.on('connection', (socket) => {
 
   // 获取好友请求
   socket.on('get-friend-requests', async () => {
-    console.log('get-friend-requests');
     const senderInfo = onlineUsers.get(socket.id);
     if (!senderInfo) return;
 
