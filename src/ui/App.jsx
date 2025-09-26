@@ -234,85 +234,49 @@ function App() {
     }
   };
 
-  const handleUploadFile = async ({ fileName, fileContent }) => {
-    if (currentUser && selectedContact) {
-      try {
-        const result = await window.electronAPI.uploadFile(
-          selectedContact.id,
-          currentUser.userId,
-          fileName,
-          fileContent,
-        );
+  const handleUploadFile = async ({ fileName, fileContent, localPath= null }) => {
+      if (currentUser && selectedContact) {
+          try {
 
-        if (!result.success) {
-          throw new Error('文件上传失败');
-        }
+              const result = await window.electronAPI.uploadFile(
+                  selectedContact.id,
+                  currentUser.userId,
+                  fileName,
+                  fileContent,
+              );
 
-        const newMessage = {
-          id: `file_${Date.now()}`,
-          text: '',
-          sender: 'user',
-          timestamp: new Date().toISOString(),
-          username: currentUser.username,
-          messageType: 'file',
-          fileName: fileName,
-          fileUrl: result.filePath,
-          fileSize: fileContent.length
-        };
+              if (!result.success) {
+                  throw new Error('文件上传失败');
+              }
 
-        setMessages(prev => ({
-          ...prev,
-          [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
-        }));
+              const newMessage = {
+                  id: `file_${Date.now()}`,
+                  text: '',
+                  sender: 'user',
+                  timestamp: new Date().toISOString(),
+                  username: currentUser.username,
+                  messageType: 'file',
+                  fileName: fileName,
+                  fileUrl: result.filePath,
+                  fileSize: fileContent.length,
+                  localPath: localPath,
+                  fileExt: localPath ? true : false,
+              };
 
-        // 保存到本地历史
-        if (window.electronAPI) {
-          window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
-        }
-      } catch (error) {
-        console.error('文件上传失败:', error);
+              setMessages(prev => ({
+                  ...prev,
+                  [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
+              }));
+
+              // 保存到本地历史
+              if (window.electronAPI) {
+                  window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
+              }
+          } catch (error) {
+              console.error('文件上传失败:', error);
+          }
       }
-    }
   };
-
-  // 监听文件上传成功事件
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleFileUploaded = (data) => {
-      const { messageData } = data;
-      if (messageData && selectedContact) {
-        // 将文件消息添加到消息列表
-        const newFileMessage = {
-          id: messageData.id,
-          text: messageData.content,
-          sender: 'user',
-          timestamp: new Date(messageData.timestamp).toISOString(),
-          username: currentUser.username,
-          messageType: 'file',
-          fileName: messageData.fileName,
-          fileUrl: messageData.fileUrl,
-          fileSize: messageData.fileSize,
-        };
-
-        setMessages(prev => ({
-          ...prev,
-          [selectedContact.id]: [...(prev[selectedContact.id] || []), newFileMessage]
-        }));
-
-        // 保存到本地历史
-        if (window.electronAPI) {
-          window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newFileMessage);
-        }
-      }
-    };
-
-    socket.on('file-uploaded', handleFileUploaded);
-
-    return () => {
-      socket.off('file-uploaded', handleFileUploaded);
-    };
-  }, [socket, currentUser, selectedContact]);
 
   const handleToSendMessage = (contact) => {
     setSelectedContact(contact)

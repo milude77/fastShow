@@ -91,6 +91,7 @@ io.on('connection', (socket) => {
 
       // 存储消息到数据库
       const [messageId] = await db('messages').insert(newMessage);
+      console.log('Message inserted with ID:', messageId); // 添加调试日志
 
       // 构建要发送的消息对象
       const savedMessage = {
@@ -108,9 +109,12 @@ io.on('connection', (socket) => {
         fileSize: fileSize,
         fileId: fileId
       };
+      console.log('Saved message object:', savedMessage); // 添加调试日志
 
       // 返回成功响应
-      res.status(200).json({ message: '文件上传成功', messageData: savedMessage });
+      const response = { message: '文件上传成功', messageData: savedMessage };
+      console.log('Upload response:', response); // 添加调试日志
+      res.status(200).json(response);
 
       // 查找接收方是否在线
       const targetSocketId = Array.from(onlineUsers.entries())

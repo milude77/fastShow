@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chatMessage: (contactId, currentUserID, msg) => ipcRenderer.send('chat-message', { contactId, currentUserID, msg }),
   uploadFile: (contactId, currentUserID, fileName, fileContent) => ipcRenderer.invoke('upload-file', { contactId, currentUserID, fileName, fileContent }),
   downloadFile: (fileUrl, fileName) => ipcRenderer.invoke('download-file', { fileUrl, fileName }),
+  showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
+  readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   openFileLocation: (messageId) => ipcRenderer.invoke('open-file-location', { messageId }),
   checkFileExists: (messageId) => ipcRenderer.invoke('check-file-exists', { messageId }),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),

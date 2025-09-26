@@ -49,47 +49,36 @@ const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) =
 };
 
 const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
-    const fileInputRef = useRef(null);
     const [modal, modalContextHolder] = Modal.useModal();
-    const handleFileSelect = () => {
-        if (fileInputRef.current) {
-            fileInputRef.current.click();
-        }
-    };
-    const handleFileChange = (e) => {
-        const files = e.target.files;
-        if (files && files.length > 0) {
-            const file = files[0];
-            const fileSize = (file.size / 1024).toFixed(2);
 
-            // 使用与拖拽上传相同的确认对话框
-            modal.confirm({
-                zIndex: 2000,
-                centered: true,
-                maskClosable: false,
-                title: `发送文件 ${file.name} 给联系人？`,
-                content: `文件名: ${file.name}, 大小: ${fileSize} KB`,
-                onOk() {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const fileContent = e.target.result.split(',')[1];
-                        onUploadFile({ fileName: file.name, fileContent });
-                    };
-                    reader.readAsDataURL(file);
-                    scrollToBottom()
-                }
-            });
+    const handleFileSelect = async () => {
+        const filePath = await window.electronAPI.showOpenDialog();
+        console.log('选择的文件路径:', filePath);
+        if (filePath) {
+            const fileName = filePath.split(/[\\/]/).pop();
+            const fileContent = await window.electronAPI.readFile(filePath);
+
+            if (fileContent) {
+                // 由于我们无法直接获取文件大小，这里可以留空或进行估算
+                // const fileSize = (fileContent.length * 0.75 / 1024).toFixed(2); // Base64 估算
+                modal.confirm({
+                    zIndex: 2000,
+                    centered: true,
+                    maskClosable: false,
+                    title: `发送文件 ${fileName} 给联系人？`,
+                    content: `文件名: ${fileName}`,
+                    onOk() {
+                        onUploadFile({ fileName, fileContent, localPath: filePath });
+                        scrollToBottom();
+                    }
+                });
+            }
         }
     };
+
     return (
         <div className='input-toolbar' style={{ display: 'flex', width: '100%' }}>
             {modalContextHolder}
-            <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }} // 隐藏文件输入
-                onChange={handleFileChange} // 处理文件选择
-            />
             <Button
                 icon={<FileOutlined />}
                 className="file-upload-btn"
@@ -203,6 +192,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
         return new Date(currentTimestamp) - new Date(previousTimestamp) > fiveMinutes;
     };
     // 拖拽上传文件
+    // 由于js限制，拖拽文件无法在渲染层中获取路径，所以拖拽上传无法保存本地路径
     const handleDrop = (event) => {
         event.preventDefault();
         // 先检测是否为文件夹（基于 Chromium 的 webkitGetAsEntry）
@@ -229,7 +219,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                 centered: true,
                 maskClosable: false,
                 title: `发送文件给 ${contact?.username}？`,
-                content: `文件名: ${file.name}, 大小: ${fileSize} KB`,
+                content: `文件名: ${file.name}，大小: ${fileSize} KB`,
                 onOk() {
                     const reader = new FileReader();
                     reader.onload = (e) => {
@@ -366,6 +356,3 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 }
 
 export default MessageList;
-
-
-

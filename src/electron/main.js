@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'path';
 import { io } from 'socket.io-client';
 import Store from 'electron-store';
@@ -132,7 +132,6 @@ async function initializeDatabase(db) {
         }
 
         if (!exists) {
-            console.log('Creating messages table...');
 
             // 使用 await 确保表创建完成
             await db.schema.createTable('messages', (table) => {
@@ -241,7 +240,7 @@ async function writeChatHistory(contactId, currentUserID, msg) {
             fileUrl: msg.fileUrl || null,
             fileSize: msg.fileSize || null,
             fileExt: msg.fileExt || false,
-            localFilePath: msg.localFilePath || null
+            localFilePath: msg.localPath || null
         };
 
         await db('messages').insert(messageData);
@@ -564,7 +563,7 @@ ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
 });
 
 
-ipcMain.handle('upload-file', async (event, { contactId, currentUserID, fileName, fileContent }) => {
+ipcMain.handle('upload-file', async (event, { contactId, currentUserID, fileName, fileContent, localPath }) => {
     try {
         const response = await fetch(`${SOCKET_SERVER_URL}/api/upload`, {
             method: 'POST',
@@ -575,7 +574,8 @@ ipcMain.handle('upload-file', async (event, { contactId, currentUserID, fileName
                 fileName,
                 fileContent,
                 receiverId: contactId,
-                senderId: currentUserID
+                senderId: currentUserID,
+                localPath // 传递本地文件路径到服务器
             })
         });
         if (!response.ok) {
@@ -583,7 +583,16 @@ ipcMain.handle('upload-file', async (event, { contactId, currentUserID, fileName
         }
 
         const result = await response.json();
-        return { success: true, filePath: result.filePath };
+
+        if (result.success !== false && result.messageData && result.messageData.fileUrl) {
+            return {
+                success: true,
+                filePath: result.messageData.fileUrl,
+            };
+        } else {
+            console.error('Upload response format error:', result);
+            throw new Error(`上传响应格式错误: ${JSON.stringify(result)}`);
+        }
     } catch (error) {
         console.error('Failed to upload file:', error);
         return { success: false, error: error.message };
@@ -705,6 +714,13 @@ ipcMain.handle('check-file-exists', async (event, { messageId }) => {
             .first();
 
         if (!message || !message.localFilePath) {
+            try {
+                await db('messages')
+                    .where('id', messageId)
+                    .update({ fileExt: false });
+            } catch (dbError) {
+                console.error('Failed to update fileExt in database:', dbError);
+            }
             return { exists: false, error: '未找到本地文件路径' };
         }
 
@@ -726,10 +742,30 @@ ipcMain.handle('check-file-exists', async (event, { messageId }) => {
     }
 });
 
-
 // IPC handler to get current socket connection status
 ipcMain.handle('get-socket-status', () => {
     return socket ? socket.connected : false;
+});
+
+ipcMain.handle('show-open-dialog', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(window, {
+        properties: ['openFile']
+    });
+    if (!canceled) {
+        return filePaths[0];
+    }
+    return null;
+});
+
+ipcMain.handle('read-file', async (event, filePath) => {
+    try {
+        const data = fs.readFileSync(filePath);
+        return data.toString('base64');
+    } catch (error) {
+        console.error('Failed to read file:', error);
+        return null;
+    }
 });
 // --- End Socket.IO IPC ---
 
