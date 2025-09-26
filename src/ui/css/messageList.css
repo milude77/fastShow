@@ -11,16 +11,26 @@
 
 .message-send-box {
     display: flex;
+    flex-direction: column;
     flex: 1;
     position: relative;
     align-items: center;
     border-top: 1px solid #ccc;
-    height: 60px;
     max-height: 50%;
     min-height: 20%;
     color: var(--text-color);
     box-sizing: border-box;
     margin-top: auto;
+}
+
+.file-upload-btn{
+    background-color: transparent;
+    border: none;
+    color: var(--text-color);
+}
+
+.file-upload-btn:hover{
+    background-color: var(--hover-contact-background-color);
 }
 
 .message-input-box {
@@ -36,6 +46,7 @@
     overflow-y: auto;
     background-color: var(--background-color);
     color: var(--text-color);
+    resize: none;
 }
 
 .message-input-box::-webkit-scrollbar {
@@ -146,6 +157,3 @@
     flex: 0 0 auto !important; 
 }
 
-.message-input-box { 
-    resize: none !important; 
-}

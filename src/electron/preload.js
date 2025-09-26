@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   chatMessage: (contactId, currentUserID, msg) => ipcRenderer.send('chat-message', { contactId, currentUserID, msg }),
   uploadFile: (contactId, currentUserID, fileName, fileContent) => ipcRenderer.invoke('upload-file', { contactId, currentUserID, fileName, fileContent }),
+  downloadFile: (fileUrl, fileName) => ipcRenderer.invoke('download-file', { fileUrl, fileName }),
+  openFileLocation: (messageId) => ipcRenderer.invoke('open-file-location', { messageId }),
+  checkFileExists: (messageId) => ipcRenderer.invoke('check-file-exists', { messageId }),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize }),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),

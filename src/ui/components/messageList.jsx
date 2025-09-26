@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
-import { Modal, Card, Button } from 'antd';
+import { Modal, Card, Button, message } from 'antd';
 import '../css/messageList.css';
-import { DownloadOutlined } from '@ant-design/icons';
+import { DownloadOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/icons';
 
 const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) => {
     const [draft, setDraft] = useState(savedDraft || '');
@@ -48,7 +48,60 @@ const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) =
     );
 };
 
+const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
+    const fileInputRef = useRef(null);
+    const [modal, modalContextHolder] = Modal.useModal();
+    const handleFileSelect = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+    const handleFileChange = (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            const fileSize = (file.size / 1024).toFixed(2);
+
+            // 使用与拖拽上传相同的确认对话框
+            modal.confirm({
+                zIndex: 2000,
+                centered: true,
+                maskClosable: false,
+                title: `发送文件 ${file.name} 给联系人？`,
+                content: `文件名: ${file.name}, 大小: ${fileSize} KB`,
+                onOk() {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const fileContent = e.target.result.split(',')[1];
+                        onUploadFile({ fileName: file.name, fileContent });
+                    };
+                    reader.readAsDataURL(file);
+                    scrollToBottom()
+                }
+            });
+        }
+    };
+    return (
+        <div className='input-toolbar' style={{ display: 'flex', width: '100%' }}>
+            {modalContextHolder}
+            <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }} // 隐藏文件输入
+                onChange={handleFileChange} // 处理文件选择
+            />
+            <Button
+                icon={<FileOutlined />}
+                className="file-upload-btn"
+                onClick={handleFileSelect}
+            >
+            </Button>
+        </div>
+    )
+}
+
 const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onLoadMore, onUploadFile }) => {
+    const [messageApi, contextHolder] = message.useMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
         if (sizeInBytes < 1024) return sizeInBytes + ' B';
@@ -64,10 +117,10 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     const [prevScrollHeight, setPrevScrollHeight] = useState(null);
     const [modal, modalContextHolder] = Modal.useModal();
 
-    const [inputHeight, setInputHeight] = useState(60); // 初始高度与原CSS一致
+    const [inputHeight, setInputHeight] = useState(210); // 初始高度设置
     const isResizingRef = useRef(false);
     const startYRef = useRef(0);
-    const startHeightRef = useRef(60);
+    const startHeightRef = useRef(80);
 
     const onResizeMouseMove = (e) => {
         if (!isResizingRef.current) return;
@@ -124,19 +177,19 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
         messagesEndRef.current?.scrollIntoView({ behavior });
     };
 
-    useEffect(() => { 
+    useEffect(() => {
         scrollToBottom();
     }, []);
 
     useEffect(() => {
         const newLastMessageTimestamp = messages?.[messages.length - 1]?.timestamp;
-        if (newLastMessageTimestamp && newLastMessageTimestamp!== lastMessageTimestamp.current) {
+        if (newLastMessageTimestamp && newLastMessageTimestamp !== lastMessageTimestamp.current) {
             scrollToBottom()
         }
         lastMessageTimestamp.current = newLastMessageTimestamp;
     }, [messages]);
 
-    const handleSendMessage = (message) =>{
+    const handleSendMessage = (message) => {
         onSendMessage(message);
         scrollToBottom();
     }
@@ -195,9 +248,50 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     };
 
 
+    // 处理文件下载
+    const handleDownloadFile = async (fileUrl, fileName) => {
+        try {
+            if (!fileUrl) {
+                return;
+            }
+
+            const result = await window.electronAPI.downloadFile(fileUrl, fileName);
+            if (result.success) {
+                return 
+            } else {
+                console.error('文件下载失败:', result.error);
+                messageApi.error('文件下载失败: ' + result.error);
+            }
+        } catch (error) {
+            console.error('文件下载出错:', error);
+            messageApi.error('文件下载出错: ' + error.message);
+        }
+    };
+
+    // 处理打开文件位置
+    const handleOpenFileLocation = async (messageId) => {
+        try {
+            // 检查文件是否存在
+            const checkResult = await window.electronAPI.checkFileExists(messageId);
+            if (checkResult.exists) {
+                const result = await window.electronAPI.openFileLocation(messageId);
+                if (!result.success) {
+                    messageApi.error('无法打开文件位置: ' + result.error);
+                }
+            } else {
+                messageApi.warning('文件不存在或已被移动');
+            }
+        } catch (error) {
+            console.error('打开文件位置出错:', error);
+            messageApi.error('打开文件位置出错: ' + error.message);
+        }
+    };
+
+
     return (
         <>
             {modalContextHolder}
+            {contextHolder}
             <div className='history-message-box' ref={messageContainerRef}
                 onMouseLeave={() => {
                     messageContainerRef.current.style.scrollbarColor = 'transparent transparent'; // 隐藏滚动条颜色
@@ -231,7 +325,27 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                                                     <span className="message-text">{msg.fileName}</span>
                                                     <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
                                                 </div>
-                                                <Button style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }} type="primary"><DownloadOutlined /></Button>
+                                                {
+                                                    msg.fileExt ? (
+                                                        <Button
+                                                            style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
+                                                            type="primary"
+                                                            onClick={() => handleOpenFileLocation(msg.id)}
+                                                            title="打开文件位置"
+                                                        >
+                                                            <FolderOpenOutlined />
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
+                                                            type="primary"
+                                                            onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
+                                                            title="下载文件"
+                                                        >
+                                                            <DownloadOutlined />
+                                                        </Button>
+                                                    )
+                                                }
                                             </div>
                                         )
                                     }
@@ -244,6 +358,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
             </div>
             <div className='message-send-box' style={{ height: inputHeight }} >
                 <div className="resize-handle" onMouseDown={onResizeMouseDown} />
+                <InputToolBar onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
                 <MessageInput contactID={contact?.id} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
             </div>
         </>
@@ -251,5 +366,6 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 }
 
 export default MessageList;
+
 
 

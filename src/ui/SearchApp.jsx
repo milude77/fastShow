@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket';
 import AppHeaderBar from './components/appHeaderBar';
 import { Alert } from 'antd';
+import selectImg from './assets/select.png';
 
 const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) => {
   const socket = useSocket();
@@ -40,25 +41,64 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
   }
 
   return (
-    <div>
+    <div className="search-user-container" style={{ display: 'flex', flexDirection: 'column' }}>
       {showAlert && <Alert message={alertMessage} type={alertType} showIcon style={{ marginBottom: '10px' }} />}
-      <form onSubmit={onSearch}>
+      <form onSubmit={onSearch} style={{ display: 'flex', width: '100%', transform: 'translateY(-50%)', justifyContent: 'center', alignItems: 'center' }}>
         <input
-          type="text"
+          style={{ width: '50%', alignItems: 'center', height: '30px' }}
+          type="search"
           placeholder="按 用户名/id 搜索"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{ marginRight: '5px' }}
         />
-        <button type="submit">搜索</button>
+        <button
+          type="submit"
+          style={{
+            backgroundColor: '#ecececff',
+            height: '30px',
+            borderRadius: '5px',
+            margin: '0 10px',
+            border: '1px solid #d9d9d9',
+            cursor: 'pointer',
+            padding: '0 15px'
+          }}
+        >
+          搜索
+        </button>
       </form>
-      <div style={{ marginTop: '10px' }}>
-        {searchResults.map(user => (
-          <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <span>{user.username} ({user.id})</span>
-            <button onClick={() => handleAddFriend(user.id)}>添加好友</button>
+      <div style={{ flex:'1', marginTop: '10px', width: '100%', height:'100%', minHeight: '400px' }}>
+        {searchResults.length > 0 ?
+          (searchResults.map(user => (
+            <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+              <span>{user.username} ({user.id})</span>
+              <button onClick={() => handleAddFriend(user.id)}>添加好友</button>
+            </div>
+          )))
+          :
+          (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{
+              backgroundImage: `url(${selectImg})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              height: '200px',
+              width: '200px',
+              margin: '0 auto',
+              justifyContent: 'center',
+              alignItems: 'center',
+              color: 'white',
+              fontSize: '20px',
+              fontWeight: 'bold',
+              opacity: 0.15,
+            }}>
+            </div>
+            <span>
+              暂无搜索结果
+            </span>
           </div>
-        ))}
+          )
+        }
       </div>
     </div>
   );
@@ -88,13 +128,13 @@ function SearchApp() {
   }, [socket]);
 
   useEffect(() => {
-    if (selectInformation.trim()){
+    if (selectInformation.trim()) {
       setSearchTerm(selectInformation.trim());
     }
     if (socket && selectInformation.trim()) {
       socket.emit('search-users', selectInformation.trim());
     }
-  },[])
+  }, [])
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -118,7 +158,6 @@ function SearchApp() {
     <div className="search-container">
       <AppHeaderBar />
       <div style={{ marginTop: '20px' }}>
-        <h4>搜索新好友</h4>
         <SearchUser
           onSearch={handleSearch}
           searchTerm={searchTerm}

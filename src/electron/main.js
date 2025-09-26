@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
 import { io } from 'socket.io-client';
 import Store from 'electron-store';
@@ -7,6 +7,7 @@ import fs from 'fs';
 import { readFileSync } from 'fs';
 import fetch from 'node-fetch';
 import { console } from 'inspector/promises';
+
 
 
 const isDev = process.env.NODE_ENV === "development"
@@ -36,7 +37,7 @@ function connectSocket() {
     }
 
     socket = io(SOCKET_SERVER_URL, {
-        reconnection: false, 
+        reconnection: false,
     });
 
     // Add a listener for connection errors
@@ -146,6 +147,8 @@ async function initializeDatabase(db) {
                 table.string('fileName').nullable();
                 table.string('fileUrl').nullable();
                 table.string('fileSize').nullable();
+                table.string('localFilePath').nullable();
+                table.boolean('fileExt').nullable().defaultTo(false);
             });
 
             console.log('Messages table created successfully');
@@ -177,7 +180,6 @@ async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20
         // 确保数据库已初始化
         const exists = await db.schema.hasTable('messages');
         if (!exists) {
-            console.log('Messages table does not exist in readChatHistory, initializing...');
             await initializeDatabase(db);
             // 重新检查表是否存在
             const existsAfterInit = await db.schema.hasTable('messages');
@@ -191,10 +193,10 @@ async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20
 
         const history = await db('messages')
             .select('*')
-            .where(function() {
+            .where(function () {
                 this.where('sender_id', String(currentUserID)).andWhere('receiver_id', String(contactId));
             })
-            .orWhere(function() {
+            .orWhere(function () {
                 this.where('sender_id', String(contactId)).andWhere('receiver_id', String(currentUserID));
             })
             .orderBy('timestamp', 'desc')
@@ -237,7 +239,9 @@ async function writeChatHistory(contactId, currentUserID, msg) {
             messageType: msg.messageType || 'text',
             fileName: msg.fileName || null,
             fileUrl: msg.fileUrl || null,
-            fileSize: msg.fileSize || null
+            fileSize: msg.fileSize || null,
+            fileExt: msg.fileExt || false,
+            localFilePath: msg.localFilePath || null
         };
 
         await db('messages').insert(messageData);
@@ -254,20 +258,20 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         throw error; // 重新抛出错误以便调用方处理
     }
 }
-        // table.string('id').primary();
-        // table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
-        // table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
-        // table.text('text').notNullable();
-        // table.timestamp('timestamp').defaultTo(db.fn.now());
-        // table.string('username').notNullable();
-        // table.string('sender').notNullable().defaultTo('user');
-        // table.string('messageType').defaultTo('text')
-        // table.string('fileName').nullable()
-        // table.string('fileUrl').nullable()
-        // table.string('fileSize').nullable()
+// table.string('id').primary();
+// table.integer('sender_id').unsigned().references('id').inTable('users').notNullable();
+// table.integer('receiver_id').unsigned().references('id').inTable('users').notNullable();
+// table.text('text').notNullable();
+// table.timestamp('timestamp').defaultTo(db.fn.now());
+// table.string('username').notNullable();
+// table.string('sender').notNullable().defaultTo('user');
+// table.string('messageType').defaultTo('text')
+// table.string('fileName').nullable()
+// table.string('fileUrl').nullable()
+// table.string('fileSize').nullable()
 
 
-let settingsWindow= null;
+let settingsWindow = null;
 function createSettingsWindow() {
     if (settingsWindow) {
         settingsWindow.focus();
@@ -456,6 +460,8 @@ ipcMain.on('login-success', async (event, userID) => {
 
         // 初始化数据库（确保表存在）
         await initializeDatabase(db);
+
+
         console.log('Database initialization completed');
     } catch (error) {
         console.error('Error in login-success handler:', error);
@@ -558,7 +564,7 @@ ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
 });
 
 
-ipcMain.handle('upload-file', async (event, {contactId, currentUserID, fileName, fileContent }) => {
+ipcMain.handle('upload-file', async (event, { contactId, currentUserID, fileName, fileContent }) => {
     try {
         const response = await fetch(`${SOCKET_SERVER_URL}/api/upload`, {
             method: 'POST',
@@ -581,6 +587,142 @@ ipcMain.handle('upload-file', async (event, {contactId, currentUserID, fileName,
     } catch (error) {
         console.error('Failed to upload file:', error);
         return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('download-file', async (event, { fileUrl, fileName }) => {
+    try {
+        if (!fileUrl) {
+            throw new Error('文件URL为空');
+        }
+
+        // 如果是相对路径，构建完整URL
+        let fullUrl = fileUrl;
+        if (!fileUrl.startsWith('http')) {
+            fullUrl = `${SOCKET_SERVER_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+        }
+
+        // 获取下载文件夹路径
+        const downloadsPath = app.getPath('downloads');
+        const fullFileName = fileName || `file_${Date.now()}`;
+        const filePath = path.join(downloadsPath, fullFileName);
+
+        // 从服务器下载文件
+        const response = await fetch(fullUrl);
+        if (!response.ok) {
+            throw new Error(`下载失败: ${response.statusText}`);
+        }
+
+        // 将文件内容写入本地
+        const buffer = Buffer.from(await response.arrayBuffer());
+        fs.writeFileSync(filePath, buffer);
+
+        // 打开文件资源管理器并选中文件
+        shell.showItemInFolder(filePath);
+
+        // 更新数据库中的文件存在状态和本地文件路径
+        try {
+            if (db) {
+                // 根据fileUrl查找并更新fileExt状态和本地文件路径
+                await db('messages')
+                    .where('fileUrl', fileUrl)
+                    .update({
+                        fileExt: true,
+                        localFilePath: filePath
+                    });
+                console.log('Updated fileExt status to true and localFilePath for:', fileUrl);
+            }
+        } catch (dbError) {
+            console.error('Failed to update fileExt and localFilePath in database:', dbError);
+        }
+
+        return { success: true, filePath, action: 'downloaded' };
+    } catch (error) {
+        console.error('Failed to download file:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('open-file-location', async (event, { messageId }) => {
+    try {
+        if (!messageId) {
+            throw new Error('消息ID为空');
+        }
+
+        // 从数据库获取本地文件路径
+        if (!db) {
+            throw new Error('数据库未连接');
+        }
+
+        const message = await db('messages')
+            .select('localFilePath', 'fileUrl')
+            .where('id', messageId)
+            .first();
+
+        if (!message || !message.localFilePath) {
+            return { success: false, error: '未找到本地文件路径' };
+        }
+
+        const filePath = message.localFilePath;
+
+        // 检查文件是否存在
+        if (!fs.existsSync(filePath)) {
+            // 更新数据库中的文件存在状态
+            try {
+                await db('messages')
+                    .where('id', messageId)
+                    .update({ fileExt: false });
+                console.log('Updated fileExt status to false for:', messageId);
+            } catch (dbError) {
+                console.error('Failed to update fileExt in database:', dbError);
+            }
+            return { success: false, error: '文件不存在或已被移动' };
+        }
+
+        // 打开文件资源管理器并选中文件
+        shell.showItemInFolder(filePath);
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to open file location:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('check-file-exists', async (event, { messageId }) => {
+    try {
+        if (!messageId) {
+            return { exists: false, error: '消息ID为空' };
+        }
+
+        // 从数据库获取本地文件路径
+        if (!db) {
+            return { exists: false, error: '数据库未连接' };
+        }
+
+        const message = await db('messages')
+            .select('localFilePath')
+            .where('id', messageId)
+            .first();
+
+        if (!message || !message.localFilePath) {
+            return { exists: false, error: '未找到本地文件路径' };
+        }
+
+        if (!fs.existsSync(message.localFilePath)) {
+            try {
+                await db('messages')
+                    .where('id', messageId)
+                    .update({ fileExt: false });
+            } catch (dbError) {
+                console.error('Failed to update fileExt in database:', dbError);
+            }
+            return { exists: false, error: '文件不存在或已被移动' };
+        }
+
+        return { exists: true };
+    } catch (error) {
+        console.error('Failed to check file exists:', error);
+        return { exists: false, error: error.message };
     }
 });
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Alert, Button } from 'antd';
+import { Alert, Button, ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 import { SearchOutlined } from '@ant-design/icons';
 import './css/App.css';
 import './css/dark-mode.css';
@@ -389,35 +390,37 @@ function App() {
   }
 
   return (
-    <div className="app-wrapper">
-      <div className="app">
-        <div className='app-features-bar'>
-          <ToolBar
-            selectFeatures={selectFeatures}
-            setSelectFeatures={setSelectFeatures}
-            isDarkMode={darkMode}
-            toggleDarkMode={toggleDarkMode}
-          />
-        </div>
-        <div className='contact-list'>
-          {renderConnectionStatus()}
-          <SearchBar currentUser={currentUser} />
-          {renderFeature()}
-        </div>
-        <div className='message-box'>
-          <div className='message-box-header' style={{ boxShadow: '0 1px 1px rgba(0, 0, 0, 0.15)' }}>
-            <AppHeaderBar />
-            {selectedContact && selectFeatures == "message" &&
-              <div className='contact-info'>
-                <strong>
-                  {selectedContact.username}
-                </strong>
-              </div>}
+    <ConfigProvider locale={zhCN}>
+      <div className="app-wrapper">
+        <div className="app">
+          <div className='app-features-bar'>
+            <ToolBar
+              selectFeatures={selectFeatures}
+              setSelectFeatures={setSelectFeatures}
+              isDarkMode={darkMode}
+              toggleDarkMode={toggleDarkMode}
+            />
           </div>
-          {renderInformationFunctionBar()}
+          <div className='contact-list'>
+            {renderConnectionStatus()}
+            <SearchBar currentUser={currentUser} />
+            {renderFeature()}
+          </div>
+          <div className='message-box'>
+            <div className='message-box-header' style={{ boxShadow: '0 1px 1px rgba(0, 0, 0, 0.15)' }}>
+              <AppHeaderBar />
+              {selectedContact && selectFeatures == "message" &&
+                <div className='contact-info'>
+                  <strong>
+                    {selectedContact.username}
+                  </strong>
+                </div>}
+            </div>
+            {renderInformationFunctionBar()}
+          </div>
         </div>
       </div>
-    </div>
+    </ConfigProvider>
   );
 }
 
