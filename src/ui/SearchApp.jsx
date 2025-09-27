@@ -94,7 +94,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
             }}>
             </div>
             <span>
-              暂无搜索结果
+              搜索结果无用户/群聊
             </span>
           </div>
           )

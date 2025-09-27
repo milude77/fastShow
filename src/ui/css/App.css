@@ -53,11 +53,13 @@
 
 .message-box-header{
   -webkit-app-region: drag;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .message-box-header .contact-info strong{
   padding-left: 15px;
   -webkit-app-region: no-drag; 
+
 }
 
 .contact-list {

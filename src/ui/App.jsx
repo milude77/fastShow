@@ -32,7 +32,7 @@ const SearchBar = (currentUser) => {
       <SearchOutlined />
       <input
         className='search-input'
-        type="text"
+        type="search"
         placeholder="搜索"
         onChange={(e) => setSearchTerm(e.target.value)} 
         value={searchTerm}
@@ -375,7 +375,7 @@ function App() {
               <AppHeaderBar />
               {selectedContact && selectFeatures == "message" &&
                 <div className='contact-info'>
-                  <strong>
+                  <strong >
                     {selectedContact.username}
                   </strong>
                 </div>}

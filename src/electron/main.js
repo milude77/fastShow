@@ -1,20 +1,24 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
 import Store from 'electron-store';
 import knex from 'knex';
 import fs from 'fs';
-import { readFileSync } from 'fs';
 import fetch from 'node-fetch';
 import { console } from 'inspector/promises';
 
 
+// ESM-compliant __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const isDev = process.env.NODE_ENV === "development"
 const store = new Store();
 
 // --- Socket.IO Main Process Setup ---
-const config = JSON.parse(readFileSync('./config.json'));
+const configPath = path.join(__dirname, '..', '..', 'config.json');
+const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 const SOCKET_SERVER_URL = config.SOCKET_SERVER_URL;
 let socket;
 let heartbeatInterval;

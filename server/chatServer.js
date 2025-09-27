@@ -16,8 +16,9 @@ import crypto from 'crypto';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 初始化 Knex 数据库连接
-const db = knex(knexConfig.development);
+// 根据环境变量选择配置，默认为 'development'
+const environment = process.env.NODE_ENV || 'development';
+const db = knex(knexConfig[environment]);
 
 const app = express();
 const server = createServer(app);
@@ -314,23 +315,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 用户正在输入
-  socket.on('typing', (data) => {
-    const senderInfo = onlineUsers.get(socket.id);
-    const { receiverId } = data; // 针对私聊的 typing，接收 receiverId
-
-    if (senderInfo && receiverId) {
-      const targetSocketId = Array.from(onlineUsers.entries())
-        .find(([, uInfo]) => uInfo.userId === receiverId)?.[0]; // 根据ID查找
-
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('user-typing', {
-          username: senderInfo.username,
-          isTyping: data.isTyping
-        });
-      }
-    }
-  });
 
   // 获取好友列表
   socket.on('get-friends', async () => {
@@ -566,4 +550,3 @@ process.on('SIGTERM', () => {
 });
 
 export default app;
-
