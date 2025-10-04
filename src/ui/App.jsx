@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Alert, Button, ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { SearchOutlined } from '@ant-design/icons';
@@ -34,10 +34,10 @@ const SearchBar = (currentUser) => {
         className='search-input'
         type="search"
         placeholder="搜索"
-        onChange={(e) => setSearchTerm(e.target.value)} 
+        onChange={(e) => setSearchTerm(e.target.value)}
         value={searchTerm}
         onKeyDown={handleKeyDown}
-        />
+      />
     </div>
   );
 };
@@ -55,6 +55,7 @@ function App() {
 
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
+  const pendingTimersRef = useRef(new Map());
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -100,11 +101,10 @@ function App() {
     socket.on('new-message', handleNewMessage);
     socket.on('friends-list', handleFriendsList);
     socket.on('friend-request-accepted', friendsRequestAccepted);
-
-    // Add the status listeners using the socket context
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('reconnecting', handleReconnecting);
+    socket.on('message-sent-success', handleSendMessageStatus)
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
@@ -117,6 +117,7 @@ function App() {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting);
+      socket.off('message-sent-success', handleSendMessageStatus)
     };
   }, [socket, currentUser]);
 
@@ -140,7 +141,7 @@ function App() {
     // When receiving a message from others, save it to local history.
     if (msg.senderId !== currentUser.userId) {
       const newMessage = {
-        id: msg.id,
+        id: `temp_${Date.now()}`,
         text: msg.content,
         sender: 'other',
         timestamp: new Date(msg.timestamp).toISOString(),
@@ -196,7 +197,8 @@ function App() {
         sender: 'user',
         messageType: 'text',
         timestamp: new Date().toISOString(),
-        username: currentUser.username
+        username: currentUser.username,
+        status: 'sending'
       };
 
       setMessages(prev => ({
@@ -208,11 +210,58 @@ function App() {
         window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
       }
 
-      socket.emit('send-private-message', { message, receiverId: selectedContact.id });
+      socket.emit('send-private-message', { message: newMessage, receiverId: selectedContact.id });
+
+      // 启动 10 秒超时计时器，若未收到成功回执则标记为失败
+      const timer = setTimeout(() => {
+        setMessages(prev => {
+          const contactMessages = prev[selectedContact.id] || [];
+          return {
+            ...prev,
+            [selectedContact.id]: contactMessages.map(msg =>
+              msg.id === tempId ? { ...msg, status: 'fail' } : msg
+            )
+          };
+        });
+        pendingTimersRef.current.delete(tempId);
+      }, 10000);
+      pendingTimersRef.current.set(tempId, timer);
 
       setDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
     }
   };
+
+  const handleResendMessage = (contactID, msg) => {
+    const oldMessage = messages[contactID] || [];
+    setMessages(prev => ({
+      ...prev,
+      [contactID]: oldMessage.filter(message => message.id !== msg.id)
+    }));
+    handleSendMessage(msg.text);
+  }
+
+  const handleSendMessageStatus = ({ senderInfo, sendMessageId, receiverId, status }) => {
+    // 收到服务端成功回执，清除超时计时器
+    const timer = pendingTimersRef.current.get(sendMessageId);
+    if (timer) {
+      clearTimeout(timer);
+      pendingTimersRef.current.delete(sendMessageId);
+    }
+
+    if (sendMessageId && receiverId && status == 'success') {
+      setMessages(prev => {
+        const contactMessages = prev[receiverId] || [];
+        return {
+          ...prev,
+          [receiverId]: contactMessages.map(msg =>
+            msg.id === sendMessageId ? { ...msg, status } : msg
+          )
+        };
+      });
+      console.log('消息发送成功状态更新', { senderInfo, sendMessageId, receiverId, status });
+      window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, receiverId, status);
+    }
+  }
 
   const handleDraftChange = (contactId, text) => {
     setDrafts(prev => ({ ...prev, [contactId]: text }));
@@ -234,48 +283,48 @@ function App() {
     }
   };
 
-  const handleUploadFile = async ({ fileName, fileContent, localPath= null }) => {
-      if (currentUser && selectedContact) {
-          try {
+  const handleUploadFile = async ({ fileName, fileContent, localPath = null }) => {
+    if (currentUser && selectedContact) {
+      try {
 
-              const result = await window.electronAPI.uploadFile(
-                  selectedContact.id,
-                  currentUser.userId,
-                  fileName,
-                  fileContent,
-              );
+        const result = await window.electronAPI.uploadFile(
+          selectedContact.id,
+          currentUser.userId,
+          fileName,
+          fileContent,
+        );
 
-              if (!result.success) {
-                  throw new Error('文件上传失败');
-              }
+        if (!result.success) {
+          throw new Error('文件上传失败');
+        }
 
-              const newMessage = {
-                  id: `file_${Date.now()}`,
-                  text: '',
-                  sender: 'user',
-                  timestamp: new Date().toISOString(),
-                  username: currentUser.username,
-                  messageType: 'file',
-                  fileName: fileName,
-                  fileUrl: result.filePath,
-                  fileSize: fileContent.length,
-                  localPath: localPath,
-                  fileExt: localPath ? true : false,
-              };
+        const newMessage = {
+          id: `file_${Date.now()}`,
+          text: '',
+          sender: 'user',
+          timestamp: new Date().toISOString(),
+          username: currentUser.username,
+          messageType: 'file',
+          fileName: fileName,
+          fileUrl: result.filePath,
+          fileSize: fileContent.length,
+          localPath: localPath,
+          fileExt: localPath ? true : false,
+        };
 
-              setMessages(prev => ({
-                  ...prev,
-                  [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
-              }));
+        setMessages(prev => ({
+          ...prev,
+          [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
+        }));
 
-              // 保存到本地历史
-              if (window.electronAPI) {
-                  window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
-              }
-          } catch (error) {
-              console.error('文件上传失败:', error);
-          }
+        // 保存到本地历史
+        if (window.electronAPI) {
+          window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
+        }
+      } catch (error) {
+        console.error('文件上传失败:', error);
       }
+    }
   };
 
   const handleToSendMessage = (contact) => {
@@ -283,6 +332,17 @@ function App() {
     setSelectFeatures('message')
     setSelectedContactInformation(null)
   }
+
+
+
+  const handleDeleteContact = (contactId) => {
+    socket.emit('delete-contact', contactId);
+    setContacts(prevContacts => {
+      const newContacts = { ...prevContacts };
+      delete newContacts[contactId];
+      return newContacts;
+    });
+  };
 
   const renderFeature = () => {
     switch (selectFeatures) {
@@ -324,6 +384,7 @@ function App() {
           onSendMessage={handleSendMessage}
           onLoadMore={() => loadMoreMessages(selectedContact.id)}
           onUploadFile={handleUploadFile}
+          onResendMessage={handleResendMessage}
         />
       );
     }
@@ -333,6 +394,7 @@ function App() {
           <ContactInformation
             contactInformation={contacts[selectedContactInformation]}
             toSendMessage={handleToSendMessage}
+            deleteContact={handleDeleteContact}
           />);
       }
       else {

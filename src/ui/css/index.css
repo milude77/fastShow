@@ -41,7 +41,7 @@ body.dark-mode {
   --message-background-color: #303030;
   --history-file--color: #464646;
   --history-message-user-color: #656464;
-  --history-message-other-color: #4a4a4a;
+  --history-message-other-color: #333333;
   --hover-contact-background-color: #727272;
   --selected-contact-background-color: #1182b6;
   --background-color: #1a1a1a;

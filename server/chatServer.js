@@ -260,8 +260,8 @@ io.on('connection', (socket) => {
 
   // 处理私聊消息
   socket.on('send-private-message', async (data) => {
-    const senderInfo = onlineUsers.get(socket.id);
     const { message, receiverId } = data; // 接收 receiverId
+    const senderInfo = onlineUsers.get(socket.id);
 
     if (!senderInfo) {
       socket.emit('error', { message: '发送者信息不存在' });
@@ -282,19 +282,20 @@ io.on('connection', (socket) => {
       sender_id: senderInfo.userId,
       receiver_id: receiverUser.id,
       room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`,
-      content: message,
-      timestamp: new Date(),
+      content: message.text,
+      timestamp: message.timestamp || new Date(),
       status: 'sent'
     };
 
     // 存储消息到数据库
     const [messageId] = await db('messages').insert(newMessage);
+    const sendMessageId =  message.id
     const savedMessage = {
-      id: messageId,
+      id : sendMessageId,
       content: newMessage.content,
       timestamp: newMessage.timestamp,
-      senderId: newMessage.sender_id, // 使用驼峰命名
-      receiverId: newMessage.receiver_id, // 使用驼峰命名
+      senderId: newMessage.sender_id, 
+      receiverId: newMessage.receiver_id, 
       senderUsername: senderInfo.username,
       receiverUsername: receiverUser.username,
       type: 'private'
@@ -313,6 +314,9 @@ io.on('connection', (socket) => {
       // 接收方离线，消息状态保持 'sent' (待投递)
       console.log(`用户 ${receiverUser.username} 离线，消息将等待上线后投递`);
     }
+
+    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId, status: 'success' });
+
   });
 
 
@@ -421,6 +425,23 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('Error adding friend:', error);
       socket.emit('add-friends-msg', { success: false, message: '添加好友失败' });
+    }
+  });
+
+  // 删除好友
+  socket.on('delete-contact', async (friendId) => {
+    const senderInfo = onlineUsers.get(socket.id);
+    if (!senderInfo || !friendId) return;
+
+    try {
+      await db('friendships')
+        .where({ user_id: senderInfo.userId, friend_id: friendId })
+        .orWhere({ user_id: friendId, friend_id: senderInfo.userId })
+        .del();
+
+      socket.emit('contact-deleted', { friendId });
+    } catch (error) {
+      console.error('Error deleting contact:', error);
     }
   });
 

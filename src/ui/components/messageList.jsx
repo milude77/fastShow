@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { Modal, Card, Button, message } from 'antd';
 import '../css/messageList.css';
-import { DownloadOutlined, FileOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { DownloadOutlined, FileOutlined, FolderOpenOutlined, LoadingOutlined, ExclamationCircleOutlined, CheckOutlined } from '@ant-design/icons';
 
 const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) => {
     const [draft, setDraft] = useState(savedDraft || '');
@@ -53,7 +53,7 @@ const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
 
     const handleFileSelect = async () => {
         const filePath = await window.electronAPI.showOpenDialog();
-        console.log('选择的文件路径:', filePath);
+
         if (filePath) {
             const fileName = filePath.split(/[\\/]/).pop();
             const fileContent = await window.electronAPI.readFile(filePath);
@@ -89,7 +89,7 @@ const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
     )
 }
 
-const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onLoadMore, onUploadFile }) => {
+const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onLoadMore, onUploadFile, onResendMessage }) => {
     const [messageApi, contextHolder] = message.useMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
@@ -195,7 +195,6 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     // 由于js限制，拖拽文件无法在渲染层中获取路径，所以拖拽上传无法保存本地路径
     const handleDrop = (event) => {
         event.preventDefault();
-        // 先检测是否为文件夹（基于 Chromium 的 webkitGetAsEntry）
         const items = event.dataTransfer.items;
         if (items && items.length > 0) {
             const entry = items[0].webkitGetAsEntry && items[0].webkitGetAsEntry();
@@ -212,6 +211,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 
         const files = event.dataTransfer.files;
         if (files.length > 0) {
+            const filePath = window.electronAPI.getDropFilePath(Array.from(files));
             const file = files[0];
             const fileSize = (file.size / 1024).toFixed(2);
             modal.confirm({
@@ -224,7 +224,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         const fileContent = e.target.result.split(',')[1];
-                        onUploadFile({ fileName: file.name, fileContent });
+                        onUploadFile({ fileName: file.name, fileContent, localPath: filePath.join() });
                     };
                     reader.readAsDataURL(file);
                     scrollToBottom()
@@ -247,7 +247,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 
             const result = await window.electronAPI.downloadFile(fileUrl, fileName);
             if (result.success) {
-                return 
+                return
             } else {
                 console.error('文件下载失败:', result.error);
                 messageApi.error('文件下载失败: ' + result.error);
@@ -277,6 +277,17 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
         }
     };
 
+    //重新发送消息
+    const handleResendMessage = async(contact, msg) => {
+        const res = await window.electronAPI.resendMessage(msg.id)
+        if (res.success) {
+            onResendMessage(contact, msg)
+            scrollToBottom(); 
+        } else {
+            messageApi.error('消息重新发送失败: ' + res.error);
+        }
+    }
+
 
     return (
         <>
@@ -304,13 +315,32 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                                     <div style={{ fontSize: '10px' }}>{msg?.username}</div>
                                     {msg.messageType == 'text' ?
                                         (
-                                            <div className="message-content">
-                                                <span className="message-text">{msg.text}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }} >
+                                                {msg.sender === 'user' && (() => {
+                                                    switch (msg.status) {
+                                                        case 'sending':
+                                                            return (<span className="message-status"><LoadingOutlined /></span>);
+                                                        case 'fail':
+                                                            return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendMessage(contact.id, msg)}><ExclamationCircleOutlined /></span>);
+                                                    }
+                                                })()}
+                                                <div className="message-content">
+                                                    <span className="message-text">{msg.text}</span>
+                                                </div>
                                             </div>
                                         )
                                         :
                                         (
                                             <div className="file-message-content" >
+                                                {(() => {
+                                                    switch (msg.status) {
+                                                        case 'sending':
+                                                            return (<span className="message-status"><LoadingOutlined /></span>);
+                                                        case 'fail':
+                                                            return (<span className="message-status"><ExclamationCircleOutlined /></span>);
+                                                    }
+                                                })()}
+
                                                 <div style={{ display: "flex", flexDirection: 'column', width: '60%', justifyContent: 'space-between', margin: '5px' }} className="file-information">
                                                     <span className="message-text">{msg.fileName}</span>
                                                     <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>

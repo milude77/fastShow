@@ -100,9 +100,13 @@
 }
 
 .message-content {
-    max-width: 60%;
+    display: 1;
     padding: 8px 12px;
     border-radius: 18px;
+}
+
+.message-status{
+    padding-right: 10px;
 }
 
 .message-item.sent .message-content {

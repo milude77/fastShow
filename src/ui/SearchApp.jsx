@@ -3,6 +3,7 @@ import { useSocket } from './hooks/useSocket';
 import AppHeaderBar from './components/appHeaderBar';
 import { Alert } from 'antd';
 import selectImg from './assets/select.png';
+import { Button } from 'antd/es/radio';
 
 const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) => {
   const socket = useSocket();
@@ -43,7 +44,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
   return (
     <div className="search-user-container" style={{ display: 'flex', flexDirection: 'column' }}>
       {showAlert && <Alert message={alertMessage} type={alertType} showIcon style={{ marginBottom: '10px' }} />}
-      <form onSubmit={onSearch} style={{ display: 'flex', width: '100%', transform: 'translateY(-50%)', justifyContent: 'center', alignItems: 'center' }}>
+      <form onSubmit={onSearch} style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
         <input
           style={{ width: '50%', alignItems: 'center', height: '30px' }}
           type="search"
@@ -71,7 +72,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
           (searchResults.map(user => (
             <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
               <span>{user.username} ({user.id})</span>
-              <button onClick={() => handleAddFriend(user.id)}>添加好友</button>
+              <Button onClick={() => handleAddFriend(user.id)}>添加好友</Button>
             </div>
           )))
           :

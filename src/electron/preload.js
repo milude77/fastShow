@@ -1,8 +1,24 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   chatMessage: (contactId, currentUserID, msg) => ipcRenderer.send('chat-message', { contactId, currentUserID, msg }),
+  sendMessageStatusChange: (senderInfo, sendMessageId, receiverId, status) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, receiverId, status }),
+  resendMessage: (messageId) => ipcRenderer.invoke('resend-message', { messageId }),
   uploadFile: (contactId, currentUserID, fileName, fileContent) => ipcRenderer.invoke('upload-file', { contactId, currentUserID, fileName, fileContent }),
+  getDropFilePath: (droppedFiles) => {
+    try {
+      const list = Array.isArray(droppedFiles) ? droppedFiles : Array.from(droppedFiles || []);
+      const filePaths = [];
+      for (const f of list) {
+        const p = webUtils.getPathForFile(f);
+        if (p) filePaths.push(p);
+      }
+      return filePaths;
+    } catch (error) {
+      console.error('Failed to get drop file path:', error);
+      return null;
+    }
+  },
   downloadFile: (fileUrl, fileName) => ipcRenderer.invoke('download-file', { fileUrl, fileName }),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
