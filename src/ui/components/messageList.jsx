@@ -57,6 +57,7 @@ const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
         if (filePath) {
             const fileName = filePath.split(/[\\/]/).pop();
             const fileContent = await window.electronAPI.readFile(filePath);
+            const fileSize = (fileContent.length / 1024).toFixed(2);
 
             if (fileContent) {
                 // 由于我们无法直接获取文件大小，这里可以留空或进行估算
@@ -66,7 +67,8 @@ const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
                     centered: true,
                     maskClosable: false,
                     title: `发送文件 ${fileName} 给联系人？`,
-                    content: `文件名: ${fileName}`,
+                    content: `文件名: ${fileName}，大小: ${fileSize} KB`,
+
                     onOk() {
                         onUploadFile({ fileName, fileContent, localPath: filePath });
                         scrollToBottom();

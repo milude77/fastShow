@@ -5,15 +5,28 @@ export async function initializeDatabase(db) {
   try {
     // 检查表是否存在，使用更可靠的方法
     let exists;
+    let friendTableExists;
     try {
       exists = await db.schema.hasTable('messages');
+      friendTableExists = await db.schema.hasTable('friends');
     } catch (error) {
       console.error('Error checking if messages table exists:', error.message);
       exists = false;
     }
 
+    if (!friendTableExists) {
+      await db.schema.createTable('friends', (table) => {
+        table.string('id').primary();
+        table.string('userName').notNullable();
+        table.string('nickName').nullable().defaultTo(null);
+        table.timestamp('addTime').defaultTo(db.fn.now());
+        // Add 'type' column to distinguish between private chats and group chats
+        table.string('type').nullable().defaultTo('private'); // Default to 'private' for existing entries
+      })
+    }
+
     if (!exists) {
-      // 使用 await 确保表创建完成
+      // 浣跨敤 await 纭繚琛ㄥ垱寤哄畬鎴?
       await db.schema.createTable('messages', (table) => {
         table.string('id').primary();
         table.string('sender_id').notNullable();
@@ -50,13 +63,22 @@ export async function initializeDatabase(db) {
   }
 }
 
+/**
+ * 数据库迁移：确保 messages 表符合当前 Electron 架构（camelCase）并备份
+ * - 备份当前用户数据库文件
+ * - 检测 snake_case（旧版）与 camelCase（现版）列形态
+ * - 如存在旧版列且缺少现版列：采用“新表复制”策略重建
+ * - 否则对缺失列进行补列（幂等）
+ * - 使用 electron-store 按用户记录迁移版本，避免重复执行
+ */
+/** moved to ./db.js: migrateUserDb() */
 export async function migrateUserDb(db, userId, dbPath, store) {
   try {
     // 幂等版本控制（每用户）
     const migrationKey = `dbMigrationVersion:${userId}`;
     const currentVer = store.get(migrationKey) || 0;
     // 目标版本
-    const targetVer = 3;
+    const targetVer = 4;
     // 若版本已满足，直接返回
     if (currentVer >= targetVer) {
       return;
@@ -99,6 +121,7 @@ export async function migrateUserDb(db, userId, dbPath, store) {
     const camel_fileExt = await db.schema.hasColumn('messages', 'fileExt');
     const snake_file_ext = await db.schema.hasColumn('messages', 'file_ext');
     const camel_status = await db.schema.hasColumn('messages', 'status');
+    const hasTypeColumn = await db.schema.hasColumn('friends', 'type');
 
     const snakePresent = snake_message_type || snake_file_name || snake_file_url || snake_file_size || snake_local_file_path || snake_file_ext;
     const camelMissing = !camel_messageType || !camel_fileName || !camel_fileUrl || !camel_fileSize || !camel_localFilePath || !camel_fileExt || !camel_status;
@@ -184,9 +207,16 @@ export async function migrateUserDb(db, userId, dbPath, store) {
           table.boolean('fileExt').nullable().defaultTo(false);
         });
       }
+      if (!hasTypeColumn) {
+        await db.schema.table('friends', (table) => {
+          table.string('type').nullable().defaultTo('private');
+        });
+        console.log("Added 'type' column to 'friends' table.");
+      }
     }
 
-    // 清理历史备份：仅保留最近 3 个 chat_history.backup_*.sqlite3 文件，避免无限增长
+
+
     try {
       if (dbPath && fs.existsSync(path.dirname(dbPath))) {
         const dir = path.dirname(dbPath);

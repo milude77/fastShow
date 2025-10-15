@@ -5,11 +5,14 @@ import '../css/addressBook.css';
 
 const { Panel } = Collapse;
 
-const AddressBook = ({ selectedContact, contacts = null, groups = null, onSelectContact }) => {
+const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
 
   const handleSelectContact = (contactId) => {
     onSelectContact(contactId);
   };
+
+  const friendsList = contacts.filter(contact => contact.type == "friend");
+  const groupList = contacts.filter(contact => contact.type == "group" )
 
   return (
     <div className="address-book-container">
@@ -33,10 +36,10 @@ const AddressBook = ({ selectedContact, contacts = null, groups = null, onSelect
           key="1"
           className="site-collapse-custom-panel"
         >
-          {contacts && Object.keys(contacts).length > 0 ? (
-            Object.values(contacts).map((contact) => (
+          {friendsList && friendsList.length > 0 ? (
+            friendsList.map((contact) => (
               <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact.id) }}>
-                <span style={{ color: 'var(--text-color)' }}>{contact.username}</span>
+                <span className='contact-username' >{contact.username}</span>
                 {contact.isOnline ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>}
               </div>
             ))
@@ -52,11 +55,11 @@ const AddressBook = ({ selectedContact, contacts = null, groups = null, onSelect
           </div>
         } key="2" className="site-collapse-custom-panel">
           {/* 这里可以放置群聊列表 */}
-          {groups && groups.length > 0 ? (
-            groups.map(group => (
+          {groupList && groupList.length > 0 ? (
+            groupList.map(group => (
               <div key={group.id} className="address-book-item">
-                <span>{group.name}</span>
-                <span>{group.memberCount} 人</span>
+                <span className='contact-username' >{group.username}</span>
+                <span className='contact-username'>{group.members.length} 人</span>
               </div>
             ))
           ) : (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Button, ConfigProvider } from 'antd';
+import { Alert, Button, ConfigProvider, Dropdown, Menu } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import { SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined, UsergroupAddOutlined, CommentOutlined } from '@ant-design/icons';
 import './css/App.css';
 import './css/dark-mode.css';
 import AppHeaderBar from './components/appHeaderBar';
@@ -26,18 +26,39 @@ const SearchBar = (currentUser) => {
     }
   };
 
+  const MenuItem = (
+    <Menu>
+      <Menu.Item className='menu-item' key="1">
+        <Button type="link" onClick={() => { window.electronAPI.openCreateGroupWindow(currentUser.id) }}><CommentOutlined />创建群聊</Button>
+      </Menu.Item>
+      <Menu.Item className='menu-item' key="2">
+        <Button type="link" onClick={() => { window.electronAPI.openSearchWindow(currentUser.id, searchTerm) }}><UsergroupAddOutlined />添加好友</Button>
+      </Menu.Item>
+    </Menu>
+  );
+
   return (
 
-    <div className="search-bar-container">
-      <SearchOutlined />
-      <input
-        className='search-input'
-        type="search"
-        placeholder="搜索"
-        onChange={(e) => setSearchTerm(e.target.value)}
-        value={searchTerm}
-        onKeyDown={handleKeyDown}
-      />
+    <div className="search-bar-container" style={{ display: 'flex', alignItems: 'center' }}>
+      <div className='search-input-bar'>
+        <SearchOutlined />
+        <input
+          className='search-input'
+          type="search"
+          placeholder="搜索"
+          onChange={(e) => setSearchTerm(e.target.value)}
+          value={searchTerm}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+      <div>
+        <Dropdown
+          overlay={MenuItem}
+          trigger={['click']}
+        >
+          <Button type="text" icon={<PlusOutlined />} />
+        </Dropdown>
+      </div>
     </div>
   );
 };
@@ -51,7 +72,7 @@ function App() {
   const [messages, setMessages] = useState({});
   const [drafts, setDrafts] = useState({});
   const [messagePages, setMessagePages] = useState({});
-  const [contacts, setContacts] = useState({});
+  const [contacts, setContacts] = useState([]);
 
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
@@ -78,20 +99,24 @@ function App() {
       setCurrentUser(user);
     };
 
-    const handleFriendsList = (friends) => {
-      setContacts(friends);
+    const handleFriendsList = (friendsWithGroups) => {
+      console.log('friendsWithGroups', friendsWithGroups);
+      setContacts(friendsWithGroups);
     };
 
-    const friendsRequestAccepted = () => {
-      socket.emit('get-friends');
+    const friendsRequestAccepted = (data) => {
+      setContacts(prevContacts => [...prevContacts, data])
     };
+
+    const handleNewGroup = (data) => {
+      setContacts(prevContacts => [...prevContacts, data])
+    }
 
     const handleConnect = () => {
       setConnectionStatus('connected');
       // Re-authenticate and fetch data on successful reconnection
       if (currentUser) {
         socket.emit('login-with-token', currentUser.token);
-        socket.emit('get-friends');
       }
     };
     const handleDisconnect = () => setConnectionStatus('disconnected');
@@ -99,17 +124,18 @@ function App() {
 
     socket.on('login-success', handleLoginSuccess);
     socket.on('new-message', handleNewMessage);
-    socket.on('friends-list', handleFriendsList);
+    socket.on('friends-groups-list', handleFriendsList);
     socket.on('friend-request-accepted', friendsRequestAccepted);
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('reconnecting', handleReconnecting);
     socket.on('message-sent-success', handleSendMessageStatus)
+    socket.on('new-group', handleNewGroup)
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
       socket.off('user-registered', handleLoginSuccess);
-      socket.off('friends-list', handleFriendsList);
+      socket.off('friends-groups-list', handleFriendsList);
       socket.off('new-message', handleNewMessage);
       socket.off('friend-request-accepted', friendsRequestAccepted);
 
@@ -118,13 +144,13 @@ function App() {
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting);
       socket.off('message-sent-success', handleSendMessageStatus)
+      socket.off('new-group', handleNewGroup)
     };
   }, [socket, currentUser]);
 
   // 获取好友列表并发送离线消息
   useEffect(() => {
     if (currentUser && socket) {
-      socket.emit('get-friends');
       socket.emit('send-disconnect-message', currentUser);
     }
   }, [currentUser, socket]);
@@ -258,7 +284,6 @@ function App() {
           )
         };
       });
-      console.log('消息发送成功状态更新', { senderInfo, sendMessageId, receiverId, status });
       window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, receiverId, status);
     }
   }
@@ -285,9 +310,11 @@ function App() {
 
   const handleUploadFile = async ({ fileName, fileContent, localPath = null }) => {
     if (currentUser && selectedContact) {
+      const fileId = `file_${Date.now()}`;
       try {
-
+        console.log('Uploading file:', { fileId, contactId: selectedContact.id, currentUserID: currentUser.userId});
         const result = await window.electronAPI.uploadFile(
+          fileId,
           selectedContact.id,
           currentUser.userId,
           fileName,
@@ -295,11 +322,11 @@ function App() {
         );
 
         if (!result.success) {
-          throw new Error('文件上传失败');
+          throw new Error(result.error);
         }
 
         const newMessage = {
-          id: `file_${Date.now()}`,
+          id: fileId,
           text: '',
           sender: 'user',
           timestamp: new Date().toISOString(),
@@ -310,6 +337,7 @@ function App() {
           fileSize: fileContent.length,
           localPath: localPath,
           fileExt: localPath ? true : false,
+          status: 'success'
         };
 
         setMessages(prev => ({
@@ -392,7 +420,7 @@ function App() {
       if (selectedContactInformation !== 'friendsRequest') {
         return (
           <ContactInformation
-            contactInformation={contacts[selectedContactInformation]}
+            contactInformation={contacts.filter(contact => { return contact.id === selectedContactInformation && contact.type === 'friend' })[0]}
             toSendMessage={handleToSendMessage}
             deleteContact={handleDeleteContact}
           />);
@@ -427,13 +455,15 @@ function App() {
               toggleDarkMode={toggleDarkMode}
             />
           </div>
-          <div className='contact-list'>
+          <div className='contact-list-container'>
             {renderConnectionStatus()}
             <SearchBar currentUser={currentUser} />
-            {renderFeature()}
+            <div className='contact-list'>
+              {renderFeature()}
+            </div>
           </div>
           <div className='message-box'>
-            <div className='message-box-header' style={{ boxShadow: '0 1px 1px rgba(0, 0, 0, 0.15)' }}>
+            <div className='message-box-header'>
               <AppHeaderBar />
               {selectedContact && selectFeatures == "message" &&
                 <div className='contact-info'>

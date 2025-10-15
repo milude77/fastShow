@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getChatHistory: (contactId, currentUserID, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize }),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
+  openCreateGroupWindow:(currentID)=> ipcRenderer.send('open-create-group-window',{currentID}),
   
   showErrowMessage: (message) => ipcRenderer.send('show-error-window', message),
   receiveErrorMessage: (callback) => ipcRenderer.on('error-message', (event, message) => callback(message)),
@@ -36,6 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loginSuccess: (userId)=> ipcRenderer.send('login-success', userId),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
+  getFriendsList: () => ipcRenderer.invoke('get-friends-list'),
 
   saveUserListCredentials: (credentials) => ipcRenderer.send('save-user-credentials-list', credentials),
   getUserListCredentials: () => ipcRenderer.invoke('get-user-credentials-list'),

@@ -8,6 +8,8 @@ import fs from 'fs';
 import fetch from 'node-fetch';
 import { console } from 'inspector/promises';
 import { initializeDatabase, migrateUserDb } from './db.js';
+import { Tray, Menu } from 'electron';
+
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -19,11 +21,13 @@ const store = new Store();
 // --- Socket.IO Main Process Setup ---
 const configPath = path.join(__dirname, '..', '..', 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-const SOCKET_SERVER_URL = config.SOCKET_SERVER_URL;
+const SOCKET_SERVER_URL = config.DEV_SERVER_URL;
 let socket;
 let heartbeatInterval;
 let reconnectionTimer;
 let heartbeatTimeout;
+let tray = null;
+
 
 
 function connectSocket() {
@@ -119,17 +123,8 @@ function connectSocket() {
 let dbPath;
 let db;
 
-/** moved to ./db.js: initializeDatabase() */
 
-/**
- * 数据库迁移：确保 messages 表符合当前 Electron 架构（camelCase）并备份
- * - 备份当前用户数据库文件
- * - 检测 snake_case（旧版）与 camelCase（现版）列形态
- * - 如存在旧版列且缺少现版列：采用“新表复制”策略重建
- * - 否则对缺失列进行补列（幂等）
- * - 使用 electron-store 按用户记录迁移版本，避免重复执行
- */
-/** moved to ./db.js: migrateUserDb() */
+
 
 // 读取指定联系人的聊天记录
 async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20) {
@@ -197,7 +192,8 @@ async function writeChatHistory(contactId, currentUserID, msg) {
             fileUrl: msg.fileUrl || null,
             fileSize: msg.fileSize || null,
             fileExt: msg.fileExt || false,
-            localFilePath: msg.localPath || null
+            localFilePath: msg.localPath || null,
+            status: msg.status || 'fail',
         };
 
         await db('messages').insert(messageData);
@@ -291,6 +287,46 @@ function createSearchWindow(userId, selectInformation) {
     });
 }
 
+function createTray(mainWindow) {
+    // 避免重复创建托盘
+    if (tray) {
+        return;
+    }
+    // 使用 PNG/ICO 作为托盘图标（Windows 不支持 SVG）
+    const iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'title.png');
+    tray = new Tray(iconPath);
+
+    const contextMenu = Menu.buildFromTemplate([
+        {
+            label: '显示应用',
+            click: () => {
+                mainWindow.show();
+                mainWindow.setSkipTaskbar(false);
+            }
+        },
+        {
+            label: '退出',
+            click: () => {
+                app.quitting = true;
+                app.quit();
+            }
+        }
+    ]);
+
+    tray.setToolTip('FastShow');
+    tray.setContextMenu(contextMenu);
+
+    // 点击托盘图标显示应用或聚焦
+    tray.on('click', () => {
+        if (!mainWindow.isVisible()) {
+            mainWindow.show();
+            mainWindow.setSkipTaskbar(false);
+        } else {
+            mainWindow.focus();
+        }
+    });
+}
+
 function createMainWindow() {
     const mainWindow = new BrowserWindow({
         width: 900,
@@ -300,19 +336,39 @@ function createMainWindow() {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
         }
-    })
+    });
+    
     if (isDev) {
         mainWindow.loadURL("http://localhost:5234");
         mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(path.join(app.getAppPath(), "dist", "index.html"));
     }
-    mainWindow.setMenu(null); // 隐藏菜单栏
+    mainWindow.setMenu(null);
 
-    mainWindow.on('closed', () => {
-        app.quit();
+    // 创建托盘
+    createTray(mainWindow);
+    
+
+    // 显示时恢复任务栏图标
+    mainWindow.on('show', () => {
+        mainWindow.setSkipTaskbar(false);
+    });
+
+    // 处理窗口关闭事件（点击关闭按钮隐藏到托盘）
+    mainWindow.on('close', (event) => {
+        if (!app.quitting) {
+            event.preventDefault();
+            mainWindow.setSkipTaskbar(true);
+            mainWindow.hide();
+        }
     });
 }
+
+// 在应用退出前清理
+app.on('before-quit', () => {
+    app.quitting = true;
+});
 
 function createErrorWindow(error) {
     const errorWindow = new BrowserWindow({
@@ -334,6 +390,37 @@ function createErrorWindow(error) {
     errorWindow.setMenu(null);
 }
 
+let groupWindow = null
+function createGroupWindow(currentID) {
+    if (groupWindow) {
+        groupWindow.focus();
+        return;
+    }
+    groupWindow = new BrowserWindow({
+        width: 600,
+        height: 500,
+        frame: false,
+        webPreferences: {
+            preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
+            devTools: isDev
+        }
+    });
+    const createGroupUrl = isDev
+        ? `http://localhost:5234/createGroup.html?currentID=${currentID}`
+        : `file://${path.join(app.getAppPath(), "dist", "createGroup.html")}?currentID=${currentID}`;
+
+    groupWindow.loadURL(createGroupUrl).catch(err => console.error('Failed to load createGroup URL:', err));
+
+    if (isDev) {
+        groupWindow.webContents.openDevTools();
+    }
+
+    groupWindow.setMenu(null);
+    groupWindow.on('closed', () => {
+        groupWindow = null;
+    });
+}
+
 app.whenReady().then(async () => {
     // --- Socket.IO Connection ---
     connectSocket();
@@ -350,6 +437,8 @@ app.whenReady().then(async () => {
 ipcMain.on('minimize-window', () => {
     const window = BrowserWindow.getFocusedWindow();
     if (window) {
+        // 最小化到任务栏：保留任务栏图标
+        window.setSkipTaskbar(false);
         window.minimize();
     }
 });
@@ -371,6 +460,7 @@ ipcMain.on('close-window', () => {
         window.close();
     }
 });
+
 
 ipcMain.on('toggle-always-on-top', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender); // 确保操作的是发送消息的窗口
@@ -410,15 +500,41 @@ ipcMain.on('login-success', async (event, userID) => {
 
         // 初始化数据库（确保表存在）
         await initializeDatabase(db);
-
-        // 执行本地数据库迁移（幂等）
         try {
             await migrateUserDb(db, userID, dbPath, store);
         } catch (e) {
             console.error('User DB migration failed:', e);
         }
 
-    } catch (error) {
+        if (await db.schema.hasTable('friends')) {
+            socket.on('friends-list', async (payload) => {
+                try {
+                    const list = Array.isArray(payload) ? payload : Object.values(payload || {});
+                    const rows = list.map(f => ({
+                        id: String(f.id),
+                        userName: String(f.username || f.userName || ''),
+                        addTime: f.created_at ? new Date(f.created_at) : new Date(),
+                        nickName: f.nickName ? String(f.nickName) : null
+                    })).filter(r => r.id && r.userName);
+
+                    if (rows.length > 0) {
+                        await db('friends')
+                            .insert(rows)
+                            .onConflict('id')
+                            .ignore();
+                    }
+                }
+                catch (e) {
+                    console.error('Friends seeding error:', e);
+                }
+            });
+        }
+        socket.emit('get-friends-grounds-list');
+    }
+
+
+
+    catch (error) {
         console.error('Error in login-success handler:', error);
         console.error('Error details:', {
             message: error.message,
@@ -429,6 +545,7 @@ ipcMain.on('login-success', async (event, userID) => {
         });
     }
 })
+
 
 ipcMain.on('chat-message', (event, { contactId, currentUserID, msg }) => {
     // Safety check to prevent writing undefined data
@@ -492,6 +609,10 @@ ipcMain.on('open-settings-window', () => {
 
 ipcMain.on('show-error-window', (event, error) => {
     createErrorWindow(error);
+});
+
+ipcMain.on('open-create-group-window', (event, { userId }) => {
+    createGroupWindow(userId);
 });
 
 // --- User Credentials IPC Handlers ---
@@ -559,14 +680,13 @@ ipcMain.handle('upload-file', async (event, { contactId, currentUserID, fileName
         const response = await fetch(`${SOCKET_SERVER_URL}/api/upload`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type':  'application/json'
             },
             body: JSON.stringify({
                 fileName,
                 fileContent,
                 receiverId: contactId,
                 senderId: currentUserID,
-
             })
         });
         if (!response.ok) {
@@ -769,6 +889,16 @@ ipcMain.handle('show-open-dialog', async (event) => {
     return null;
 });
 
+ipcMain.handle('get-friends-list', async () => {
+    if (!db) {
+        return [];
+    }
+    const friends = await db('friends')
+        .select('id', 'userName', 'nickName', 'addTime', 'type')
+    return friends;
+});
+
+
 ipcMain.handle('read-file', async (event, filePath) => {
     try {
         const data = fs.readFileSync(filePath);
@@ -797,3 +927,4 @@ ipcMain.on('reset-migration-version', async (event, { userId, version }) => {
 app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit()
 })
+

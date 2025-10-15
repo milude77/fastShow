@@ -8,10 +8,11 @@
   --text-color: white;
 }
 
-.search-bar-container{
+.search-input-bar{
    display: flex;
+   width: 80%;
    align-items: center;
-   margin: 20px 15px 10px 10px;
+   margin: 20px 5px 20px 10px;
    border-radius: 5px;
    padding: 5px;
    background-color: var(--toobar-background-color);
@@ -19,7 +20,7 @@
    transition: border-color 0.2s ease;
  }
 
- .search-bar-container:focus-within {
+ .search-input-bar:focus-within {
    border-color: #1890ff;
  }
 
@@ -62,11 +63,19 @@
 
 }
 
-.contact-list {
+.contact-list-container {
+  display: flex;
+  flex-direction: column;
   width: 200px;
   height: 100%;
   border-right: 1px solid #ccc;
   background-color: var(--contact-list-color) ;
+  box-shadow: 8px 0 10px -10px rgba(0, 0, 0, 0.15);
+  z-index: 1;
+}
+
+.contact-list{
+  flex: 1;
 }
 
 .message-box {

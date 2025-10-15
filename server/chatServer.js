@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+// import { v4 as uuidv4 } from 'uuid';
 import cors from 'cors';
 import knex from 'knex';
 import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
@@ -114,7 +115,6 @@ io.on('connection', (socket) => {
 
       // 返回成功响应
       const response = { message: '文件上传成功', messageData: savedMessage };
-      console.log('Upload response:', response); // 添加调试日志
       res.status(200).json(response);
 
       // 查找接收方是否在线
@@ -287,15 +287,17 @@ io.on('connection', (socket) => {
       status: 'sent'
     };
 
+
+
     // 存储消息到数据库
     const [messageId] = await db('messages').insert(newMessage);
-    const sendMessageId =  message.id
+    const sendMessageId = message.id
     const savedMessage = {
-      id : sendMessageId,
+      id: sendMessageId,
       content: newMessage.content,
       timestamp: newMessage.timestamp,
-      senderId: newMessage.sender_id, 
-      receiverId: newMessage.receiver_id, 
+      senderId: newMessage.sender_id,
+      receiverId: newMessage.receiver_id,
       senderUsername: senderInfo.username,
       receiverUsername: receiverUser.username,
       type: 'private'
@@ -321,7 +323,7 @@ io.on('connection', (socket) => {
 
 
   // 获取好友列表
-  socket.on('get-friends', async () => {
+  socket.on('get-friends-grounds-list', async () => {
     const senderInfo = onlineUsers.get(socket.id);
     if (!senderInfo) return;
 
@@ -332,27 +334,73 @@ io.on('connection', (socket) => {
 
       const friendIds = friendships.map(f => f.user_id === senderInfo.userId ? f.friend_id : f.user_id);
 
-      if (friendIds.length === 0) {
-        socket.emit('friends-list', {});
-        return;
-      }
-
       const friends = await db('users').whereIn('id', friendIds).select('id', 'username');
       const onlineUserIds = new Set(Array.from(onlineUsers.values()).map(u => u.userId));
 
-      const friendsWithStatus = friends.reduce((acc, friend) => {
-        acc[friend.id] = {
-          id: friend.id,
-          username: friend.username,
-          isOnline: onlineUserIds.has(friend.id)
-        };
-        return acc;
-      }, {});
+      const friendsWithStatus = friends.map(friend => ({
+        id: friend.id,
+        username: friend.username,
+        isOnline: onlineUserIds.has(friend.id),
+        type: 'friend'
+      }));
 
-      socket.emit('friends-list', friendsWithStatus);
+      if (!senderInfo) {
+        socket.emit('error', { message: '未登录或会话无效' });
+        return;
+      }
+
+      // 第一步：查出该用户所在的群（含我的昵称与角色）
+      const baseGroups = await db('group_members as gm')
+        .join('groups as g', 'gm.group_id', 'g.id')
+        .where('gm.user_id', senderInfo.userId)
+        .select(
+          'g.id as groupId',
+          'g.name as groupName',
+          'gm.user_name as myName',
+          'gm.role as myRole',
+          'g.created_at',
+          'g.updated_at'
+        )
+        .orderBy('g.updated_at', 'desc');
+
+      const groupIds = baseGroups.map(g => g.groupId);
+
+      let membersByGroup = {};
+      if (groupIds.length > 0) {
+        const members = await db('group_members as m')
+          .whereIn('m.group_id', groupIds)
+          .select(
+            'm.group_id as groupId',
+            'm.user_id as userId',
+            'm.user_name as userName',
+            'm.role as role'
+          );
+
+        membersByGroup = members.reduce((acc, m) => {
+          (acc[m.groupId] = acc[m.groupId] || []).push({
+            userId: m.userId,
+            userName: m.userName,
+            role: m.role
+          });
+          return acc;
+        }, {});
+      }
+
+      // 组装返回结构：每个群附带成员列表
+      const payload = baseGroups.map(g => ({
+        id: g.groupId,
+        username: g.groupName,
+        myName: g.myName,
+        myRole: g.myRole,
+        members: membersByGroup[g.groupId] || [],
+        type: 'group'
+      }));
+      console.log('好友列表和群列表已发送给用户:', [...friendsWithStatus, ...payload]);
+
+      socket.emit('friends-groups-list', [...friendsWithStatus, ...payload]);
     } catch (error) {
       console.error('Error fetching friends:', error);
-      socket.emit('error', { message: '获取好友列表失败' });
+      socket.emit('error', { message: '获取好友及群聊列表失败' });
     }
   });
 
@@ -379,13 +427,13 @@ io.on('connection', (socket) => {
 
 
     if (!friendId) {
-      socket.emit('add-friends-msg',{ success: false, message: '好友id不可为空' });
-      return 
+      socket.emit('add-friends-msg', { success: false, message: '好友id不可为空' });
+      return
     }
 
     // 用户不能添加自己为好友
     if (senderInfo.userId == friendId) {
-      socket.emit('add-friends-msg',{ success: false, message: '不能添加自己为好友' });
+      socket.emit('add-friends-msg', { success: false, message: '不能添加自己为好友' });
       return;
     }
 
@@ -471,21 +519,96 @@ io.on('connection', (socket) => {
         .where({ user_id: requesterId, friend_id: senderInfo.userId, status: 'pending' })
         .update({ status: 'accepted' });
 
+      const friendInformation = await db('friendships')
+        .where({user_id: requesterId})
+        .select('users.id', 'users.username');
+
+
       // 通知对方请求已被接受
       const targetSocketId = Array.from(onlineUsers.entries())
         .find(([, uInfo]) => uInfo.userId === requesterId)?.[0];
       if (targetSocketId) {
-        io.to(targetSocketId).emit('friend-request-accepted', { by: senderInfo.username });
+        io.to(targetSocketId).emit('friend-request-accepted', { id: senderInfo.userId, username: senderInfo.username, type: 'private', isOnline: true });
       }
 
-      // 重新获取好友列表
-      socket.emit('friend-request-accepted', { requesterId });
+      socket.emit('friend-request-accepted', {...friendInformation, type: 'private', isOnline: targetSocketId});
     } catch (error) {
       console.error('Error accepting friend request:', error);
     }
   });
 
-  // Heartbeat
+  socket.on('create-group', async ({ checkedContacts }) => {
+    const senderInfo = onlineUsers.get(socket.id);
+    if (!senderInfo || !checkedContacts || checkedContacts.length === 0) return;
+
+    let groupName = '';
+    const nowDate = new Date();
+
+    if (checkedContacts.length < 2) {
+      groupName = `${senderInfo.username},${checkedContacts[0].userName}`;
+    }
+    else {
+      groupName = `${senderInfo.username},${checkedContacts.slice(0, 2).map(c => c.userName).join(',')}`;
+    }
+
+    if (checkedContacts.length > 2) {
+      groupName += `等${checkedContacts.length + 2}人`;
+    }
+
+    try {
+      const maxIdResult = await db('groups').max('id as maxId').first();
+      const nextId = (+maxIdResult.maxId || 100000) + 1;
+      const group = {
+        id: nextId,
+        name: groupName + '的群聊',
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      // 存储群组到数据库（假设有一个 groups 表）
+      await db('groups').insert(group);
+
+      await db('group_members').insert([
+        {
+          group_id: nextId,
+          user_id: senderInfo.userId,
+          user_name: senderInfo.username,
+          created_at: nowDate,
+          updated_at: nowDate,
+          role: 'owner'
+        },
+      ]);
+
+      console.log('Created group:', checkedContacts);
+
+      for (const contact of checkedContacts) {
+        await db('group_members').insert({
+          group_id: nextId,
+          user_id: contact.id,
+          user_name: contact.userName,
+          created_at: nowDate,
+          updated_at: nowDate,
+          role: 'member'
+        });
+      }
+
+      const checkedContactIds = [...checkedContacts.map(c => c.id), senderInfo.userId];
+      const onlineMemberSockets = Array.from(onlineUsers.entries())
+        .filter(([, userInfo]) => checkedContactIds.includes(userInfo.userId))
+        .map(([socketId, userInfo]) => socketId);
+
+      // 向所有在线群成员发送消息
+      onlineMemberSockets.forEach(socketId => {
+        io.to(socketId).emit('new-group', { id: nextId, username: groupName, createdAt: nowDate, joinedAt: nowDate, type: 'group', members: checkedContacts.map(c => ({ id: c.id, username: c.userName })) });
+      });
+    } catch (error) {
+      console.error('Error creating group:', error);
+      socket.emit('error', { message: '创建群组失败' });
+    }
+  });
+
+
+  // 心跳检测
   socket.on('heartbeat', (payload) => {
     if (payload === 'ping') {
       socket.emit('heartbeat', 'pong');
@@ -561,7 +684,6 @@ server.listen(PORT, () => {
   console.log(`健康检查: http://localhost:${PORT}/api/health`);
 });
 
-// 优雅关闭
 process.on('SIGTERM', () => {
   console.log('收到 SIGTERM 信号，正在关闭服务器...');
   server.close(() => {
