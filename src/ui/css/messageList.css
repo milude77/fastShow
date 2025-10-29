@@ -7,6 +7,7 @@
     color: var(--text-color);
     scrollbar-color: transparent transparent ;
     scrollbar-width: 10px;
+    overflow-x: hidden;
 }
 
 .message-send-box {

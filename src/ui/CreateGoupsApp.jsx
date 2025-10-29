@@ -1,5 +1,5 @@
 import { React, useEffect, useState } from 'react';
-import { Button } from 'antd';
+import { Alert, Button } from 'antd';
 import AppHeaderBar from './components/appHeaderBar.jsx';
 import './css/createGoupsApp.css';
 import { Checkbox, Input, Select } from 'antd/lib/index.js';
@@ -15,6 +15,21 @@ const CreateGoupsApp = () => {
         window.electronAPI.getFriendsList().then((friends) => {
             setContacts(friends);
         });
+    }, []);
+
+
+
+    useEffect(() => {
+        const handleGropCreateSuccess = () => {
+            console.log('群聊创建成功');
+        }
+
+
+        socket.on('grops-create-success',handleGropCreateSuccess);
+        
+        return () => {
+            socket.off('grops-create-success',handleGropCreateSuccess);
+        }
     }, []);
 
 

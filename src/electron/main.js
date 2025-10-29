@@ -6,8 +6,9 @@ import Store from 'electron-store';
 import knex from 'knex';
 import fs from 'fs';
 import fetch from 'node-fetch';
+import axios from 'axios';
 import { console } from 'inspector/promises';
-import { initializeDatabase, migrateUserDb } from './db.js';
+import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 
 
@@ -127,35 +128,63 @@ let db;
 
 
 // 读取指定联系人的聊天记录
-async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20) {
+async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20, isGroup) {
     try {
-        // 确保数据库已初始化
-        const exists = await db.schema.hasTable('messages');
-        if (!exists) {
-            await initializeDatabase(db);
-            // 重新检查表是否存在
-            const existsAfterInit = await db.schema.hasTable('messages');
-            if (!existsAfterInit) {
-                console.error('Failed to create messages table');
-                return [];
+        // 获取私聊消息
+        if (!isGroup) {
+            // 确保数据库已初始化
+            const exists = await db.schema.hasTable('messages');
+            if (!exists) {
+                await initializeDatabase(db);
+                // 重新检查表是否存在
+                const existsAfterInit = await db.schema.hasTable('messages');
+                if (!existsAfterInit) {
+                    console.error('Failed to create messages table');
+                    return [];
+                }
             }
+
+            const offset = (page - 1) * pageSize;
+
+            const history = await db('messages')
+                .select('*')
+                .where(function () {
+                    this.where('sender_id', String(currentUserID)).andWhere('receiver_id', String(contactId));
+                })
+                .orWhere(function () {
+                    this.where('sender_id', String(contactId)).andWhere('receiver_id', String(currentUserID));
+                })
+                .orderBy('timestamp', 'desc')
+                .limit(pageSize)
+                .offset(offset);
+
+            return history.reverse(); // 保证消息按时间升序排列
         }
+        else {
+            const exists = await db.schema.hasTable('group_messages');
+            if (!exists) {
+                await initializeDatabase(db);
+                // 重新检查表是否存在
+                const existsAfterInit = await db.schema.hasTable('group_messages');
+                if (!existsAfterInit) {
+                    console.error('Failed to create messages table');
+                    return [];
+                }
+            }
 
-        const offset = (page - 1) * pageSize;
+            const offset = (page - 1) * pageSize;
 
-        const history = await db('messages')
-            .select('*')
-            .where(function () {
-                this.where('sender_id', String(currentUserID)).andWhere('receiver_id', String(contactId));
-            })
-            .orWhere(function () {
-                this.where('sender_id', String(contactId)).andWhere('receiver_id', String(currentUserID));
-            })
-            .orderBy('timestamp', 'desc')
-            .limit(pageSize)
-            .offset(offset);
+            const history = await db('group_messages')
+                .select('*')
+                .where(function () {
+                    this.where('receiver_id', String(contactId));
+                })
+                .orderBy('timestamp', 'desc')
+                .limit(pageSize)
+                .offset(offset);
 
-        return history.reverse(); // 保证消息按时间升序排列
+            return history.reverse(); // 保证消息按时间升序排列
+        }
     } catch (error) {
         console.error(`Failed to read chat history for contact ${contactId}:`, error);
         console.error('Error details:', {
@@ -173,7 +202,7 @@ async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20
 async function writeChatHistory(contactId, currentUserID, msg) {
     try {
         // 确保数据库已初始化
-        const exists = await db.schema.hasTable('messages');
+        const exists = await db.schema.hasTable('messages') && await db.schema.hasTable('group_messages');
         if (!exists) {
             await initializeDatabase(db);
         }
@@ -181,7 +210,7 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         // 确保所有必需字段都存在并转换为正确的类型
         const messageData = {
             id: msg.id,
-            sender_id: currentUserID,
+            sender_id: msg.sender == 'user' ? currentUserID : msg.sender_id,
             receiver_id: contactId,
             text: msg.text || '',
             username: msg.username || '',
@@ -195,9 +224,12 @@ async function writeChatHistory(contactId, currentUserID, msg) {
             localFilePath: msg.localPath || null,
             status: msg.status || 'fail',
         };
-
-        await db('messages').insert(messageData);
-
+        if (msg.type == 'private') {
+            await db('messages').insert(messageData);
+        }
+        else{
+            await db('group_messages').insert(messageData);
+        }
     } catch (error) {
         console.error(`Failed to write chat history for contact ${contactId}:`, error);
         console.error('Error details:', {
@@ -337,7 +369,7 @@ function createMainWindow() {
             devTools: isDev
         }
     });
-    
+
     if (isDev) {
         mainWindow.loadURL("http://localhost:5234");
         mainWindow.webContents.openDevTools();
@@ -348,7 +380,7 @@ function createMainWindow() {
 
     // 创建托盘
     createTray(mainWindow);
-    
+
 
     // 显示时恢复任务栏图标
     mainWindow.on('show', () => {
@@ -556,7 +588,7 @@ ipcMain.on('chat-message', (event, { contactId, currentUserID, msg }) => {
     writeChatHistory(contactId, currentUserID, msg);
 });
 
-ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, receiverId, status }) => {
+ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, receiverId, status, isGroup }) => {
     try {
 
         const userDbPath = path.join(app.getPath('userData'), String(senderInfo?.userId || senderInfo));
@@ -573,11 +605,20 @@ ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, rec
             console.error('Database not connected, cannot update message status.');
             return;
         }
-
-        await senderDb('messages')
-            .where('id', String(sendMessageId))
-            .andWhere('receiver_id', String(receiverId))
-            .update({ status: status });
+        //改变私聊信息状态
+        if (!isGroup) {
+            await senderDb('messages')
+                .where('id', String(sendMessageId))
+                .andWhere('receiver_id', String(receiverId))
+                .update({ status: status });
+        }
+        //改变群聊信息状态
+        else {
+            await senderDb('groups_messages')
+                .where('id', String(sendMessageId))
+                .andWhere('receiver_id', String(receiverId))
+                .update({ status: status });
+        }
 
     } catch (error) {
         console.error('Failed to update message status:', error);
@@ -591,8 +632,8 @@ ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, rec
     }
 });
 
-ipcMain.handle('get-chat-history', async (event, { contactId, currentUserID, page, pageSize }) => {
-    return await readChatHistory(contactId, currentUserID, page, pageSize);
+ipcMain.handle('get-chat-history', async (event, { contactId, currentUserID, page, pageSize, isGroup }) => {
+    return await readChatHistory(contactId, currentUserID, page, pageSize, isGroup);
 });
 
 ipcMain.handle('get-app-version', () => {
@@ -674,38 +715,72 @@ ipcMain.on('socket-emit', (event, { event: eventName, args }) => {
     }
 });
 
+// --- 新的 MinIO 文件上传 IPC 处理 ---
 
-ipcMain.handle('upload-file', async (event, { contactId, currentUserID, fileName, fileContent }) => {
+// 1. 处理文件选择
+ipcMain.handle('select-file', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const { canceled, filePaths } = await dialog.showOpenDialog(window, {
+        properties: ['openFile']
+    });
+    if (canceled || filePaths.length === 0) {
+        return null;
+    }
+    return filePaths[0];
+});
+
+// 2. 处理文件上传流程
+ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, receiverId }) => {
+    if (!filePath) {
+        return { success: false, error: '文件路径不能为空' };
+    }
+
     try {
-        const response = await fetch(`${SOCKET_SERVER_URL}/api/upload`, {
-            method: 'POST',
-            headers: {
-                'Content-Type':  'application/json'
-            },
-            body: JSON.stringify({
-                fileName,
-                fileContent,
-                receiverId: contactId,
-                senderId: currentUserID,
-            })
+        const fileName = path.basename(filePath);
+        const fileStats = fs.statSync(filePath);
+        const fileSize = fileStats.size;
+
+        // --- 步骤 1: 从服务器获取预签名 URL ---
+        const initiateResponse = await axios.post(`${SOCKET_SERVER_URL}/api/upload/initiate`, {
+            fileName,
+            senderId
         });
-        if (!response.ok) {
-            throw new Error('文件上传失败');
+
+        const { presignedUrl, objectName, fileId } = initiateResponse.data;
+
+        if (!presignedUrl) {
+            throw new Error('无法获取预签名上传URL');
         }
 
-        const result = await response.json();
+        // --- 步骤 2: 读取文件并直接上传到 MinIO ---
+        const fileStream = fs.createReadStream(filePath);
+        await axios.put(presignedUrl, fileStream, {
+            headers: {
+                'Content-Length': fileSize
+            },
+            // 可选：添加上传进度监控
+            onUploadProgress: (progressEvent) => {
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                // 你可以在这里通过 event.sender.send 将进度发送回渲染进程
+                // event.sender.send('upload-progress', { fileId, percentCompleted });
+                console.log(`上传进度: ${percentCompleted}%`);
+            }
+        });
 
-        if (result.success !== false && result.messageData && result.messageData.fileUrl) {
-            return {
-                success: true,
-                filePath: result.messageData.fileUrl,
-            };
-        } else {
-            console.error('Upload response format error:', result);
-            throw new Error(`上传响应格式错误: ${JSON.stringify(result)}`);
-        }
+        // --- 步骤 3: 通知服务器上传完成 ---
+        const completeResponse = await axios.post(`${SOCKET_SERVER_URL}/api/upload/complete`, {
+            fileName,
+            objectName,
+            fileId,
+            fileSize,
+            receiverId,
+            senderId
+        });
+
+        return { success: true, messageData: completeResponse.data.messageData };
+
     } catch (error) {
-        console.error('Failed to upload file:', error);
+        console.error('文件上传失败:', error.response ? error.response.data : error.message);
         return { success: false, error: error.message };
     }
 });
@@ -730,7 +805,8 @@ ipcMain.handle('download-file', async (event, { fileUrl, fileName }) => {
         // 从服务器下载文件
         const response = await fetch(fullUrl);
         if (!response.ok) {
-            throw new Error(`下载失败: ${response.statusText}`);
+            const errorInfo = await response.json();
+            return { success: false, error: errorInfo.error };
         }
 
         // 将文件内容写入本地
@@ -808,7 +884,7 @@ ipcMain.handle('open-file-location', async (event, { messageId }) => {
     }
 });
 
-ipcMain.handle('resend-message', async (event, { messageId }) => {
+ipcMain.handle('resend-message', async (event, { messageId, isGroup }) => {
     try {
         if (!messageId) {
             return { success: false, error: '消息ID为空' };
@@ -816,11 +892,17 @@ ipcMain.handle('resend-message', async (event, { messageId }) => {
         if (!db) {
             return { success: false, error: '数据库未连接' };
         }
-
-        const deleted = await db('messages')
-            .where('id', String(messageId))
-            .del();
-
+        let deleted
+        if (isGroup) {
+            deleted = await db('messages')
+                .where('id', String(messageId))
+                .del();
+        }
+        else {
+            deleted = await db('group_messages')
+                .where('id', String(messageId))
+                .del();
+        }
         return { success: deleted > 0, deleted };
     } catch (error) {
         console.error('Failed to delete message for resend:', error);
@@ -878,16 +960,6 @@ ipcMain.handle('get-socket-status', () => {
     return socket ? socket.connected : false;
 });
 
-ipcMain.handle('show-open-dialog', async (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const { canceled, filePaths } = await dialog.showOpenDialog(window, {
-        properties: ['openFile']
-    });
-    if (!canceled) {
-        return filePaths[0];
-    }
-    return null;
-});
 
 ipcMain.handle('get-friends-list', async () => {
     if (!db) {
@@ -927,4 +999,3 @@ ipcMain.on('reset-migration-version', async (event, { userId, version }) => {
 app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit()
 })
-

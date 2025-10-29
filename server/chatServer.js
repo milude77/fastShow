@@ -1,5 +1,4 @@
 import express from 'express';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -11,6 +10,7 @@ import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import * as Minio from 'minio';
 
 
 // 获取当前文件的目录路径（ES模块中需要这样处理）
@@ -20,6 +20,33 @@ const __dirname = path.dirname(__filename);
 // 根据环境变量选择配置，默认为 'development'
 const environment = process.env.NODE_ENV || 'development';
 const db = knex(knexConfig[environment]);
+
+// --- MinIO 配置 ---
+// 请将以下占位符替换为您的真实 MinIO 配置
+const minioClient = new Minio.Client({
+  endPoint: '127.0.0.1',
+  port: 9000, 
+  useSSL: false,
+  accessKey: /*'YOUR_MINIO_ACCESS_KEY'*/ 'minioadmin',
+  secretKey: /*'YOUR_MINIO_SECRET_KEY'*/ 'minioadmin',
+});
+const bucketName = 'fastshow'; // 您的存储桶名称
+
+// 确保存储桶存在
+minioClient.bucketExists(bucketName, (err, exists) => {
+  if (err) {
+    return console.log(err);
+  }
+  if (!exists) {
+    minioClient.makeBucket(bucketName, 'us-east-1', (err) => {
+      if (err) return console.log('创建存储桶错误:', err);
+      console.log(`存储桶 '${bucketName}' 已成功创建.`);
+    });
+  } else {
+    console.log(`存储桶 '${bucketName}' 已存在.`);
+  }
+});
+// --- MinIO 配置结束 ---
 
 const app = express();
 const server = createServer(app);
@@ -41,41 +68,48 @@ const onlineUsers = new Map();
 // Socket.IO 连接处理
 console.log('Socket.IO server initialized, waiting for connections...'); // 新增日志
 io.on('connection', (socket) => {
-  // 文件上传处理
-  app.post('/api/upload', async (req, res) => {
-    const { fileName, fileContent, receiverId, senderId } = req.body;
-    if (!fileName || !fileContent || !receiverId || !senderId) {
+  // --- 新的 MinIO 文件上传流程 ---
+
+  // 初始化上传，获取预签名URL
+  app.post('/api/upload/initiate', (req, res) => {
+    const { fileName, senderId } = req.body;
+    if (!fileName || !senderId) {
+      return res.status(400).json({ error: '文件名和发送者ID是必需的' });
+    }
+
+    const fileId = crypto.randomBytes(8).toString('hex');
+    const fileExtension = path.extname(fileName);
+    // 在对象名前加上用户ID路径
+    const objectName = `user-${senderId}/files/${fileId}_${Date.now()}${fileExtension}`;
+
+    // 生成一个有效期为15分钟的预签名URL，用于PUT操作
+    minioClient.presignedPutObject(bucketName, objectName, 15 * 60, (err, presignedUrl) => {
+      if (err) {
+        console.error('生成预签名URL失败:', err);
+        return res.status(500).json({ error: '无法初始化上传' });
+      }
+      res.json({
+        presignedUrl,
+        objectName, // 将生成的对象名返回给客户端
+        fileId
+      });
+    });
+  });
+
+  //完成上传，保存文件元数据
+  app.post('/api/upload/complete', async (req, res) => {
+    const { fileName, objectName, fileId, fileSize, receiverId, senderId } = req.body;
+
+    if (!fileName || !objectName || !fileId || !fileSize || !receiverId || !senderId) {
       return res.status(400).json({ error: '所有字段都是必需的' });
     }
 
-
     try {
-      // 生成唯一的文件ID和文件名
-      const fileId = crypto.randomBytes(8).toString('hex');
-      const fileExtension = path.extname(fileName);
-      const safeFileName = `${fileId}_${Date.now()}${fileExtension}`;
-
-      // 确保上传目录存在
-      const uploadDir = path.join(__dirname, 'uploads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
-      // 保存文件
-      const filePath = path.join(uploadDir, safeFileName);
-      const fileBuffer = Buffer.from(fileContent, 'base64');
-      fs.writeFileSync(filePath, fileBuffer);
-
-      // 获取文件大小
-      const fileSize = fileBuffer.length;
-
-      // 检查接收者是否存在
       const receiverUser = await db('users').where({ id: receiverId }).first();
       if (!receiverUser) {
         return res.status(404).json({ error: `用户ID ${receiverId} 不存在` });
       }
 
-      // 创建文件消息记录
       const newMessage = {
         sender_id: senderId,
         receiver_id: receiverId,
@@ -83,26 +117,25 @@ io.on('connection', (socket) => {
         room_id: `private_${Math.min(receiverId, senderId)}_${Math.max(receiverId, senderId)}`,
         message_type: 'file',
         file_name: fileName,
-        file_path: safeFileName,
-        file_url: `/api/download/${fileId}`,
+        file_path: objectName, // 存储MinIO中的对象名
+        file_url: `/api/download/${fileId}`, // 下载URL保持不变
         file_size: fileSize,
         file_id: fileId,
         timestamp: new Date(),
         status: 'sent'
       };
 
-      // 存储消息到数据库
       const [messageId] = await db('messages').insert(newMessage);
-      console.log('Message inserted with ID:', messageId); // 添加调试日志
+      const senderUser = await db('users').where({ id: senderId }).first();
 
-      // 构建要发送的消息对象
       const savedMessage = {
         id: messageId,
+        username: senderUser.username,
         content: newMessage.content,
         timestamp: newMessage.timestamp,
         senderId: newMessage.sender_id,
         receiverId: newMessage.receiver_id,
-        senderUsername: senderId,
+        senderUsername: senderUser.username,
         receiverUsername: receiverUser.username,
         type: 'private',
         messageType: 'file',
@@ -111,29 +144,26 @@ io.on('connection', (socket) => {
         fileSize: fileSize,
         fileId: fileId
       };
-      console.log('Saved message object:', savedMessage); // 添加调试日志
 
-      // 返回成功响应
-      const response = { message: '文件上传成功', messageData: savedMessage };
-      res.status(200).json(response);
+      res.status(200).json({ message: '文件记录成功', messageData: savedMessage });
 
-      // 查找接收方是否在线
       const targetSocketId = Array.from(onlineUsers.entries())
         .find(([, uInfo]) => uInfo.userId === receiverId)?.[0];
 
       if (targetSocketId) {
-        // 接收方在线，直接发送
         io.to(targetSocketId).emit('new-message', savedMessage);
         await db('messages').where({ id: messageId }).update({ status: 'delivered' });
       } else {
-        // 接收方离线，消息状态保持 'sent' (待投递)
         console.log(`用户 ${receiverUser.username} 离线，文件消息将等待上线后投递`);
       }
     } catch (error) {
-      console.error('文件上传失败:', error);
-      res.status(500).json({ error: '文件上传失败，请稍后再试' });
+      console.error('完成文件上传失败:', error);
+      res.status(500).json({ error: '服务器内部错误' });
     }
   });
+
+  // --- MinIO 文件上传流程结束 ---
+
   console.log(`用户连接: ${socket.id}`);
 
   // 用户注册
@@ -233,28 +263,69 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send-disconnect-message', async (user) => {
-    const undeliveredMessages = await db('messages')
-      .where({ receiver_id: user.userId, status: 'sent' })
-      .orderBy('timestamp', 'asc');
+    // 使用 JOIN 查询一次性获取未送达的私聊消息和发送者信息
+    const undeliveredMessages = await db('messages as m')
+      .join('users as u', 'm.sender_id', 'u.id')
+      .where({ 'm.receiver_id': user.userId, 'm.status': 'sent' })
+      .select(
+        'm.id',
+        'm.sender_id',
+        'm.receiver_id',
+        'm.content',
+        'm.timestamp',
+        'm.message_type',
+        'm.file_name',
+        'm.file_url',
+        'm.file_size',
+        'u.username as sender_username'
+      )
+      .orderBy('m.timestamp', 'asc');
 
+    // 使用 JOIN 查询一次性获取未送达的群聊消息和发送者信息
+    const undeliveredGroupMessages = await db('group_message_read_status as gmrs')
+      .join('group_messages as gm', 'gm.id', 'gmrs.group_message_id')
+      .join('users as u', 'gm.sender_id', 'u.id')
+      .where({ 'gmrs.user_id': user.userId, 'gmrs.status': 'sent' })
+      .select(
+        'gm.id',
+        'gm.sender_id',
+        'gm.group_id as receiver_id',
+        'gm.content',
+        'gm.timestamp',
+        'gm.message_type',
+        'u.username as sender_username'
+      )
+      .orderBy('gm.timestamp', 'asc');
+
+    // 发送群聊消息
+    for (const msg of undeliveredGroupMessages) {
+      socket.emit('new-message', {
+        username: msg.sender_username,
+        content: msg.content,
+        timestamp: msg.timestamp,
+        type: 'group',
+        senderId: msg.sender_id,
+        receiverId: msg.receiver_id,
+        messageType: msg.message_type,
+      });
+      await db('group_message_read_status').where({ group_message_id: msg.id }).where({ user_id: user.userId}).update({ status: 'delivered' });
+    }
+
+    // 发送私聊消息
     for (const msg of undeliveredMessages) {
-      const senderUser = await db('users').where({ id: msg.sender_id }).first();
-      if (senderUser) {
-        socket.emit('new-message', {
-          id: `temp_${Date.now()}`,
-          username: senderUser.username,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          type: 'private',
-          senderId: msg.sender_id,
-          receiverId: msg.receiver_id,
-          messageType: msg.message_type,
-          fileName: msg.file_name,
-          fileUrl: msg.file_url,
-          fileSize: msg.file_size,
-        });
-        await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
-      }
+      socket.emit('new-message', {
+        username: msg.sender_username,
+        content: msg.content,
+        timestamp: msg.timestamp,
+        type: 'private',
+        senderId: msg.sender_id,
+        receiverId: msg.receiver_id,
+        messageType: msg.message_type,
+        fileName: msg.file_name,
+        fileUrl: msg.file_url,
+        fileSize: msg.file_size,
+      });
+      await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
     }
   });
 
@@ -294,14 +365,16 @@ io.on('connection', (socket) => {
     const sendMessageId = message.id
     const savedMessage = {
       id: sendMessageId,
+      username: senderInfo.username,
       content: newMessage.content,
       timestamp: newMessage.timestamp,
       senderId: newMessage.sender_id,
       receiverId: newMessage.receiver_id,
-      senderUsername: senderInfo.username,
       receiverUsername: receiverUser.username,
+      messageType: 'text',
       type: 'private'
     };
+
 
     // 查找接收方是否在线
     const targetSocketId = Array.from(onlineUsers.entries())
@@ -311,14 +384,78 @@ io.on('connection', (socket) => {
       // 接收方在线，直接发送
       io.to(targetSocketId).emit('new-message', savedMessage);
       await db('messages').where({ id: messageId }).update({ status: 'delivered' });
-      console.log(`消息从 ${senderInfo.username} 发送给在线用户 ${receiverUser.username}`);
     } else {
       // 接收方离线，消息状态保持 'sent' (待投递)
       console.log(`用户 ${receiverUser.username} 离线，消息将等待上线后投递`);
     }
 
-    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId, status: 'success' });
+    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId, status: 'success', isGroup: false });
 
+  });
+
+  socket.on('send-group-message', async (data) => {
+    const { message, groupId } = data;
+    const senderInfo = onlineUsers.get(socket.id);
+
+    if (!senderInfo) {
+      socket.emit('error', { message: '发送者信息不存在' });
+      return;
+    }
+    if (!groupId) {
+      socket.emit('error', { message: '群组ID是必需的' });
+      return;
+    }
+
+    const group = await db('groups').where({ id: groupId }).first();
+    if (!group) {
+      socket.emit('error', { message: `群组ID ${groupId} 不存在` });
+      return;
+    }
+
+    // 再获取群组所有成员
+    const groupMembers = await db('group_members')
+      .where({ group_id: groupId })
+      .select('user_id');
+
+    const sendTimestamp = new Date();
+
+    const newMessage = {
+      group_id: groupId,
+      sender_id: senderInfo.userId,
+      content: message.text,
+      timestamp: sendTimestamp,
+    };
+
+    // 存储消息到数据库
+    const [messageId] = await db('group_messages').insert(newMessage);
+    for (const member of groupMembers) {
+      await db('group_message_read_status').insert({
+        group_message_id: messageId,
+        user_id: member.user_id,
+        status: 'sent',
+        timestamp : sendTimestamp
+      });
+    }
+    const sendMessageId = message.id
+    const savedMessage = {
+      id: sendMessageId,
+      username: senderInfo.username,
+      content: newMessage.content,
+      timestamp: sendTimestamp,
+      senderId: newMessage.sender_id,
+      receiverId: newMessage.group_id,
+      type: 'group'
+    };
+
+    const onlineMemberSockets = Array.from(onlineUsers.entries())
+      .filter(([, userInfo]) => groupMembers.includes(userInfo.userId))
+      .map(([socketId, userInfo]) => socketId);
+    // 向所有在线群成员发送消息
+    onlineMemberSockets.forEach(socketId => {
+      io.to(socketId).emit('new-message', savedMessage);
+    });
+
+    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, status: 'success', isGroup: true });
   });
 
 
@@ -395,7 +532,6 @@ io.on('connection', (socket) => {
         members: membersByGroup[g.groupId] || [],
         type: 'group'
       }));
-      console.log('好友列表和群列表已发送给用户:', [...friendsWithStatus, ...payload]);
 
       socket.emit('friends-groups-list', [...friendsWithStatus, ...payload]);
     } catch (error) {
@@ -520,7 +656,8 @@ io.on('connection', (socket) => {
         .update({ status: 'accepted' });
 
       const friendInformation = await db('friendships')
-        .where({user_id: requesterId})
+        .where({ user_id: requesterId })
+        .join('users', 'friendships.user_id', 'users.id')
         .select('users.id', 'users.username');
 
 
@@ -528,10 +665,10 @@ io.on('connection', (socket) => {
       const targetSocketId = Array.from(onlineUsers.entries())
         .find(([, uInfo]) => uInfo.userId === requesterId)?.[0];
       if (targetSocketId) {
-        io.to(targetSocketId).emit('friend-request-accepted', { id: senderInfo.userId, username: senderInfo.username, type: 'private', isOnline: true });
+        io.to(targetSocketId).emit('friend-request-accepted', { id: senderInfo.userId, username: senderInfo.username, type: 'friend', isOnline: true });
       }
 
-      socket.emit('friend-request-accepted', {...friendInformation, type: 'private', isOnline: targetSocketId});
+      socket.emit('friend-request-accepted', Object.assign(friendInformation[0], { type: 'friend', isOnline: targetSocketId }));
     } catch (error) {
       console.error('Error accepting friend request:', error);
     }
@@ -579,7 +716,6 @@ io.on('connection', (socket) => {
         },
       ]);
 
-      console.log('Created group:', checkedContacts);
 
       for (const contact of checkedContacts) {
         await db('group_members').insert({
@@ -591,6 +727,8 @@ io.on('connection', (socket) => {
           role: 'member'
         });
       }
+
+      socket.emit('grops-create-success');
 
       const checkedContactIds = [...checkedContacts.map(c => c.id), senderInfo.userId];
       const onlineMemberSockets = Array.from(onlineUsers.entries())
@@ -640,36 +778,27 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 文件下载接口
+// 文件下载接口（修改为从MinIO下载）
 app.get('/api/download/:fileId', async (req, res) => {
   const { fileId } = req.params;
 
   try {
-    // 从数据库查找文件信息
     const fileMessage = await db('messages')
       .where({ file_id: fileId, message_type: 'file' })
       .first();
 
     if (!fileMessage) {
-      return res.status(404).json({ error: '文件不存在' });
+      return res.status(404).json({ error: '文件不存在或已被清理' });
     }
 
-    // 构建文件路径
-    const filePath = path.join(__dirname, 'uploads', fileMessage.file_path);
+    // 从MinIO获取文件流
+    const dataStream = await minioClient.getObject(bucketName, fileMessage.file_path);
 
-    // 检查文件是否存在
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: '文件不存在' });
-    }
-
-    // 设置响应头
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileMessage.file_name)}"`);
     res.setHeader('Content-Type', fileMessage.mime_type || 'application/octet-stream');
     res.setHeader('Content-Length', fileMessage.file_size);
 
-    // 发送文件
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
+    dataStream.pipe(res);
   } catch (error) {
     console.error('文件下载失败:', error);
     res.status(500).json({ error: '文件下载失败' });

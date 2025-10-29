@@ -4,14 +4,16 @@ import path from 'path';
 export async function initializeDatabase(db) {
   try {
     // 检查表是否存在，使用更可靠的方法
-    let exists;
+    let privateMessageExists;
     let friendTableExists;
+    let groupMessageExists;
     try {
-      exists = await db.schema.hasTable('messages');
+      privateMessageExists = await db.schema.hasTable('messages');
       friendTableExists = await db.schema.hasTable('friends');
+      groupMessageExists = await db.schema.hasTable('group_messages');
     } catch (error) {
       console.error('Error checking if messages table exists:', error.message);
-      exists = false;
+      privateMessageExists = false;
     }
 
     if (!friendTableExists) {
@@ -25,8 +27,7 @@ export async function initializeDatabase(db) {
       })
     }
 
-    if (!exists) {
-      // 浣跨敤 await 纭繚琛ㄥ垱寤哄畬鎴?
+    if (!privateMessageExists) {
       await db.schema.createTable('messages', (table) => {
         table.string('id').primary();
         table.string('sender_id').notNullable();
@@ -43,12 +44,25 @@ export async function initializeDatabase(db) {
         table.boolean('fileExt').nullable().defaultTo(false);
         table.string('status').nullable().defaultTo('fail');
       });
+    }
 
-      console.log('Messages table created successfully');
-
-      // 验证表是否真的创建成功
-      const tablesExist = await db.schema.hasTable('messages');
-      console.log('Verified messages table exists:', tablesExist);
+    if (!groupMessageExists) {
+      await db.schema.createTable('group_messages', (table) => {
+        table.string('id').primary();
+        table.string('sender_id').notNullable();
+        table.string('receiver_id').notNullable();
+        table.text('text').notNullable();
+        table.timestamp('timestamp').defaultTo(db.fn.now());
+        table.string('username').notNullable();
+        table.string('sender').notNullable().defaultTo('user');
+        table.string('messageType').defaultTo('text');
+        table.string('fileName').nullable();
+        table.string('fileUrl').nullable();
+        table.string('fileSize').nullable();
+        table.string('localFilePath').nullable();
+        table.boolean('fileExt').nullable().defaultTo(false);
+        table.string('status').nullable().defaultTo('fail');
+      })
     }
   } catch (error) {
     console.error('Failed to initialize database:', error);

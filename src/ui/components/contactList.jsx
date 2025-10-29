@@ -36,7 +36,7 @@ const ContactList = ({ contacts, selectedContact, onSelectContact }) => {
         {contacts && contacts.length > 0 && contacts.map(( contact ) => (
           <li key={contact.id} className={`contact-item ${contact.id === selectedContact?.id ? 'selected' : ''}`}  onClick={() => handleSelectContact(contact)} >
             <span className="contact-username">{contact.username}</span>
-            {contact.isOnline && contact.isOnline ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>}
+            { contact.type === 'friend' ? (contact.isOnline && contact.isOnline  ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>) : null }
           </li>
         ))}
       </ul>

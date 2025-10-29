@@ -2,9 +2,12 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   chatMessage: (contactId, currentUserID, msg) => ipcRenderer.send('chat-message', { contactId, currentUserID, msg }),
-  sendMessageStatusChange: (senderInfo, sendMessageId, receiverId, status) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, receiverId, status }),
+  sendMessageStatusChange: (senderInfo, sendMessageId, receiverId, status, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, receiverId, status, isGroup }),
   resendMessage: (messageId) => ipcRenderer.invoke('resend-message', { messageId }),
-  uploadFile: (contactId, currentUserID, fileName, fileContent) => ipcRenderer.invoke('upload-file', { contactId, currentUserID, fileName, fileContent }),
+  // 触发文件选择对话框，并返回文件路径
+  selectFile: () => ipcRenderer.invoke('select-file'),
+  // 使用新的MinIO上传流程
+  initiateFileUpload: (filePath, senderId, receiverId) => ipcRenderer.invoke('initiate-file-upload', { filePath, senderId, receiverId }),
   getDropFilePath: (droppedFiles) => {
     try {
       const list = Array.isArray(droppedFiles) ? droppedFiles : Array.from(droppedFiles || []);
@@ -25,7 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFileLocation: (messageId) => ipcRenderer.invoke('open-file-location', { messageId }),
   checkFileExists: (messageId) => ipcRenderer.invoke('check-file-exists', { messageId }),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  getChatHistory: (contactId, currentUserID, page, pageSize) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize }),
+  getChatHistory: (contactId, currentUserID, page, pageSize, isGroup) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize, isGroup }),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
   openCreateGroupWindow:(currentID)=> ipcRenderer.send('open-create-group-window',{currentID}),

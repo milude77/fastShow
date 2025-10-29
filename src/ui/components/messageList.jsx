@@ -2,9 +2,14 @@ import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { Modal, Card, Button, message } from 'antd';
 import '../css/messageList.css';
 import { DownloadOutlined, FileOutlined, FolderOpenOutlined, LoadingOutlined, ExclamationCircleOutlined, CheckOutlined } from '@ant-design/icons';
+import { useVirtualList } from '../hooks/useVirtualList';
 
-const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) => {
+const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSendMessage, onSendGroupMessage }) => {
     const [draft, setDraft] = useState(savedDraft || '');
+
+    useEffect(() =>{
+        setDraft(savedDraft || '');
+    },[savedDraft])
 
     const deDounce = (func, delay) => {
         let timeout;
@@ -17,12 +22,16 @@ const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) =
     }
     const handleDraftChange = (event) => {
         setDraft(event.target.value);
-        deDounce(onDraftChange(contactID, event.target.value), 500);
+        deDounce(onDraftChange(contactID, contactType, event.target.value), 1000);
     };
 
     const handleSendMessage = (message) => {
         if (message.trim() !== '') {
-            onSendMessage(message);
+            if (contactType === 'group') {
+                onSendGroupMessage(message);
+            } else {
+                onSendMessage(message);
+            }
             setDraft('');
         }
     };
@@ -48,33 +57,23 @@ const MessageInput = ({ contactID, savedDraft, onDraftChange, onSendMessage }) =
     );
 };
 
-const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
+const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
     const [modal, modalContextHolder] = Modal.useModal();
 
     const handleFileSelect = async () => {
-        const filePath = await window.electronAPI.showOpenDialog();
-
+        const filePath = await window.electronAPI.selectFile();
         if (filePath) {
             const fileName = filePath.split(/[\\/]/).pop();
-            const fileContent = await window.electronAPI.readFile(filePath);
-            const fileSize = (fileContent.length / 1024).toFixed(2);
-
-            if (fileContent) {
-                // 由于我们无法直接获取文件大小，这里可以留空或进行估算
-                // const fileSize = (fileContent.length * 0.75 / 1024).toFixed(2); // Base64 估算
-                modal.confirm({
-                    zIndex: 2000,
-                    centered: true,
-                    maskClosable: false,
-                    title: `发送文件 ${fileName} 给联系人？`,
-                    content: `文件名: ${fileName}，大小: ${fileSize} KB`,
-
-                    onOk() {
-                        onUploadFile({ fileName, fileContent, localPath: filePath });
-                        scrollToBottom();
-                    }
-                });
-            }
+            modal.confirm({
+                zIndex: 2000,
+                centered: true,
+                maskClosable: false,
+                title: `发送文件 ${fileName} 给 ${contact?.username}？`,
+                onOk() {
+                    onUploadFile({ filePath });
+                    scrollToBottom();
+                }
+            });
         }
     };
 
@@ -91,7 +90,7 @@ const InputToolBar = ({ onUploadFile, scrollToBottom }) => {
     )
 }
 
-const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onLoadMore, onUploadFile, onResendMessage }) => {
+const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage }) => {
     const [messageApi, contextHolder] = message.useMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
@@ -163,7 +162,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
         }
     }, [messages, prevScrollHeight]);
 
-    const lastMessageTimestamp = useRef(messages?.[messages.length - 1]?.timestamp)
+    const lastMessageTimestamp = useRef(messages?.[-1]?.timestamp)
     const scrollToBottom = (behavior = "auto") => {
         messagesEndRef.current?.scrollIntoView({ behavior });
     };
@@ -182,6 +181,11 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 
     const handleSendMessage = (message) => {
         onSendMessage(message);
+        scrollToBottom();
+    }
+
+    const handleSendGroupMessage = (message) => {
+        onSendGroupMessage(message);
         scrollToBottom();
     }
 
@@ -213,25 +217,21 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 
         const files = event.dataTransfer.files;
         if (files.length > 0) {
-            const filePath = window.electronAPI.getDropFilePath(Array.from(files));
-            const file = files[0];
-            const fileSize = (file.size / 1024).toFixed(2);
-            modal.confirm({
-                zIndex: 2000,
-                centered: true,
-                maskClosable: false,
-                title: `发送文件给 ${contact?.username}？`,
-                content: `文件名: ${file.name}，大小: ${fileSize} KB`,
-                onOk() {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const fileContent = e.target.result.split(',')[1];
-                        onUploadFile({ fileName: file.name, fileContent, localPath: filePath.join() });
-                    };
-                    reader.readAsDataURL(file);
-                    scrollToBottom()
-                }
-            });
+            const filePaths = window.electronAPI.getDropFilePath(Array.from(files));
+            if (filePaths && filePaths.length > 0) {
+                const filePath = filePaths[0];
+                const fileName = filePath.split(/[\\/]/).pop();
+                modal.confirm({
+                    zIndex: 2000,
+                    centered: true,
+                    maskClosable: false,
+                    title: `发送文件 ${fileName} 给 ${contact?.username}？`,
+                    onOk() {
+                        onUploadFile({ filePath });
+                        scrollToBottom();
+                    }
+                });
+            }
         }
     };
 
@@ -246,7 +246,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
             if (!fileUrl) {
                 return;
             }
-
+            console.log('fileUrl:', fileUrl);
             const result = await window.electronAPI.downloadFile(fileUrl, fileName);
             if (result.success) {
                 return
@@ -280,13 +280,53 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     };
 
     //重新发送消息
-    const handleResendMessage = async(contact, msg) => {
-        const res = await window.electronAPI.resendMessage(msg.id)
+    const handleResendMessage = async (contact, msg) => {
+        const isGroup = contact.type === 'group'
+        const res = await window.electronAPI.resendMessage(msg.id,isGroup)
         if (res.success) {
-            onResendMessage(contact, msg)
-            scrollToBottom(); 
+            onResendMessage(contact.id, msg, contact.type)
+            scrollToBottom();
         } else {
             messageApi.error('消息重新发送失败: ' + res.error);
+        }
+    }
+
+    //重发文件
+    const handleResendFile = async (msg) => {
+        try {
+            // 检查是否有本地文件路径
+            if (!msg.localFilePath) {
+                messageApi.error('无法重传文件：本地文件路径不存在');
+                return;
+            }
+            
+            // 读取文件内容
+            const fileContent = await window.electronAPI.readFile(msg.localFilePath);
+            if (!fileContent) {
+                messageApi.error('无法重传文件：文件读取失败');
+                return;
+            }
+            
+            // 重新上传文件
+            await onUploadFile({
+                fileName: msg.fileName,
+                fileContent: fileContent,
+                localPath: msg.localFilePath,
+                isResend: true,
+                originalMessageId: msg.id
+            });
+            
+            // 删除原消息记录
+            const isGroup = contact.type === 'group';
+            const res = await window.electronAPI.resendMessage(msg.id, isGroup);
+            if (!res.success) {
+                messageApi.error('删除原消息记录失败: ' + res.error);
+            }
+            
+            messageApi.success('文件重新发送成功');
+        } catch (error) {
+            console.error('文件重传失败:', error);
+            messageApi.error('文件重传失败: ' + error.message);
         }
     }
 
@@ -323,7 +363,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                                                         case 'sending':
                                                             return (<span className="message-status"><LoadingOutlined /></span>);
                                                         case 'fail':
-                                                            return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendMessage(contact.id, msg)}><ExclamationCircleOutlined /></span>);
+                                                            return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendMessage(contact, msg)}><ExclamationCircleOutlined /></span>);
                                                     }
                                                 })()}
                                                 <div className="message-content">
@@ -333,41 +373,41 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                                         )
                                         :
                                         (
-                                            <div className="file-message-content" >
-                                                {(() => {
+                                            
+                                            <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }} >
+                                                {msg.sender === 'user' && (() => {
                                                     switch (msg.status) {
-                                                        case 'sending':
-                                                            return (<span className="message-status"><LoadingOutlined /></span>);
                                                         case 'fail':
-                                                            return (<span className="message-status"><ExclamationCircleOutlined /></span>);
-                                                    }
+                                                        return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendFile(msg)}><ExclamationCircleOutlined /></span>)
+                                                };
                                                 })()}
-
-                                                <div style={{ display: "flex", flexDirection: 'column', width: '60%', justifyContent: 'space-between', margin: '5px' }} className="file-information">
-                                                    <span className="message-text">{msg.fileName}</span>
-                                                    <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
+                                                <div className="file-message-content" >
+                                                    <div style={{ display: "flex", flexDirection: 'column', width: '60%', justifyContent: 'space-between', margin: '5px' }} className="file-information">
+                                                        <span className="message-text">{msg.fileName}</span>
+                                                        <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
+                                                    </div>
+                                                    {
+                                                        msg.fileExt ? (
+                                                            <Button
+                                                                style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
+                                                                type="primary"
+                                                                onClick={() => handleOpenFileLocation(msg.id)}
+                                                                title="打开文件位置"
+                                                            >
+                                                                <FolderOpenOutlined />
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
+                                                                type="primary"
+                                                                onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
+                                                                title="下载文件"
+                                                            >
+                                                                <DownloadOutlined />
+                                                            </Button>
+                                                        )
+                                                    }
                                                 </div>
-                                                {
-                                                    msg.fileExt ? (
-                                                        <Button
-                                                            style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
-                                                            type="primary"
-                                                            onClick={() => handleOpenFileLocation(msg.id)}
-                                                            title="打开文件位置"
-                                                        >
-                                                            <FolderOpenOutlined />
-                                                        </Button>
-                                                    ) : (
-                                                        <Button
-                                                            style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
-                                                            type="primary"
-                                                            onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
-                                                            title="下载文件"
-                                                        >
-                                                            <DownloadOutlined />
-                                                        </Button>
-                                                    )
-                                                }
                                             </div>
                                         )
                                     }
@@ -375,13 +415,13 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                             </React.Fragment>
                         );
                     })}
-                    <div ref={messagesEndRef} />
-                </ul>
-            </div>
+                </ul >
+                <div ref={messagesEndRef} />
+            </div >
             <div className='message-send-box' style={{ height: inputHeight }} >
                 <div className="resize-handle" onMouseDown={onResizeMouseDown} />
-                <InputToolBar onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
-                <MessageInput contactID={contact?.id} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
+                <InputToolBar contact={contact} onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
+                <MessageInput contactID={contact?.id} contactType = {contact?.type} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} onSendGroupMessage={handleSendGroupMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
             </div>
         </>
     )
