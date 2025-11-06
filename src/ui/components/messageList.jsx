@@ -3,13 +3,15 @@ import { Modal, Card, Button, message } from 'antd';
 import '../css/messageList.css';
 import { DownloadOutlined, FileOutlined, FolderOpenOutlined, LoadingOutlined, ExclamationCircleOutlined, CheckOutlined } from '@ant-design/icons';
 import { useVirtualList } from '../hooks/useVirtualList';
+import { WhatsAppOutlined } from '@ant-design/icons';
+
 
 const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSendMessage, onSendGroupMessage }) => {
     const [draft, setDraft] = useState(savedDraft || '');
 
-    useEffect(() =>{
+    useEffect(() => {
         setDraft(savedDraft || '');
-    },[savedDraft])
+    }, [savedDraft])
 
     const deDounce = (func, delay) => {
         let timeout;
@@ -90,6 +92,14 @@ const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
     )
 }
 
+const MessageListTool = () => {
+    return (
+        <div className="message-list-tool">
+            <WhatsAppOutlined />
+        </div>
+    )
+}
+
 const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage }) => {
     const [messageApi, contextHolder] = message.useMessage();
     const convertFileSize = (sizeInKb) => {
@@ -111,6 +121,14 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     const isResizingRef = useRef(false);
     const startYRef = useRef(0);
     const startHeightRef = useRef(80);
+
+    //服务器地址
+    const [serverUrl, setServerUrl] = useState('');
+
+    const handleServerUrlChange = async () => {
+        const url = await window.electronAPI.getServerUrl();
+        setServerUrl(url);
+    }
 
     const onResizeMouseMove = (e) => {
         if (!isResizingRef.current) return;
@@ -168,6 +186,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     };
 
     useEffect(() => {
+        handleServerUrlChange();
         scrollToBottom();
     }, []);
 
@@ -282,7 +301,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     //重新发送消息
     const handleResendMessage = async (contact, msg) => {
         const isGroup = contact.type === 'group'
-        const res = await window.electronAPI.resendMessage(msg.id,isGroup)
+        const res = await window.electronAPI.resendMessage(msg.id, isGroup)
         if (res.success) {
             onResendMessage(contact.id, msg, contact.type)
             scrollToBottom();
@@ -290,6 +309,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
             messageApi.error('消息重新发送失败: ' + res.error);
         }
     }
+
 
     //重发文件
     const handleResendFile = async (msg) => {
@@ -299,14 +319,14 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                 messageApi.error('无法重传文件：本地文件路径不存在');
                 return;
             }
-            
+
             // 读取文件内容
             const fileContent = await window.electronAPI.readFile(msg.localFilePath);
             if (!fileContent) {
                 messageApi.error('无法重传文件：文件读取失败');
                 return;
             }
-            
+
             // 重新上传文件
             await onUploadFile({
                 fileName: msg.fileName,
@@ -315,14 +335,14 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                 isResend: true,
                 originalMessageId: msg.id
             });
-            
+
             // 删除原消息记录
             const isGroup = contact.type === 'group';
             const res = await window.electronAPI.resendMessage(msg.id, isGroup);
             if (!res.success) {
                 messageApi.error('删除原消息记录失败: ' + res.error);
             }
-            
+
             messageApi.success('文件重新发送成功');
         } catch (error) {
             console.error('文件重传失败:', error);
@@ -335,6 +355,12 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
         <>
             {modalContextHolder}
             {contextHolder}
+            <div className='contact-info'>
+                <strong >
+                    {contact.username + (contact.type === 'friend' ? '' : `(${contact.members.length})`)}
+                </strong>
+                <MessageListTool />
+            </div>
             <div className='history-message-box' ref={messageContainerRef}
                 onMouseLeave={() => {
                     messageContainerRef.current.style.scrollbarColor = 'transparent transparent'; // 隐藏滚动条颜色
@@ -354,63 +380,68 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                             <React.Fragment key={key}>
                                 {showTimestamp && <span className="message-timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
                                 <li className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}>
-                                    <div style={{ fontSize: '10px' }}>{msg?.username}</div>
-                                    {msg.messageType == 'text' ?
-                                        (
-                                            <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }} >
-                                                {msg.sender === 'user' && (() => {
-                                                    switch (msg.status) {
-                                                        case 'sending':
-                                                            return (<span className="message-status"><LoadingOutlined /></span>);
-                                                        case 'fail':
-                                                            return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendMessage(contact, msg)}><ExclamationCircleOutlined /></span>);
-                                                    }
-                                                })()}
-                                                <div className="message-content">
-                                                    <span className="message-text">{msg.text}</span>
-                                                </div>
-                                            </div>
-                                        )
-                                        :
-                                        (
-                                            
-                                            <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }} >
-                                                {msg.sender === 'user' && (() => {
-                                                    switch (msg.status) {
-                                                        case 'fail':
-                                                        return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendFile(msg)}><ExclamationCircleOutlined /></span>)
-                                                };
-                                                })()}
-                                                <div className="file-message-content" >
-                                                    <div style={{ display: "flex", flexDirection: 'column', width: '60%', justifyContent: 'space-between', margin: '5px' }} className="file-information">
-                                                        <span className="message-text">{msg.fileName}</span>
-                                                        <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
+                                    <img
+                                        className="user-avatar"
+                                        src={`${serverUrl}/api/avatar/${msg.sender_id}/user`}
+                                        alt="user-avatar" />
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '70%' }} >
+                                        <div style={{ fontSize: '10px', textAlign: msg.sender === 'user' ? 'right' : 'left' }}>{msg?.username}</div>
+                                        {msg.messageType == 'text' ?
+                                            (
+                                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                    {msg.sender === 'user' && (() => {
+                                                        switch (msg.status) {
+                                                            case 'sending':
+                                                                return (<span className="message-status"><LoadingOutlined /></span>);
+                                                            case 'fail':
+                                                                return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendMessage(contact, msg)}><ExclamationCircleOutlined /></span>);
+                                                        }
+                                                    })()}
+                                                    <div className="message-content">
+                                                        <span className="message-text">{msg.text}</span>
                                                     </div>
-                                                    {
-                                                        msg.fileExt ? (
-                                                            <Button
-                                                                style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
-                                                                type="primary"
-                                                                onClick={() => handleOpenFileLocation(msg.id)}
-                                                                title="打开文件位置"
-                                                            >
-                                                                <FolderOpenOutlined />
-                                                            </Button>
-                                                        ) : (
-                                                            <Button
-                                                                style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
-                                                                type="primary"
-                                                                onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
-                                                                title="下载文件"
-                                                            >
-                                                                <DownloadOutlined />
-                                                            </Button>
-                                                        )
-                                                    }
                                                 </div>
-                                            </div>
-                                        )
-                                    }
+                                            )
+                                            :
+                                            (
+                                                <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }} >
+                                                    {msg.sender === 'user' && (() => {
+                                                        switch (msg.status) {
+                                                            case 'fail':
+                                                                return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendFile(msg)}><ExclamationCircleOutlined /></span>)
+                                                        };
+                                                    })()}
+                                                    <div className="file-message-content" >
+                                                        <div style={{ display: "flex", flexDirection: 'column', justifyContent: 'space-between', margin: '5px' }} className="file-information">
+                                                            <span className="message-text">{msg.fileName}</span>
+                                                            <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
+                                                        </div>
+                                                        {
+                                                            msg.fileExt ? (
+                                                                <Button
+                                                                    style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
+                                                                    type="primary"
+                                                                    onClick={() => handleOpenFileLocation(msg.id)}
+                                                                    title="打开文件位置"
+                                                                >
+                                                                    <FolderOpenOutlined />
+                                                                </Button>
+                                                            ) : (
+                                                                <Button
+                                                                    style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
+                                                                    type="primary"
+                                                                    onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
+                                                                    title="下载文件"
+                                                                >
+                                                                    <DownloadOutlined />
+                                                                </Button>
+                                                            )
+                                                        }
+                                                    </div>
+                                                </div>
+                                            )
+                                        }
+                                    </div>
                                 </li>
                             </React.Fragment>
                         );
@@ -421,7 +452,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
             <div className='message-send-box' style={{ height: inputHeight }} >
                 <div className="resize-handle" onMouseDown={onResizeMouseDown} />
                 <InputToolBar contact={contact} onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
-                <MessageInput contactID={contact?.id} contactType = {contact?.type} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} onSendGroupMessage={handleSendGroupMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
+                <MessageInput contactID={contact?.id} contactType={contact?.type} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} onSendGroupMessage={handleSendGroupMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
             </div>
         </>
     )

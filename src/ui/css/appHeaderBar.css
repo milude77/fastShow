@@ -3,7 +3,6 @@
   display: flex;
   justify-content: end;
   align-items: center;
-  background-color: var(--background-color);
   color: var(--text-color);
   height: 32px;
   top: 0;

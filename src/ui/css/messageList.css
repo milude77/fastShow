@@ -5,9 +5,18 @@
     max-height: 80%;
     background-color: var(--background-color);
     color: var(--text-color);
-    scrollbar-color: transparent transparent ;
+    scrollbar-color: transparent transparent;
     scrollbar-width: 10px;
     overflow-x: hidden;
+}
+
+.contact-info {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding:0 15px 0 15px;
+    -webkit-app-region: no-drag;
+    border-bottom: 1px solid #ccc;
 }
 
 .message-send-box {
@@ -24,13 +33,13 @@
     margin-top: auto;
 }
 
-.file-upload-btn{
+.file-upload-btn {
     background-color: transparent;
     border: none;
     color: var(--text-color);
 }
 
-.file-upload-btn:hover{
+.file-upload-btn:hover {
     background-color: var(--hover-contact-background-color);
 }
 
@@ -63,15 +72,14 @@
     bottom: 20px;
     border-radius: 4px;
     border: none;
-    background-color: var(--text-color);
-    color: var(--background-color);
+    background-color: var(--selected-contact-background-color);
+    color: var(--text-color);
     cursor: pointer;
 }
 
 .message-send-btn:hover {
-    background-color: #2a2a2a;
+    background-color: var(--tool-bar-selected-color);
 }
-
 
 .message-list {
     list-style: none;
@@ -83,21 +91,29 @@
     color: var(--text-color);
 }
 
+.message-item .user-avatar {
+    display: block;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    margin: 0 5px;
+}
+
 .message-item {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     margin-bottom: 15px;
     width: 100%;
 }
 
 .message-item.sent {
-    align-self: flex-end;
-    align-items: flex-end;
+    flex-direction: row-reverse;
 }
 
 .message-item.received {
-    align-self: flex-start;
-    align-items: flex-start;
+    flex-direction: row;
 }
 
 .message-content {
@@ -106,8 +122,8 @@
     border-radius: 18px;
 }
 
-.message-status{
-    padding-right: 10px;
+.message-status {
+    margin: 10px;
 }
 
 .message-item.sent .message-content {
@@ -133,18 +149,16 @@
     word-wrap: break-word;
 }
 
-
-
-
-.file-message-content{
+.file-message-content {
     display: flex;
     background-color: var(--history-file--color);
     width: 260px;
     padding: 16px;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    border-radius : 10px;
+    border-radius: 10px;
     height: 100px;
 }
+
 /* 顶部拖动调整 textarea 高度的抓手样式 */
 .message-send-box .resize-handle {
     position: absolute;
@@ -153,12 +167,11 @@
     right: 0;
     height: 6px;
     cursor: ns-resize;
-    background: transparent; 
+    background: transparent;
     z-index: 1;
 }
 
 
-.message-send-box { 
-    flex: 0 0 auto !important; 
+.message-send-box {
+    flex: 0 0 auto !important;
 }
-

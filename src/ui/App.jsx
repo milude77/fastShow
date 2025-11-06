@@ -100,6 +100,7 @@ function App() {
       window.electronAPI.loginSuccess(user.userId)
       window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
       window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
+      localStorage.setItem('token', user.token ?? user.newToken);
       setCurrentUser(user);
     };
 
@@ -272,6 +273,7 @@ function App() {
         messageType: 'text',
         timestamp: new Date().toISOString(),
         username: currentUser.username,
+        sender_id: currentUser.userId,
         status: 'sending',
         type: 'private'
       };
@@ -315,6 +317,7 @@ function App() {
         sender: 'user',
         messageType: 'text',
         timestamp: new Date().toISOString(),
+        senderId: currentUser.userId,
         username: currentUser.username,
         status: 'sending',
         type: 'group'
@@ -342,9 +345,9 @@ function App() {
             )
           };
         });
-        pendingTimersRef.current.delete(tempId);
+        pendingGroupTimersRef.current.delete(tempId);
       }, 10000);
-      pendingTimersRef.current.set(tempId, timer);
+      pendingGroupTimersRef.current.set(tempId, timer);
 
       setGroupDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
     }
@@ -371,13 +374,20 @@ function App() {
   // socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, status: 'success', isGroup: true });
   const handleSendMessageStatus = ({ senderInfo, sendMessageId, receiverId, status, isGroup }) => {
     // 收到服务端成功回执，清除超时计时器
-    let timer
-    if (isGroup) timer = pendingTimersRef.current.get(sendMessageId);
-    else timer = pendingGroupTimersRef.current.get(sendMessageId);
+    let timer;
+    if (isGroup) {
+      timer = pendingGroupTimersRef.current.get(sendMessageId);
+    } else {
+      timer = pendingTimersRef.current.get(sendMessageId);
+    }
+
     if (timer) {
       clearTimeout(timer);
-      if (isGroup) pendingTimersRef.current.delete(sendMessageId);
-      else pendingGroupTimersRef.current.delete(sendMessageId);
+      if (isGroup) {
+        pendingGroupTimersRef.current.delete(sendMessageId);
+      } else {
+        pendingTimersRef.current.delete(sendMessageId);
+      }
     }
 
     if (sendMessageId && receiverId && status == 'success') {
@@ -606,6 +616,7 @@ function App() {
         <div className="app">
           <div className='app-features-bar'>
             <ToolBar
+              currentUser={currentUser}
               selectFeatures={selectFeatures}
               setSelectFeatures={setSelectFeatures}
               isDarkMode={darkMode}
@@ -622,12 +633,6 @@ function App() {
           <div className='message-box'>
             <div className='message-box-header'>
               <AppHeaderBar />
-              {selectedContact && selectFeatures == "message" &&
-                <div className='contact-info'>
-                  <strong >
-                    {selectedContact.username + (selectedContact.type === 'friend' ? '' : `(${selectedContact.members.length})`)}
-                  </strong>
-                </div>}
             </div>
             {renderInformationFunctionBar()}
           </div>

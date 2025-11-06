@@ -65,6 +65,8 @@ app.use(express.json({ limit: '50mb' })); // Increase the limit to 50mb or adjus
 // onlineUsers: socketId -> { userId, username }
 const onlineUsers = new Map();
 
+
+
 // Socket.IO 连接处理
 console.log('Socket.IO server initialized, waiting for connections...'); // 新增日志
 io.on('connection', (socket) => {
@@ -162,7 +164,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // --- MinIO 文件上传流程结束 ---
 
   console.log(`用户连接: ${socket.id}`);
 
@@ -805,12 +806,115 @@ app.get('/api/download/:fileId', async (req, res) => {
   }
 });
 
+// JWT 验证中间件
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token == null) return res.sendStatus(401); 
+
+  jwt.verify(token, 'your_secret_key', (err, user) => {
+    if (err) return res.sendStatus(403); // 如果token无效，返回403
+    req.user = user;
+    next();
+  });
+};
+
+// --- 新的基于HTTP的头像上传流程 ---
+
+// 1. 初始化上传，获取预签名URL
+app.post('/api/avatar/initiate', authenticateToken, (req, res) => {
+  const userId = req.user.userId;
+  const objectName = `user-${userId}/avatar.jpg`; // 固定文件名，方便覆盖
+
+  // 生成一个有效期为5分钟的预签名URL，用于PUT操作
+  minioClient.presignedPutObject(bucketName, objectName, 5 * 60, (err, presignedUrl) => {
+    if (err) {
+      console.error('生成头像上传URL失败:', err);
+      return res.status(500).json({ error: '无法初始化头像上传' });
+    }
+    res.json({
+      presignedUrl,
+      objectName,
+    });
+  });
+});
+
+// 2. 完成上传，更新数据库
+app.post('/api/avatar/complete', authenticateToken, async (req, res) => {
+  const { objectName } = req.body;
+
+  if (!objectName) {
+    return res.status(400).json({ error: 'ObjectName is required' });
+  }
+
+  try {
+    res.status(200).json({ message: 'Avatar updated successfully' });
+  } catch (error) {
+    console.error('完成头像上传处理失败:', error);
+    res.status(500).json({ error: '保存头像信息失败' });
+  }
+});
+
+
+// 头像下载接口 - 通过userId直接获取头像
+app.get('/api/avatar/:userId/:userType', async (req, res) => {
+  const { userId, userType } = req.params;
+
+  try {
+    if (!userId || typeof userId !== 'string' || !/^[0-9]+$/.test(userId)) {
+      return res.status(400).json({ error: '无效的用户ID格式' });
+    }
+
+    // 验证用户是否存在
+    const user = await db('users').where({ id: userId }).first();
+    
+    if (!user) {
+      return res.status(404).json({ error: '用户不存在' });
+    }
+
+    // 尝试不同的文件扩展名来查找头像文件
+    const extensions = ['.jpg'];
+    let foundObject = null;
+    
+    for (const ext of extensions) {
+      try {
+        const objectName = userType == 'user' ? `user-${userId}/avatar${ext}` : `group-${userId}/avatar${ext}`;
+        await minioClient.statObject(bucketName, objectName);
+        foundObject = objectName;
+        break;
+      } catch {
+        continue;
+      }
+    }
+    
+    if (!foundObject) {
+      const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.png');
+      
+      res.setHeader('Content-Type', 'image/jpg');
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
+      return defaultAvatar.pipe(res);
+    }
+    
+    // 从MinIO获取头像文件流
+    const dataStream = await minioClient.getObject(bucketName, foundObject);
+    
+    // 设置适当的缓存头
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // 缓存1小时
+    res.setHeader('Content-Type', 'image/jpeg'); // 默认为jpeg
+    
+    dataStream.pipe(res);
+  } catch (error) {
+    console.error('头像下载失败:', error);
+    res.status(500).json({ error: '头像下载失败' });
+  }
+});
+
 // 启动服务器
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`聊天室服务器运行在端口 ${PORT}`);
   console.log(`WebSocket 服务已启动`);
-  console.log(`健康检查: http://localhost:${PORT}/api/health`);
 });
 
 process.on('SIGTERM', () => {

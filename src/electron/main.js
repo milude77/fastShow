@@ -7,7 +7,6 @@ import knex from 'knex';
 import fs from 'fs';
 import fetch from 'node-fetch';
 import axios from 'axios';
-import { console } from 'inspector/promises';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 
@@ -22,7 +21,7 @@ const store = new Store();
 // --- Socket.IO Main Process Setup ---
 const configPath = path.join(__dirname, '..', '..', 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-const SOCKET_SERVER_URL = config.DEV_SERVER_URL;
+const SOCKET_SERVER_URL = isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL;
 let socket;
 let heartbeatInterval;
 let reconnectionTimer;
@@ -211,7 +210,7 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         const messageData = {
             id: msg.id,
             sender_id: msg.sender == 'user' ? currentUserID : msg.sender_id,
-            receiver_id: contactId,
+            receiver_id: msg.sender == 'user' ? contactId : currentUserID,
             text: msg.text || '',
             username: msg.username || '',
             timestamp: msg.timestamp || new Date().toISOString(),
@@ -324,7 +323,6 @@ function createTray(mainWindow) {
     if (tray) {
         return;
     }
-    // 使用 PNG/ICO 作为托盘图标（Windows 不支持 SVG）
     const iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'title.png');
     tray = new Tray(iconPath);
 
@@ -614,7 +612,7 @@ ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, rec
         }
         //改变群聊信息状态
         else {
-            await senderDb('groups_messages')
+            await senderDb('group_messages')
                 .where('id', String(sendMessageId))
                 .andWhere('receiver_id', String(receiverId))
                 .update({ status: status });
@@ -639,6 +637,10 @@ ipcMain.handle('get-chat-history', async (event, { contactId, currentUserID, pag
 ipcMain.handle('get-app-version', () => {
     return app.getVersion();
 });
+
+ipcMain.handle('get-server-url', () => {
+    return SOCKET_SERVER_URL;
+  });
 
 ipcMain.on('open-search-window', (event, { userId, selectInformation }) => {
     createSearchWindow(userId, selectInformation);

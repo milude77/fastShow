@@ -1,11 +1,6 @@
 :root {
-  --background-color: white;
-  --text-color: black;
-}
-
-.dark-mode {
-  --background-color: #333;
-  --text-color: white;
+  --background-color: var(--background-color);
+  --text-color: var(--text-color);
 }
 
 .search-input-bar{
@@ -54,14 +49,8 @@
 
 .message-box-header{
   -webkit-app-region: drag;
-  border-bottom: 1px solid var(--border-color);
 }
 
-.message-box-header .contact-info strong{
-  padding-left: 15px;
-  -webkit-app-region: no-drag; 
-
-}
 
 .contact-list-container {
   display: flex;

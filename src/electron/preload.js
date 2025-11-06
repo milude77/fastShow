@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkFileExists: (messageId) => ipcRenderer.invoke('check-file-exists', { messageId }),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, page, pageSize, isGroup) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize, isGroup }),
+  getServerUrl: () => ipcRenderer.invoke('get-server-url'),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
   openCreateGroupWindow:(currentID)=> ipcRenderer.send('open-create-group-window',{currentID}),

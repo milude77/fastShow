@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "antd": "^5.27.1",
-    "axios": "^1.12.2",
+    "axios": "^1.13.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "electron-store": "^10.1.0",
@@ -31,6 +31,7 @@
     "node-fetch": "^3.3.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-easy-crop": "^5.5.3",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "sqlite3": "^5.1.7"

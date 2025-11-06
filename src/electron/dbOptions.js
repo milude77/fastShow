@@ -22,8 +22,7 @@ export async function initializeDatabase(db) {
         table.string('userName').notNullable();
         table.string('nickName').nullable().defaultTo(null);
         table.timestamp('addTime').defaultTo(db.fn.now());
-        // Add 'type' column to distinguish between private chats and group chats
-        table.string('type').nullable().defaultTo('private'); // Default to 'private' for existing entries
+        table.string('type').nullable().defaultTo('private'); 
       })
     }
 

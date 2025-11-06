@@ -39,6 +39,7 @@ const CreateGoupsApp = () => {
             <div className='create-groups-app-content'>
                 <div className='friends-list'>
                     <span className='create-group-title'>选择好友创建</span>
+                    { console.log(contacts)}
                     {contacts && contacts.map((contact, index) => (
                         <div key={index} className='friend-item'
                             onClick={() => {
