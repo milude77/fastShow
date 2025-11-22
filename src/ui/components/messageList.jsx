@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { Modal, Card, Button, message } from 'antd';
 import '../css/messageList.css';
-import { DownloadOutlined, FileOutlined, FolderOpenOutlined, LoadingOutlined, ExclamationCircleOutlined, CheckOutlined } from '@ant-design/icons';
+import { DownloadOutlined, FileOutlined, FolderOpenOutlined, LoadingOutlined, ExclamationCircleOutlined, CheckOutlined, TeamOutlined } from '@ant-design/icons';
 import { useVirtualList } from '../hooks/useVirtualList';
 import { WhatsAppOutlined } from '@ant-design/icons';
 
@@ -15,13 +15,26 @@ const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSen
 
     const deDounce = (func, delay) => {
         let timeout;
-        return (...args) => {
+        return function(...args) {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
                 func.apply(this, args);
             }, delay);
         }
     }
+
+    const troller = (fn,delay) => {
+        let timer = null
+        return function(...args) {
+            if (!timer){
+                fn.apply(this,args)
+                timer = setTimeout(() => {
+                    timer = null;
+                }, delay );
+            }
+        }
+    }
+
     const handleDraftChange = (event) => {
         setDraft(event.target.value);
         deDounce(onDraftChange(contactID, contactType, event.target.value), 1000);
@@ -100,7 +113,37 @@ const MessageListTool = () => {
     )
 }
 
-const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage }) => {
+const DoubleClick = (fn, dealy) => {
+    let timeout = null;
+    if (timeout !== null) {
+        clearTimeout(timeout);
+        timeout = null;
+        fn();
+    } else {
+        timeout = setTimeout(() => {
+            timeout = null;
+            fn();
+        }, dealy);
+    }
+}
+
+const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
+    return (
+        <div className="group-member-list">
+        <span>{`群聊成员 ${members.length}`}</span>
+            {members.map((member, index) => {
+                return (
+                    <div className="group-member" key={index}>
+                        <img style={{ height: '20px', width: '20px' }} src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`} alt={member.userName} />
+                        <div className="group-member-name">{member.userName}</div>
+                    </div>
+                )
+            })}
+        </div>
+    );
+});
+
+const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage }) => {
     const [messageApi, contextHolder] = message.useMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
@@ -121,6 +164,8 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
     const isResizingRef = useRef(false);
     const startYRef = useRef(0);
     const startHeightRef = useRef(80);
+    const [groupMemberListOpen, setGroupMemberListOpen] = useState(true)
+    const [groupMemberListBtnDisplay, setGroupMemberListBtnDisplay] = useState(false)
 
     //服务器地址
     const [serverUrl, setServerUrl] = useState('');
@@ -265,7 +310,6 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
             if (!fileUrl) {
                 return;
             }
-            console.log('fileUrl:', fileUrl);
             const result = await window.electronAPI.downloadFile(fileUrl, fileName);
             if (result.success) {
                 return
@@ -352,7 +396,7 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
 
 
     return (
-        <>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
             {contextHolder}
             <div className='contact-info'>
@@ -361,100 +405,132 @@ const MessageList = ({ contact, messages, draft, onDraftChange, onSendMessage, o
                 </strong>
                 <MessageListTool />
             </div>
-            <div className='history-message-box' ref={messageContainerRef}
-                onMouseLeave={() => {
-                    messageContainerRef.current.style.scrollbarColor = 'transparent transparent'; // 隐藏滚动条颜色
-                }}
-                onMouseEnter={() => {
-                    messageContainerRef.current.style.scrollbarColor = 'rgb(206, 206, 206) transparent'; // 设置滚动条颜色
-                }}
-                onScroll={handleScroll}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}>
-                {isLoadingMore && <div className="loading-spinner">Loading...</div>}
-                <ul className='message-list'>
-                    {messages && messages.map((msg, index) => {
-                        const showTimestamp = shouldShowTimestamp(msg.timestamp, messages[index - 1]?.timestamp);
-                        const key = msg.id || `${msg.timestamp}-${index}`;
-                        return (
-                            <React.Fragment key={key}>
-                                {showTimestamp && <span className="message-timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
-                                <li className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}>
-                                    <img
-                                        className="user-avatar"
-                                        src={`${serverUrl}/api/avatar/${msg.sender_id}/user`}
-                                        alt="user-avatar" />
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '70%' }} >
-                                        <div style={{ fontSize: '10px', textAlign: msg.sender === 'user' ? 'right' : 'left' }}>{msg?.username}</div>
-                                        {msg.messageType == 'text' ?
-                                            (
-                                                <div style={{ display: 'flex', alignItems: 'center' }}>
-                                                    {msg.sender === 'user' && (() => {
-                                                        switch (msg.status) {
-                                                            case 'sending':
-                                                                return (<span className="message-status"><LoadingOutlined /></span>);
-                                                            case 'fail':
-                                                                return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendMessage(contact, msg)}><ExclamationCircleOutlined /></span>);
-                                                        }
-                                                    })()}
-                                                    <div className="message-content">
-                                                        <span className="message-text">{msg.text}</span>
-                                                    </div>
-                                                </div>
-                                            )
-                                            :
-                                            (
-                                                <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }} >
-                                                    {msg.sender === 'user' && (() => {
-                                                        switch (msg.status) {
-                                                            case 'fail':
-                                                                return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendFile(msg)}><ExclamationCircleOutlined /></span>)
-                                                        };
-                                                    })()}
-                                                    <div className="file-message-content" >
-                                                        <div style={{ display: "flex", flexDirection: 'column', justifyContent: 'space-between', margin: '5px' }} className="file-information">
-                                                            <span className="message-text">{msg.fileName}</span>
-                                                            <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
+            <div style={{ display: 'flex', flex: '1', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>
+                    <div className='history-message-box' ref={messageContainerRef}
+                        onMouseLeave={() => {
+                            messageContainerRef.current.style.scrollbarColor = 'transparent transparent'; // 隐藏滚动条颜色
+                        }}
+                        onMouseEnter={() => {
+                            messageContainerRef.current.style.scrollbarColor = 'rgb(206, 206, 206) transparent'; // 设置滚动条颜色
+                        }}
+                        onScroll={handleScroll}
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}>
+                        {isLoadingMore && <div className="loading-spinner">Loading...</div>}
+                        <ul className='message-list'>
+                            {messages && messages.map((msg, index) => {
+                                const showTimestamp = shouldShowTimestamp(msg.timestamp, messages[index - 1]?.timestamp);
+                                const key = msg.id || `${msg.timestamp}-${index}`;
+                                return (
+                                    <React.Fragment key={key}>
+                                        {showTimestamp && <span className="message-timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>}
+                                        <li className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}>
+                                            <img
+                                                className="user-avatar"
+                                                src={`${serverUrl}/api/avatar/${msg.sender_id}/user?t=${msg.sender_id === currentUser.userId ? currentUser.avatarVersion : ''}`}
+                                                alt="user-avatar" />
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '70%' }} >
+                                                <div style={{ fontSize: '10px', textAlign: msg.sender === 'user' ? 'right' : 'left' }}>{msg?.username}</div>
+                                                {msg.messageType == 'text' ?
+                                                    (
+                                                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                                                            {msg.sender === 'user' && (() => {
+                                                                switch (msg.status) {
+                                                                    case 'sending':
+                                                                        return (<span className="message-status"><LoadingOutlined /></span>);
+                                                                    case 'fail':
+                                                                        return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendMessage(contact, msg)}><ExclamationCircleOutlined /></span>);
+                                                                }
+                                                            })()}
+                                                            <div className="message-content">
+                                                                <span className="message-text">{msg.text}</span>
+                                                            </div>
                                                         </div>
-                                                        {
-                                                            msg.fileExt ? (
-                                                                <Button
-                                                                    style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
-                                                                    type="primary"
-                                                                    onClick={() => handleOpenFileLocation(msg.id)}
-                                                                    title="打开文件位置"
-                                                                >
-                                                                    <FolderOpenOutlined />
-                                                                </Button>
-                                                            ) : (
-                                                                <Button
-                                                                    style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
-                                                                    type="primary"
-                                                                    onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
-                                                                    title="下载文件"
-                                                                >
-                                                                    <DownloadOutlined />
-                                                                </Button>
-                                                            )
-                                                        }
-                                                    </div>
-                                                </div>
-                                            )
+                                                    )
+                                                    :
+                                                    (
+                                                        <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }} >
+                                                            {msg.sender === 'user' && (() => {
+                                                                switch (msg.status) {
+                                                                    case 'fail':
+                                                                        return (<span className="message-status" style={{ color: 'red' }} onClick={() => handleResendFile(msg)}><ExclamationCircleOutlined /></span>)
+                                                                };
+                                                            })()}
+                                                            <div className={`file-message-content ${msg.sender === 'user' ? 'sent' : 'received'}`} >
+                                                                <div style={{ display: "flex", flexDirection: 'column', flex:'1', justifyContent: 'space-between', margin: '5px' }} className="file-information">
+                                                                    <span className="message-text">{msg.fileName}</span>
+                                                                    <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
+                                                                </div>
+                                                                {
+                                                                    msg.fileExt ? (
+                                                                        <Button
+                                                                            style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
+                                                                            type="primary"
+                                                                            onClick={() => handleOpenFileLocation(msg.id)}
+                                                                            title="打开文件位置"
+                                                                        >
+                                                                            <FolderOpenOutlined />
+                                                                        </Button>
+                                                                    ) : (
+                                                                        <Button
+                                                                            style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
+                                                                            type="primary"
+                                                                            onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
+                                                                            title="下载文件"
+                                                                        >
+                                                                            <DownloadOutlined />
+                                                                        </Button>
+                                                                    )
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                }
+                                            </div>
+                                        </li>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </ul >
+                        <div className="group-member-toggle-btn"
+
+                            onMouseEnter={() => setGroupMemberListBtnDisplay(true)}
+                            onMouseLeave={() => setGroupMemberListBtnDisplay(false)}
+                        >
+                            {contact.type === 'group' && groupMemberListBtnDisplay && (
+                                <Button
+                                    icon={<TeamOutlined />}
+                                    onClick={() => {
+                                        if (groupMemberListOpen) {
+                                            const windowWidth = window.innerWidth;
+                                            const windowHeight = window.innerHeight;
+                                            window.electronAPI.resizeWindow(windowWidth - 200, windowHeight);
+                                            setGroupMemberListOpen(false)
+                                        } else {
+                                            setGroupMemberListOpen(true)
+                                            const windowWidth = window.innerWidth;
+                                            const windowHeight = window.innerHeight;
+                                            window.electronAPI.resizeWindow(windowWidth + 200, windowHeight);
+                                            setGroupMemberListOpen(true)
                                         }
-                                    </div>
-                                </li>
-                            </React.Fragment>
-                        );
-                    })}
-                </ul >
-                <div ref={messagesEndRef} />
-            </div >
-            <div className='message-send-box' style={{ height: inputHeight }} >
-                <div className="resize-handle" onMouseDown={onResizeMouseDown} />
-                <InputToolBar contact={contact} onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
-                <MessageInput contactID={contact?.id} contactType={contact?.type} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} onSendGroupMessage={handleSendGroupMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
+                                    }}
+                                />
+                            )}
+                        </div>
+                        <div ref={messagesEndRef} />
+                    </div >
+                    <div className='message-send-box' style={{ height: inputHeight }} >
+                        <div className="resize-handle" onMouseDown={onResizeMouseDown} />
+                        <InputToolBar contact={contact} onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
+                        <MessageInput contactID={contact?.id} contactType={contact?.type} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} onSendGroupMessage={handleSendGroupMessage} inputHeight={inputHeight} onResizeMouseDown={onResizeMouseDown} />
+                    </div>
+                </div>
+                {contact.type === 'group' && groupMemberListOpen && (
+                    <GroupMember members={contact.members} serverUrl={serverUrl} currentUser={currentUser} />
+                )}
             </div>
-        </>
+        </div>
     )
 }
 

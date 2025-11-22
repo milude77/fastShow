@@ -51,12 +51,12 @@ const SearchBar = (currentUser) => {
           onKeyDown={handleKeyDown}
         />
       </div>
-      <div>
+      <div className='search-tool-btn'>
         <Dropdown
           overlay={MenuItem}
           trigger={['click']}
         >
-          <Button type="text" icon={<PlusOutlined />} />
+          <Button style={{ color: 'var(--text-color)' }} type="text" icon={<PlusOutlined />} />
         </Dropdown>
       </div>
     </div>
@@ -82,9 +82,22 @@ function App() {
   const pendingTimersRef = useRef(new Map());
   const pendingGroupTimersRef = useRef(new Map());
 
+  const handleAvatarUpdate = useCallback(() => {
+    setCurrentUser(prevUser => ({
+      ...prevUser,
+      avatarVersion: Date.now()
+    }));
+  }, [setCurrentUser]);
+
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
   };
+
+  useEffect(() => {
+    if (currentUser) {
+      window.electronAPI.resizeWindow(1000, 750);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (darkMode) {
@@ -93,64 +106,37 @@ function App() {
       document.body.classList.remove('dark-mode');
     }
   }, [darkMode]);
-  useEffect(() => {
-    if (!socket) return;
 
-    const handleLoginSuccess = (user) => {
-      window.electronAPI.loginSuccess(user.userId)
-      window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
-      window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
-      localStorage.setItem('token', user.token ?? user.newToken);
-      setCurrentUser(user);
-    };
+  const handleLoginSuccess = useCallback((user) => {
+    window.electronAPI.loginSuccess(user.userId);
+    window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
+    window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
+    localStorage.setItem('token', user.token ?? user.newToken);
+    setCurrentUser(user);
+  }, [setCurrentUser]);
 
-    const handleFriendsList = (friendsWithGroups) => {
-      setContacts(friendsWithGroups);
-    };
+  const handleFriendsList = useCallback((friendsWithGroups) => {
+    setContacts(prevContacts => [...prevContacts, ...friendsWithGroups]);
+  }, [setContacts]);
 
-    const friendsRequestAccepted = (data) => {
-      setContacts(prevContacts => [...prevContacts, data])
-    };
+  const friendsRequestAccepted = useCallback((data) => {
+    setContacts(prevContacts => [...prevContacts, data]);
+  }, []);
 
-    const handleNewGroup = (data) => {
-      setContacts(prevContacts => [...prevContacts, data])
+  const handleNewGroup = useCallback((data) => {
+    setContacts(prevContacts => [...prevContacts, data]);
+  }, []);
+
+  const handleConnect = useCallback(() => {
+    setConnectionStatus('connected');
+    if (currentUser) {
+      socket.emit('login-with-token', currentUser.token);
     }
-
-    const handleConnect = () => {
-      setConnectionStatus('connected');
-      // Re-authenticate and fetch data on successful reconnection
-      if (currentUser) {
-        socket.emit('login-with-token', currentUser.token);
-      }
-    };
-    const handleDisconnect = () => setConnectionStatus('disconnected');
-    const handleReconnecting = () => setConnectionStatus('reconnecting');
-
-    socket.on('login-success', handleLoginSuccess);
-    socket.on('new-message', handleNewMessage);
-    socket.on('friends-groups-list', handleFriendsList);
-    socket.on('friend-request-accepted', friendsRequestAccepted);
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('reconnecting', handleReconnecting);
-    socket.on('message-sent-success', handleSendMessageStatus)
-    socket.on('new-group', handleNewGroup)
-
-    return () => {
-      socket.off('login-success', handleLoginSuccess);
-      socket.off('user-registered', handleLoginSuccess);
-      socket.off('friends-groups-list', handleFriendsList);
-      socket.off('new-message', handleNewMessage);
-      socket.off('friend-request-accepted', friendsRequestAccepted);
-
-      // Clean up the status listeners
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('reconnecting', handleReconnecting);
-      socket.off('message-sent-success', handleSendMessageStatus)
-      socket.off('new-group', handleNewGroup)
-    };
   }, [socket, currentUser]);
+
+  const handleDisconnect = useCallback(() => setConnectionStatus('disconnected'), []);
+  const handleReconnecting = useCallback(() => setConnectionStatus('reconnecting'), []);
+
 
   // 获取好友列表并发送离线消息
   useEffect(() => {
@@ -159,7 +145,7 @@ function App() {
     }
   }, [currentUser, socket]);
 
-  const handleNewMessage = (msg) => {
+  const handleNewMessage = useCallback((msg) => {
     // Safety check: Do not process messages if the user is not logged in.
     if (!currentUser) {
       return;
@@ -185,7 +171,7 @@ function App() {
         id: messageId,
         text: msg.content,
         sender: 'other',
-        sender_id : msg.senderId,
+        sender_id: msg.senderId,
         timestamp: new Date(msg.timestamp).toISOString(),
         username: msg.username,
         fileName: msg.fileName,
@@ -241,7 +227,80 @@ function App() {
         };
       });
     };
-  };
+  }, [currentUser, setMessages, setGroupMessages]);
+
+  const handleSendMessageStatus = useCallback(({ senderInfo, sendMessageId, receiverId, status, isGroup }) => {
+    // 收到服务端成功回执，清除超时计时器
+    let timer;
+    if (isGroup) {
+      timer = pendingGroupTimersRef.current.get(sendMessageId);
+    } else {
+      timer = pendingTimersRef.current.get(sendMessageId);
+    }
+
+    if (timer) {
+      clearTimeout(timer);
+      if (isGroup) {
+        pendingGroupTimersRef.current.delete(sendMessageId);
+      } else {
+        pendingTimersRef.current.delete(sendMessageId);
+      }
+    }
+
+    if (sendMessageId && receiverId && status == 'success') {
+      if (!isGroup) {
+        setMessages(prev => {
+          const contactMessages = prev[receiverId] || [];
+          return {
+            ...prev,
+            [receiverId]: contactMessages.map(msg =>
+              msg.id === sendMessageId ? { ...msg, status } : msg
+            )
+          };
+        });
+      }
+      else {
+        setGroupMessages(prev => {
+          const contactMessages = prev[receiverId] || [];
+          return {
+            ...prev,
+            [receiverId]: contactMessages.map(msg =>
+              msg.id === sendMessageId ? { ...msg, status } : msg
+            )
+          };
+        });
+      }
+      window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, receiverId, status, isGroup);
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('login-success', handleLoginSuccess);
+    socket.on('new-message', handleNewMessage);
+    socket.on('contacts-list', handleFriendsList);
+    socket.on('friend-request-accepted', friendsRequestAccepted);
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('reconnecting', handleReconnecting);
+    socket.on('message-sent-success', handleSendMessageStatus)
+    socket.on('new-group', handleNewGroup)
+
+    return () => {
+      socket.off('login-success', handleLoginSuccess);
+      socket.off('user-registered', handleLoginSuccess);
+      socket.off('contacts-list', handleFriendsList);
+      socket.off('new-message', handleNewMessage);
+      socket.off('friend-request-accepted', friendsRequestAccepted);
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('reconnecting', handleReconnecting);
+      socket.off('message-sent-success', handleSendMessageStatus)
+      socket.off('new-group', handleNewGroup)
+    };
+  }, [socket, handleLoginSuccess, handleFriendsList, friendsRequestAccepted, handleConnect, handleDisconnect, handleReconnecting, handleNewGroup, handleNewMessage, handleSendMessageStatus]);
+
 
   const handleMessageListSelectContact = useCallback(async (contact) => {
     setSelectedContact(contact);
@@ -371,51 +430,7 @@ function App() {
       handleSendgroupMessage(msg.text);
     }
   }, [messages, groupMessages])
-  // socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, status: 'success', isGroup: true });
-  const handleSendMessageStatus = ({ senderInfo, sendMessageId, receiverId, status, isGroup }) => {
-    // 收到服务端成功回执，清除超时计时器
-    let timer;
-    if (isGroup) {
-      timer = pendingGroupTimersRef.current.get(sendMessageId);
-    } else {
-      timer = pendingTimersRef.current.get(sendMessageId);
-    }
 
-    if (timer) {
-      clearTimeout(timer);
-      if (isGroup) {
-        pendingGroupTimersRef.current.delete(sendMessageId);
-      } else {
-        pendingTimersRef.current.delete(sendMessageId);
-      }
-    }
-
-    if (sendMessageId && receiverId && status == 'success') {
-      if (!isGroup) {
-        setMessages(prev => {
-          const contactMessages = prev[receiverId] || [];
-          return {
-            ...prev,
-            [receiverId]: contactMessages.map(msg =>
-              msg.id === sendMessageId ? { ...msg, status } : msg
-            )
-          };
-        });
-      }
-      else {
-        setGroupMessages(prev => {
-          const contactMessages = prev[receiverId] || [];
-          return {
-            ...prev,
-            [receiverId]: contactMessages.map(msg =>
-              msg.id === sendMessageId ? { ...msg, status } : msg
-            )
-          };
-        });
-      }
-      window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, receiverId, status, isGroup);
-    }
-  }
 
   const handleDraftChange = useCallback((contactId, contactType, text) => {
     if (contactType == "friend") {
@@ -453,6 +468,7 @@ function App() {
       id: tempId,
       text: '',
       sender: 'user',
+      sender_id: currentUser.userId,
       timestamp: new Date().toISOString(),
       username: currentUser.username,
       messageType: 'file',
@@ -481,6 +497,7 @@ function App() {
         // 3. 上传成功后，用服务器返回的真实消息替换掉临时消息
         const finalMessage = {
           ...result.messageData,
+          sender_id: currentUser.userId,
           sender: 'user', // 确保UI正确显示
           localPath: filePath,
           fileExt: true,
@@ -572,6 +589,7 @@ function App() {
       return (
         <MessageList
           contact={selectedContact}
+          currentUser={currentUser}
           messages={selectedContact.type == 'friend' ? messages[selectedContact.id] : groupMessages[selectedContact.id]}
           draft={(selectedContact.type == 'friend' ? drafts[selectedContact.id] : groupDrafts[selectedContact.id]) || ''}
           onDraftChange={handleDraftChange}
@@ -617,6 +635,7 @@ function App() {
           <div className='app-features-bar'>
             <ToolBar
               currentUser={currentUser}
+              onAvatarUpdate={handleAvatarUpdate}
               selectFeatures={selectFeatures}
               setSelectFeatures={setSelectFeatures}
               isDarkMode={darkMode}
@@ -634,7 +653,9 @@ function App() {
             <div className='message-box-header'>
               <AppHeaderBar />
             </div>
-            {renderInformationFunctionBar()}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {renderInformationFunctionBar()}
+            </div>
           </div>
         </div>
       </div>

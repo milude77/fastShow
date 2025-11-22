@@ -1,5 +1,5 @@
 import express from 'express';
-import path from 'path';
+import path, { join } from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -25,7 +25,7 @@ const db = knex(knexConfig[environment]);
 // 请将以下占位符替换为您的真实 MinIO 配置
 const minioClient = new Minio.Client({
   endPoint: '127.0.0.1',
-  port: 9000, 
+  port: 9000,
   useSSL: false,
   accessKey: /*'YOUR_MINIO_ACCESS_KEY'*/ 'minioadmin',
   secretKey: /*'YOUR_MINIO_SECRET_KEY'*/ 'minioadmin',
@@ -65,106 +65,99 @@ app.use(express.json({ limit: '50mb' })); // Increase the limit to 50mb or adjus
 // onlineUsers: socketId -> { userId, username }
 const onlineUsers = new Map();
 
+// Fetches and emits the friends list for a given socket
+async function getFriendsList(socket) {
+  const senderInfo = onlineUsers.get(socket.id);
+  if (!senderInfo) {
+    socket.emit('error', { message: '未登录或会话无效' });
+    return;
+  }
 
+  try {
+    const friendships = await db('friendships')
+      .where({ user_id: senderInfo.userId, status: 'accepted' })
+      .orWhere({ friend_id: senderInfo.userId, status: 'accepted' });
+
+    const friendIds = friendships.map(f => f.user_id === senderInfo.userId ? f.friend_id : f.user_id);
+
+    const friends = await db('users').whereIn('id', friendIds).select('id', 'username');
+    const onlineUserIds = new Set(Array.from(onlineUsers.values()).map(u => u.userId));
+
+    const friendsWithStatus = friends.map(friend => ({
+      id: friend.id,
+      username: friend.username,
+      isOnline: onlineUserIds.has(friend.id),
+      type: 'friend'
+    }));
+
+    return friendsWithStatus;
+  } catch (error) {
+    console.error('Error fetching friends:', error);
+    socket.emit('error', { message: '获取好友列表失败' });
+  }
+}
+
+// Fetches and emits the groups list for a given socket
+async function getGroupsList(socket) {
+  const senderInfo = onlineUsers.get(socket.id);
+  if (!senderInfo) {
+    socket.emit('error', { message: '未登录或会话无效' });
+    return;
+  }
+  const baseGroups = await db('group_members as gm')
+    .join('groups as g', 'gm.group_id', 'g.id')
+    .where('gm.user_id', senderInfo.userId)
+    .select(
+      'g.id as groupId',
+      'g.name as groupName',
+      'gm.user_name as myName',
+      'gm.role as myRole',
+      'gm.created_at as joinedAt',
+      'g.created_at',
+      'g.updated_at'
+    )
+    .orderBy('g.updated_at', 'desc');
+
+  const groupIds = baseGroups.map(g => g.groupId);
+
+  let membersByGroup = {};
+  if (groupIds.length > 0) {
+    const members = await db('group_members as m')
+      .whereIn('m.group_id', groupIds)
+      .select(
+        'm.group_id as groupId',
+        'm.user_id as userId',
+        'm.user_name as userName',
+        'm.created_at as createdAt',
+        'm.role as role'
+      );
+
+    membersByGroup = members.reduce((acc, m) => {
+      (acc[m.groupId] = acc[m.groupId] || []).push({
+        userId: m.userId,
+        userName: m.userName,
+        role: m.role
+      });
+      return acc;
+    }, {});
+  }
+
+  // 组装返回结构：每个群附带成员列表
+  const payload = baseGroups.map(g => ({
+    id: g.groupId,
+    username: g.groupName,
+    myName: g.myName,
+    myRole: g.myRole,
+    members: membersByGroup[g.groupId] || [],
+    joinedAt: g.joinedAt,
+    type: 'group'
+  }));
+  return payload;
+}
 
 // Socket.IO 连接处理
 console.log('Socket.IO server initialized, waiting for connections...'); // 新增日志
 io.on('connection', (socket) => {
-  // --- 新的 MinIO 文件上传流程 ---
-
-  // 初始化上传，获取预签名URL
-  app.post('/api/upload/initiate', (req, res) => {
-    const { fileName, senderId } = req.body;
-    if (!fileName || !senderId) {
-      return res.status(400).json({ error: '文件名和发送者ID是必需的' });
-    }
-
-    const fileId = crypto.randomBytes(8).toString('hex');
-    const fileExtension = path.extname(fileName);
-    // 在对象名前加上用户ID路径
-    const objectName = `user-${senderId}/files/${fileId}_${Date.now()}${fileExtension}`;
-
-    // 生成一个有效期为15分钟的预签名URL，用于PUT操作
-    minioClient.presignedPutObject(bucketName, objectName, 15 * 60, (err, presignedUrl) => {
-      if (err) {
-        console.error('生成预签名URL失败:', err);
-        return res.status(500).json({ error: '无法初始化上传' });
-      }
-      res.json({
-        presignedUrl,
-        objectName, // 将生成的对象名返回给客户端
-        fileId
-      });
-    });
-  });
-
-  //完成上传，保存文件元数据
-  app.post('/api/upload/complete', async (req, res) => {
-    const { fileName, objectName, fileId, fileSize, receiverId, senderId } = req.body;
-
-    if (!fileName || !objectName || !fileId || !fileSize || !receiverId || !senderId) {
-      return res.status(400).json({ error: '所有字段都是必需的' });
-    }
-
-    try {
-      const receiverUser = await db('users').where({ id: receiverId }).first();
-      if (!receiverUser) {
-        return res.status(404).json({ error: `用户ID ${receiverId} 不存在` });
-      }
-
-      const newMessage = {
-        sender_id: senderId,
-        receiver_id: receiverId,
-        content: `[文件] ${fileName}`,
-        room_id: `private_${Math.min(receiverId, senderId)}_${Math.max(receiverId, senderId)}`,
-        message_type: 'file',
-        file_name: fileName,
-        file_path: objectName, // 存储MinIO中的对象名
-        file_url: `/api/download/${fileId}`, // 下载URL保持不变
-        file_size: fileSize,
-        file_id: fileId,
-        timestamp: new Date(),
-        status: 'sent'
-      };
-
-      const [messageId] = await db('messages').insert(newMessage);
-      const senderUser = await db('users').where({ id: senderId }).first();
-
-      const savedMessage = {
-        id: messageId,
-        username: senderUser.username,
-        content: newMessage.content,
-        timestamp: newMessage.timestamp,
-        senderId: newMessage.sender_id,
-        receiverId: newMessage.receiver_id,
-        senderUsername: senderUser.username,
-        receiverUsername: receiverUser.username,
-        type: 'private',
-        messageType: 'file',
-        fileName: fileName,
-        fileUrl: newMessage.file_url,
-        fileSize: fileSize,
-        fileId: fileId
-      };
-
-      res.status(200).json({ message: '文件记录成功', messageData: savedMessage });
-
-      const targetSocketId = Array.from(onlineUsers.entries())
-        .find(([, uInfo]) => uInfo.userId === receiverId)?.[0];
-
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('new-message', savedMessage);
-        await db('messages').where({ id: messageId }).update({ status: 'delivered' });
-      } else {
-        console.log(`用户 ${receiverUser.username} 离线，文件消息将等待上线后投递`);
-      }
-    } catch (error) {
-      console.error('完成文件上传失败:', error);
-      res.status(500).json({ error: '服务器内部错误' });
-    }
-  });
-
-
   console.log(`用户连接: ${socket.id}`);
 
   // 用户注册
@@ -254,7 +247,6 @@ io.on('connection', (socket) => {
       onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
       socket.emit('login-success', { userId: formattedId, username: user.username, newToken });
     } catch (error) {
-      console.error('登录失败:', error);
       if (error.name === 'TokenExpiredError') {
         socket.emit('error', { message: 'Token已过期，请重新登录' });
       } else {
@@ -309,7 +301,7 @@ io.on('connection', (socket) => {
         receiverId: msg.receiver_id,
         messageType: msg.message_type,
       });
-      await db('group_message_read_status').where({ group_message_id: msg.id }).where({ user_id: user.userId}).update({ status: 'delivered' });
+      await db('group_message_read_status').where({ group_message_id: msg.id }).where({ user_id: user.userId }).update({ status: 'delivered' });
     }
 
     // 发送私聊消息
@@ -417,7 +409,8 @@ io.on('connection', (socket) => {
     const groupMembers = await db('group_members')
       .where({ group_id: groupId })
       .select('user_id');
-
+    
+    const groupMemberIds = groupMembers.map(m => m.user_id);
     const sendTimestamp = new Date();
 
     const newMessage = {
@@ -434,7 +427,7 @@ io.on('connection', (socket) => {
         group_message_id: messageId,
         user_id: member.user_id,
         status: 'sent',
-        timestamp : sendTimestamp
+        timestamp: sendTimestamp
       });
     }
     const sendMessageId = message.id
@@ -449,8 +442,8 @@ io.on('connection', (socket) => {
     };
 
     const onlineMemberSockets = Array.from(onlineUsers.entries())
-      .filter(([, userInfo]) => groupMembers.includes(userInfo.userId))
-      .map(([socketId, userInfo]) => socketId);
+      .filter(([, userInfo]) => groupMemberIds.includes(userInfo.userId))
+      .map(([socketId]) => socketId);
     // 向所有在线群成员发送消息
     onlineMemberSockets.forEach(socketId => {
       io.to(socketId).emit('new-message', savedMessage);
@@ -461,84 +454,20 @@ io.on('connection', (socket) => {
 
 
   // 获取好友列表
-  socket.on('get-friends-grounds-list', async () => {
-    const senderInfo = onlineUsers.get(socket.id);
-    if (!senderInfo) return;
+  socket.on('get-friends-list', async () => {
+    const friends = await getFriendsList(socket);
+    socket.emit('friends-list', friends);
+  });
 
-    try {
-      const friendships = await db('friendships')
-        .where({ user_id: senderInfo.userId, status: 'accepted' })
-        .orWhere({ friend_id: senderInfo.userId, status: 'accepted' });
+  socket.on('get-groups-list', async () => {
+    const groups = await getGroupsList(socket);
+    socket.emit('group-list', groups);
+  });
 
-      const friendIds = friendships.map(f => f.user_id === senderInfo.userId ? f.friend_id : f.user_id);
-
-      const friends = await db('users').whereIn('id', friendIds).select('id', 'username');
-      const onlineUserIds = new Set(Array.from(onlineUsers.values()).map(u => u.userId));
-
-      const friendsWithStatus = friends.map(friend => ({
-        id: friend.id,
-        username: friend.username,
-        isOnline: onlineUserIds.has(friend.id),
-        type: 'friend'
-      }));
-
-      if (!senderInfo) {
-        socket.emit('error', { message: '未登录或会话无效' });
-        return;
-      }
-
-      // 第一步：查出该用户所在的群（含我的昵称与角色）
-      const baseGroups = await db('group_members as gm')
-        .join('groups as g', 'gm.group_id', 'g.id')
-        .where('gm.user_id', senderInfo.userId)
-        .select(
-          'g.id as groupId',
-          'g.name as groupName',
-          'gm.user_name as myName',
-          'gm.role as myRole',
-          'g.created_at',
-          'g.updated_at'
-        )
-        .orderBy('g.updated_at', 'desc');
-
-      const groupIds = baseGroups.map(g => g.groupId);
-
-      let membersByGroup = {};
-      if (groupIds.length > 0) {
-        const members = await db('group_members as m')
-          .whereIn('m.group_id', groupIds)
-          .select(
-            'm.group_id as groupId',
-            'm.user_id as userId',
-            'm.user_name as userName',
-            'm.role as role'
-          );
-
-        membersByGroup = members.reduce((acc, m) => {
-          (acc[m.groupId] = acc[m.groupId] || []).push({
-            userId: m.userId,
-            userName: m.userName,
-            role: m.role
-          });
-          return acc;
-        }, {});
-      }
-
-      // 组装返回结构：每个群附带成员列表
-      const payload = baseGroups.map(g => ({
-        id: g.groupId,
-        username: g.groupName,
-        myName: g.myName,
-        myRole: g.myRole,
-        members: membersByGroup[g.groupId] || [],
-        type: 'group'
-      }));
-
-      socket.emit('friends-groups-list', [...friendsWithStatus, ...payload]);
-    } catch (error) {
-      console.error('Error fetching friends:', error);
-      socket.emit('error', { message: '获取好友及群聊列表失败' });
-    }
+  socket.on('get-contacts', async () => {
+    const friends = await getFriendsList(socket);
+    const groups = await getGroupsList(socket);
+    socket.emit('contacts-list', [ ...friends, ...groups ]);
   });
 
   // 搜索用户
@@ -734,7 +663,7 @@ io.on('connection', (socket) => {
       const checkedContactIds = [...checkedContacts.map(c => c.id), senderInfo.userId];
       const onlineMemberSockets = Array.from(onlineUsers.entries())
         .filter(([, userInfo]) => checkedContactIds.includes(userInfo.userId))
-        .map(([socketId, userInfo]) => socketId);
+        .map(([socketId]) => socketId);
 
       // 向所有在线群成员发送消息
       onlineMemberSockets.forEach(socketId => {
@@ -809,16 +738,111 @@ app.get('/api/download/:fileId', async (req, res) => {
 // JWT 验证中间件
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
+  console.log('Authorization header:', authHeader);
   const token = authHeader && authHeader.split(' ')[1];
 
-  if (token == null) return res.sendStatus(401); 
+  if (token == null) return res.sendStatus(401);
 
   jwt.verify(token, 'your_secret_key', (err, user) => {
-    if (err) return res.sendStatus(403); // 如果token无效，返回403
+    if (err) return res.sendStatus(403);
     req.user = user;
     next();
   });
 };
+
+// --- 新的 MinIO 文件上传流程 ---
+
+// 初始化上传，获取预签名URL
+app.post('/api/upload/initiate', authenticateToken, (req, res) => {
+  const { fileName, senderId } = req.body;
+  if (!fileName || !senderId) {
+    return res.status(400).json({ error: '文件名和发送者ID是必需的' });
+  }
+
+  const fileId = crypto.randomBytes(8).toString('hex');
+  const fileExtension = path.extname(fileName);
+  // 在对象名前加上用户ID路径
+  const objectName = `user-${senderId}/files/${fileId}_${Date.now()}${fileExtension}`;
+
+  // 生成一个有效期为15分钟的预签名URL，用于PUT操作
+  minioClient.presignedPutObject(bucketName, objectName, 15 * 60, (err, presignedUrl) => {
+    if (err) {
+      console.error('生成预签名URL失败:', err);
+      return res.status(500).json({ error: '无法初始化上传' });
+    }
+    res.json({
+      presignedUrl,
+      objectName, // 将生成的对象名返回给客户端
+      fileId
+    });
+  });
+});
+
+//完成上传，保存文件元数据
+app.post('/api/upload/complete', authenticateToken, async (req, res) => {
+  const { fileName, objectName, fileId, fileSize, receiverId, senderId } = req.body;
+
+  if (!fileName || !objectName || !fileId || !fileSize || !receiverId || !senderId) {
+    return res.status(400).json({ error: '所有字段都是必需的' });
+  }
+
+  try {
+    const receiverUser = await db('users').where({ id: receiverId }).first();
+    if (!receiverUser) {
+      return res.status(404).json({ error: `用户ID ${receiverId} 不存在` });
+    }
+
+    const newMessage = {
+      sender_id: senderId,
+      receiver_id: receiverId,
+      content: `[文件] ${fileName}`,
+      room_id: `private_${Math.min(receiverId, senderId)}_${Math.max(receiverId, senderId)}`,
+      message_type: 'file',
+      file_name: fileName,
+      file_path: objectName, // 存储MinIO中的对象名
+      file_url: `/api/download/${fileId}`, // 下载URL保持不变
+      file_size: fileSize,
+      file_id: fileId,
+      timestamp: new Date(),
+      status: 'sent'
+    };
+
+    const [messageId] = await db('messages').insert(newMessage);
+    const senderUser = await db('users').where({ id: senderId }).first();
+
+    const savedMessage = {
+      id: messageId,
+      username: senderUser.username,
+      content: newMessage.content,
+      timestamp: newMessage.timestamp,
+      senderId: newMessage.sender_id,
+      receiverId: newMessage.receiver_id,
+      senderUsername: senderUser.username,
+      receiverUsername: receiverUser.username,
+      type: 'private',
+      messageType: 'file',
+      fileName: fileName,
+      fileUrl: newMessage.file_url,
+      fileSize: fileSize,
+      fileId: fileId
+    };
+
+    res.status(200).json({ message: '文件记录成功', messageData: savedMessage });
+
+    const targetSocketId = Array.from(onlineUsers.entries())
+      .find(([, uInfo]) => uInfo.userId === receiverId)?.[0];
+
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('new-message', savedMessage);
+      await db('messages').where({ id: messageId }).update({ status: 'delivered' });
+    } else {
+      console.log(`用户 ${receiverUser.username} 离线，文件消息将等待上线后投递`);
+    }
+  } catch (error) {
+    console.error('完成文件上传失败:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
 
 // --- 新的基于HTTP的头像上传流程 ---
 
@@ -866,43 +890,52 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
       return res.status(400).json({ error: '无效的用户ID格式' });
     }
 
-    // 验证用户是否存在
-    const user = await db('users').where({ id: userId }).first();
-    
-    if (!user) {
-      return res.status(404).json({ error: '用户不存在' });
-    }
-
     // 尝试不同的文件扩展名来查找头像文件
-    const extensions = ['.jpg'];
+    const extension = '.jpg';
     let foundObject = null;
-    
-    for (const ext of extensions) {
+
+    if (userType == 'user') {
+      const user = await db('users').where({ id: userId }).first();
+      if (!user) {
+        return res.status(404).json({ error: '用户不存在' });
+      }
+
       try {
-        const objectName = userType == 'user' ? `user-${userId}/avatar${ext}` : `group-${userId}/avatar${ext}`;
+        const objectName = `user-${userId}/avatar${extension}`;
         await minioClient.statObject(bucketName, objectName);
         foundObject = objectName;
-        break;
       } catch {
-        continue;
+        const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.png');
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
+        return defaultAvatar.pipe(res);
       }
     }
-    
-    if (!foundObject) {
-      const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.png');
-      
-      res.setHeader('Content-Type', 'image/jpg');
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
-      return defaultAvatar.pipe(res);
+    else {
+      const group = await db('groups').where({ id: userId }).first();
+      if (!group) {
+        return res.status(404).json({ error: '群组不存在' });
+      }
+
+      try {
+        const objectName = `group-${userId}/avatar${extension}`;
+        await minioClient.statObject(bucketName, objectName);
+        foundObject = objectName;
+      } catch {
+        const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.png');
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
+        return defaultAvatar.pipe(res);
+      }
     }
-    
+
     // 从MinIO获取头像文件流
     const dataStream = await minioClient.getObject(bucketName, foundObject);
-    
+
     // 设置适当的缓存头
     res.setHeader('Cache-Control', 'public, max-age=3600'); // 缓存1小时
-    res.setHeader('Content-Type', 'image/jpeg'); // 默认为jpeg
-    
+    res.setHeader('Content-Type', 'image/jpg'); // 默认为jpeg
+
     dataStream.pipe(res);
   } catch (error) {
     console.error('头像下载失败:', error);

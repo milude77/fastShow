@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import autoUpdater  from 'electron-updater';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
@@ -27,6 +28,7 @@ let heartbeatInterval;
 let reconnectionTimer;
 let heartbeatTimeout;
 let tray = null;
+let mainWindow = null;
 
 
 
@@ -72,7 +74,6 @@ function connectSocket() {
             win.webContents.send('socket-event', { event: 'connect', id: socket.id });
         });
 
-        // Auto re-authenticate using saved token after reconnect
         const creds = store.get('currentUserCredentials');
         if (creds && creds.token) {
             socket.emit('login-with-token', creds.token);
@@ -226,7 +227,7 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         if (msg.type == 'private') {
             await db('messages').insert(messageData);
         }
-        else{
+        else {
             await db('group_messages').insert(messageData);
         }
     } catch (error) {
@@ -260,9 +261,22 @@ function createSettingsWindow() {
         settingsWindow.focus();
         return;
     }
+
+    const parentWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+    const parentBounds = parentWindow.getBounds();
+    const width = 500;
+    const height = 400;
+
+    const x = Math.round(parentBounds.x + (parentBounds.width - width) / 2);
+    const y = Math.round(parentBounds.y + (parentBounds.height - height) / 2);
+
     settingsWindow = new BrowserWindow({
-        width: 500,
-        height: 400,
+        width: width,
+        height: height,
+        x,
+        y,
+        parent: parentWindow,
+        modal: true,
         frame: false,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
@@ -291,9 +305,22 @@ function createSearchWindow(userId, selectInformation) {
         searchWindow.focus();
         return;
     }
+
+    const parentWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+    const parentBounds = parentWindow.getBounds();
+    const width = 500;
+    const height = 400;
+
+    const x = Math.round(parentBounds.x + (parentBounds.width - width) / 2);
+    const y = Math.round(parentBounds.y + (parentBounds.height - height) / 2);
+
     searchWindow = new BrowserWindow({
-        width: 500,
-        height: 400,
+        width: width,
+        height: height,
+        x,
+        y,
+        parent: parentWindow,
+        modal: true,
         frame: false,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
@@ -358,8 +385,8 @@ function createTray(mainWindow) {
 }
 
 function createMainWindow() {
-    const mainWindow = new BrowserWindow({
-        width: 900,
+    mainWindow = new BrowserWindow({
+        width: 400,
         height: 600,
         frame: false,
         webPreferences: {
@@ -401,9 +428,21 @@ app.on('before-quit', () => {
 });
 
 function createErrorWindow(error) {
+    const parentWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+    const parentBounds = parentWindow.getBounds();
+    const width = 500;
+    const height = 200;
+
+    const x = Math.round(parentBounds.x + (parentBounds.width - width) / 2);
+    const y = Math.round(parentBounds.y + (parentBounds.height - height) / 2);
+
     const errorWindow = new BrowserWindow({
-        width: 500,
-        height: 200,
+        width: width,
+        height: height,
+        x,
+        y,
+        parent: parentWindow,
+        modal: true,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
@@ -426,9 +465,22 @@ function createGroupWindow(currentID) {
         groupWindow.focus();
         return;
     }
+
+    const parentWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+    const parentBounds = parentWindow.getBounds();
+    const width = 600;
+    const height = 500;
+
+    const x = Math.round(parentBounds.x + (parentBounds.width - width) / 2);
+    const y = Math.round(parentBounds.y + (parentBounds.height - height) / 2);
+
     groupWindow = new BrowserWindow({
-        width: 600,
-        height: 500,
+        width: width,
+        height: height,
+        x,
+        y,
+        parent: parentWindow,
+        modal: true,
         frame: false,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
@@ -457,6 +509,7 @@ app.whenReady().then(async () => {
     // --- End Socket.IO Connection ---
 
     createMainWindow()
+    autoUpdater.checkForUpdatesAndNotify();
 
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
@@ -488,6 +541,13 @@ ipcMain.on('close-window', () => {
     const window = BrowserWindow.getFocusedWindow();
     if (window) {
         window.close();
+    }
+});
+
+ipcMain.on('resize-window', (event, { width, height }) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+        window.setSize(width, height, true); // true for animation
     }
 });
 
@@ -537,29 +597,66 @@ ipcMain.on('login-success', async (event, userID) => {
         }
 
         if (await db.schema.hasTable('friends')) {
-            socket.on('friends-list', async (payload) => {
+            socket.on('contacts-list', async (payload) => {
                 try {
-                    const list = Array.isArray(payload) ? payload : Object.values(payload || {});
-                    const rows = list.map(f => ({
-                        id: String(f.id),
-                        userName: String(f.username || f.userName || ''),
-                        addTime: f.created_at ? new Date(f.created_at) : new Date(),
-                        nickName: f.nickName ? String(f.nickName) : null
-                    })).filter(r => r.id && r.userName);
-
-                    if (rows.length > 0) {
-                        await db('friends')
-                            .insert(rows)
-                            .onConflict('id')
-                            .ignore();
+                    const contacts = Array.isArray(payload) ? payload : Object.values(payload || {});
+                    
+                    let remoteFriend = new Array()
+                    let remoteGroups = new Array()
+                  
+                    for (const contact of contacts) {
+                        if (contact.type == 'friend') remoteFriend.push(contact);
+                        else remoteGroups.push(contact);
                     }
-                }
-                catch (e) {
-                    console.error('Friends seeding error:', e);
+
+                    const remoteFriendIds = new Set(remoteFriend.map(f => String(f.id)));
+                    const remoteGroupIds = new Set(remoteGroups.map(g => String(g.id)));
+
+                    const localFriends = await db('friends').select('id');
+                    const localFriendIds = new Set(localFriends.map(f => String(f.id)));
+
+                    const localGroups = await db('groups').select('id');
+                    const localGroupIds = new Set(localGroups.map(g => String(g.id)));
+
+                    const groupsToAdd = remoteGroups.filter(g => !localGroupIds.has(String(g.id)))
+                    const friendsToAdd = remoteFriend.filter(f => !localFriendIds.has(String(f.id)));
+
+                    if (friendsToAdd.length > 0) {
+                        const rows = friendsToAdd.map(f => ({
+                            id: String(f.id),
+                            userName: String(f.username || f.userName || ''),
+                            addTime: f.created_at ? new Date(f.created_at) : new Date(),
+                            nickName: f.nickName ? String(f.nickName) : null
+                        }));
+                        await db('friends').insert(rows).onConflict('id').ignore();
+                    }
+
+                    if (groupsToAdd.length > 0) {
+                        const rows = groupsToAdd.map(g => ({
+                            id: String(g.id),
+                            groupName: String(g.username),
+                            addTime: g.created_at ? new Date(g.joinedAt) : new Date(),
+                        }));
+                        await db('groups').insert(rows).onConflict('id').ignore();
+                    }
+
+                    const friendsToDelete = [...localFriendIds].filter(id => !remoteFriendIds.has(id));
+                    const groupsToDelete = [...localGroupIds].filter(id => !remoteGroupIds.has(id));
+
+                    if (groupsToDelete.length > 0) {
+                        await db('groups').whereIn('id', groupsToDelete).del();
+                    }
+                    if (friendsToDelete.length > 0) {
+                        await db('friends').whereIn('id', friendsToDelete).del();
+                    }
+
+                } catch (e) {
+                    console.error('Friends sync error:', e);
                 }
             });
         }
-        socket.emit('get-friends-grounds-list');
+        socket.emit('get-contacts');
+    
     }
 
 
@@ -640,7 +737,7 @@ ipcMain.handle('get-app-version', () => {
 
 ipcMain.handle('get-server-url', () => {
     return SOCKET_SERVER_URL;
-  });
+});
 
 ipcMain.on('open-search-window', (event, { userId, selectInformation }) => {
     createSearchWindow(userId, selectInformation);
@@ -746,6 +843,10 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         const initiateResponse = await axios.post(`${SOCKET_SERVER_URL}/api/upload/initiate`, {
             fileName,
             senderId
+        }, {
+            headers: {
+                'authorization': `Bearer ${store.get('currentUserCredentials').token}`
+            },
         });
 
         const { presignedUrl, objectName, fileId } = initiateResponse.data;
@@ -777,7 +878,12 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             fileSize,
             receiverId,
             senderId
-        });
+        }, {
+            headers: {
+                'authorization': `Bearer ${store.get('currentUserCredentials').token}`
+            },
+        }
+        );
 
         return { success: true, messageData: completeResponse.data.messageData };
 

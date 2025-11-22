@@ -3,21 +3,21 @@
   --text-color: var(--text-color);
 }
 
-.search-input-bar{
-   display: flex;
-   width: 80%;
-   align-items: center;
-   margin: 20px 5px 20px 10px;
-   border-radius: 5px;
-   padding: 5px;
-   background-color: var(--toobar-background-color);
-   border: 2px solid transparent;
-   transition: border-color 0.2s ease;
- }
+.search-input-bar {
+  display: flex;
+  width: 80%;
+  align-items: center;
+  margin: 20px 5px 20px 10px;
+  border-radius: 5px;
+  padding: 5px;
+  background-color: var(--toobar-background-color);
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease;
+}
 
- .search-input-bar:focus-within {
-   border-color: #1890ff;
- }
+.search-input-bar:focus-within {
+  border-color: #1890ff;
+}
 
 .search-input {
   background: inherit;
@@ -36,7 +36,7 @@
 .app {
   display: flex;
   width: 100%;
-  height: 100%; 
+  height: 100%;
   overflow: hidden;
 }
 
@@ -47,7 +47,7 @@
   flex-direction: column;
 }
 
-.message-box-header{
+.message-box-header {
   -webkit-app-region: drag;
 }
 
@@ -58,12 +58,12 @@
   width: 200px;
   height: 100%;
   border-right: 1px solid #ccc;
-  background-color: var(--contact-list-color) ;
+  background-color: var(--contact-list-color);
   box-shadow: 8px 0 10px -10px rgba(0, 0, 0, 0.15);
   z-index: 1;
 }
 
-.contact-list{
+.contact-list {
   flex: 1;
 }
 
@@ -76,9 +76,13 @@
 }
 
 .background-image-container {
-  flex: 1; 
-  background-size: contain; 
-  background-repeat: no-repeat; 
+  flex: 1;
+  background-size: contain;
+  background-repeat: no-repeat;
   background-position: center;
   opacity: 0.1;
+}
+
+.search-tool-btn {
+  background-color: var(--toobar-background-color);
 }

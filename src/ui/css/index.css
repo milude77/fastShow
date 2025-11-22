@@ -26,8 +26,8 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --history-message-user-color: #d5f6c1;
-  --history-message-other-color: rgb(230, 229, 229);
+  --history-message-user-color: #aae7f4;
+  --history-message-other-color: rgb(241, 241, 241);
   --selected-contact-background-color: #42b7ed;
   --hover-contact-background-color: #d6d6d6;
   --history-file--color: #ffffff;
@@ -40,8 +40,8 @@ body.dark-mode {
   --toobar-background-color: #2b2b2b;
   --message-background-color: #303030;
   --history-file--color: #464646;
-  --history-message-user-color: #656464;
-  --history-message-other-color: #333333;
+  --history-message-user-color: rgb(19, 151, 172);
+  --history-message-other-color: #545454;
   --hover-contact-background-color: #727272;
   --selected-contact-background-color: #1182b6;
   --background-color: #1a1a1a;

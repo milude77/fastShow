@@ -1,4 +1,4 @@
-import React from 'react';
+import {React, useEffect, useState } from 'react';
 import { Collapse } from 'antd';
 import { UserOutlined, TeamOutlined, CaretRightOutlined, UsergroupAddOutlined } from '@ant-design/icons';
 import '../css/addressBook.css';
@@ -11,12 +11,24 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
     onSelectContact(contactId);
   };
 
+  const [serverUrl, setServerUrl] = useState('');
+
+  const handleServerUrlChange = async () => {
+    const url = await window.electronAPI.getServerUrl();
+    setServerUrl(url);
+  }
+
+  useEffect(() => {
+    console.log(contacts)
+    handleServerUrlChange();
+  }, []);
+
   const friendsList = contacts.filter(contact => contact.type == "friend");
-  const groupList = contacts.filter(contact => contact.type == "group" )
+  const groupList = contacts.filter(contact => contact.type == "group")
 
   return (
     <div className="address-book-container">
-      <div className="friend-request-manager"  onClick = {()=>{onSelectContact('friendsRequest')}} >
+      <div className="friend-request-manager" onClick={() => { onSelectContact('friendsRequest') }} >
         <UsergroupAddOutlined style={{ color: 'var(--text-color)' }} />
         <span style={{ color: 'var(--text-color)' }}>好友申请</span>
       </div>
@@ -39,8 +51,8 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
           {friendsList && friendsList.length > 0 ? (
             friendsList.map((contact) => (
               <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact.id) }}>
+                <img className="contact-avatar" src={`${serverUrl}/api/avatar/${contact.id}/${contact.type == 'friend' ? 'user' : 'group'}`} alt={contact.username} />
                 <span className='contact-username' >{contact.username}</span>
-                {contact.isOnline ? <span className="online-indicator">● 在线</span> : <span className="offline-indicator">○ 离线</span>}
               </div>
             ))
           ) : (

@@ -6,7 +6,7 @@ import axios from 'axios';
 import AvatarUploader from './AvatarUploader';
 import apiClient from '../utils/api';
 
-const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
+const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
     const [avatarSrc, setAvatarSrc] = useState('');
     const [isUploaderOpen, setIsUploaderOpen] = useState(false);
 
@@ -30,6 +30,7 @@ const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, is
     const handleAvatarUpload = async (blob) => {
         try {
             const serverUrl = await window.electronAPI.getServerUrl();
+            console.log(localStorage.getItem('token'));
             const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`);
             const { presignedUrl, objectName } = initiateResponse.data;
 
@@ -39,12 +40,14 @@ const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, is
                 },
             });
 
-            // Step 3: Notify the server using apiClient
-            await apiClient.post(`${serverUrl}/api/avatar/complete/user`, {
+            await apiClient.post(`${serverUrl}/api/avatar/complete`, {
                 objectName,
             });
 
             await updateAvatarSrc();
+            if(onAvatarUpdate) {
+                onAvatarUpdate();
+            }
 
         } catch (error) {
             console.error('Error uploading avatar:', error);

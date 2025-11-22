@@ -7,9 +7,11 @@ export async function initializeDatabase(db) {
     let privateMessageExists;
     let friendTableExists;
     let groupMessageExists;
+    let groupTableExists;
     try {
       privateMessageExists = await db.schema.hasTable('messages');
       friendTableExists = await db.schema.hasTable('friends');
+      groupTableExists = await db.schema.hasTable('groups');
       groupMessageExists = await db.schema.hasTable('group_messages');
     } catch (error) {
       console.error('Error checking if messages table exists:', error.message);
@@ -23,6 +25,14 @@ export async function initializeDatabase(db) {
         table.string('nickName').nullable().defaultTo(null);
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.string('type').nullable().defaultTo('private'); 
+      })
+    }
+
+    if (!groupTableExists) {
+      await db.schema.createTable('groups', (table) => {
+        table.string('id').primary();
+        table.string('groupName').notNullable();
+        table.timestamp('addTime').defaultTo(db.fn.now());
       })
     }
 
@@ -91,7 +101,7 @@ export async function migrateUserDb(db, userId, dbPath, store) {
     const migrationKey = `dbMigrationVersion:${userId}`;
     const currentVer = store.get(migrationKey) || 0;
     // 目标版本
-    const targetVer = 4;
+    const targetVer = 5;
     // 若版本已满足，直接返回
     if (currentVer >= targetVer) {
       return;

@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),
+  resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
   toggleAlwaysOnTop: () => ipcRenderer.send('toggle-always-on-top'),
   getInitialIsPinned: () => ipcRenderer.invoke('get-initial-always-on-top'),
   onAlwaysOnTopChanged: (callback) => {

@@ -1,8 +1,6 @@
 .history-message-box {
     flex: 1;
     overflow-y: auto;
-    height: 60%;
-    max-height: 80%;
     background-color: var(--background-color);
     color: var(--text-color);
     scrollbar-color: transparent transparent;
@@ -14,22 +12,22 @@
     display: flex;
     justify-content: space-between;
     width: 100%;
-    padding:0 15px 0 15px;
+    height: 40px;
+    padding: 0 15px 5px 15px;
     -webkit-app-region: no-drag;
     border-bottom: 1px solid #ccc;
+    align-items: flex-end;
 }
 
 .message-send-box {
     display: flex;
     flex-direction: column;
-    flex: 1;
     position: relative;
     align-items: center;
     border-top: 1px solid #ccc;
-    max-height: 50%;
-    min-height: 20%;
+    max-height: 500px;
+    min-height: 200px;
     color: var(--text-color);
-    box-sizing: border-box;
     margin-top: auto;
 }
 
@@ -146,17 +144,33 @@
 .message-text {
     font-size: 16px;
     color: var(--text-color);
-    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .file-message-content {
     display: flex;
-    background-color: var(--history-file--color);
-    width: 260px;
+    width: 300px;
     padding: 16px;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
     border-radius: 10px;
     height: 100px;
+}
+
+.file-message-content.sent{
+    background-color: var(--history-message-user-color);
+}
+
+.file-message-content.received{
+    background-color: var(--history-message-other-color);
+}
+
+.file-message-content .message-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    display: inline-block;
+
 }
 
 /* 顶部拖动调整 textarea 高度的抓手样式 */
@@ -174,4 +188,32 @@
 
 .message-send-box {
     flex: 0 0 auto !important;
+}
+
+.group-member-list {
+    display: flex;
+    padding-top: 10px;
+    flex-direction: column;
+    width: 200px;
+    border-left: 1px solid #ccc;
+    gap: 5px;
+}
+
+.group-member {
+    display: flex;
+    padding: 5px 5px;
+}
+
+.group-member:hover {
+    background-color: var(--hover-contact-background-color);
+
+}
+
+.group-member-toggle-btn {
+    position: absolute;
+    top: 40%;
+    right: 0;
+    transform: translateY(-50%);
+    height: 20px;
+    width: 20px;
 }
