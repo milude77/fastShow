@@ -16,8 +16,9 @@ body {
   line-height: 1.5;
   font-weight: 400;
   margin: 0;
-  --background-color: white;
-  --toobar-background-color: #e9e9e9;
+  --background-color: rgb(250, 250, 250);
+  --contact-option-bg-color: rgb(238, 236, 236);
+  --tool-bar-bg-color: #f2f2f2;
   --message-background-color: #f5f5f5;
   --tool-bar-selected-color: #42b7ed;
   --tool-bar-hover-color: #cacaca;
@@ -31,22 +32,24 @@ body {
   --selected-contact-background-color: #42b7ed;
   --hover-contact-background-color: #d6d6d6;
   --history-file--color: #ffffff;
-  --border-color: #e9e9e9;
   --search-bar-background-color: #f5f5f5;
-  --contact-list-color: white;
+  --border-color: rgba(194, 194, 194, 0.6);
+  --border-radius:15px;
+  --custom-modal-background-color: #f5f5f5;
 }
 
 body.dark-mode {
-  --toobar-background-color: #2b2b2b;
+  --background-color: #202020;
+  --custom-modal-background-color: #212121;
+  --tool-bar-bg-color: #323232;
+  --contact-option-bg-color: black;
   --message-background-color: #303030;
   --history-file--color: #464646;
   --history-message-user-color: rgb(19, 151, 172);
   --history-message-other-color: #545454;
   --hover-contact-background-color: #727272;
   --selected-contact-background-color: #1182b6;
-  --background-color: #1a1a1a;
   --text-color: rgb(241, 241, 241);
-  --border-color: #5a5a5a;
   --search-bar-background-color: #4a4a4a;
-  --contact-list-color: rgb(34, 34, 34);
+  --boder-color: rgba(77, 77, 77, 0.6);
 }

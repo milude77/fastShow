@@ -2,8 +2,7 @@ import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { Modal, Card, Button, message } from 'antd';
 import '../css/messageList.css';
 import { DownloadOutlined, FileOutlined, FolderOpenOutlined, LoadingOutlined, ExclamationCircleOutlined, CheckOutlined, TeamOutlined } from '@ant-design/icons';
-import { useVirtualList } from '../hooks/useVirtualList';
-import { WhatsAppOutlined } from '@ant-design/icons';
+import { WhatsAppOutlined, EllipsisOutlined } from '@ant-design/icons';
 
 
 const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSendMessage, onSendGroupMessage }) => {
@@ -15,7 +14,7 @@ const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSen
 
     const deDounce = (func, delay) => {
         let timeout;
-        return function(...args) {
+        return function (...args) {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
                 func.apply(this, args);
@@ -23,14 +22,14 @@ const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSen
         }
     }
 
-    const troller = (fn,delay) => {
+    const troller = (fn, delay) => {
         let timer = null
-        return function(...args) {
-            if (!timer){
-                fn.apply(this,args)
+        return function (...args) {
+            if (!timer) {
+                fn.apply(this, args)
                 timer = setTimeout(() => {
                     timer = null;
-                }, delay );
+                }, delay);
             }
         }
     }
@@ -93,7 +92,7 @@ const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
     };
 
     return (
-        <div className='input-toolbar' style={{ display: 'flex', width: '100%' }}>
+        <div className='input-toolbar' >
             {modalContextHolder}
             <Button
                 icon={<FileOutlined />}
@@ -105,36 +104,24 @@ const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
     )
 }
 
-const MessageListTool = () => {
+const MessageListTool = ({ openContactOptions }) => {
     return (
         <div className="message-list-tool">
-            <WhatsAppOutlined />
+            <WhatsAppOutlined className="icon" />
+            <EllipsisOutlined id="contact-options-btn" className="icon" onClick={() => openContactOptions()} />
         </div>
     )
 }
 
-const DoubleClick = (fn, dealy) => {
-    let timeout = null;
-    if (timeout !== null) {
-        clearTimeout(timeout);
-        timeout = null;
-        fn();
-    } else {
-        timeout = setTimeout(() => {
-            timeout = null;
-            fn();
-        }, dealy);
-    }
-}
 
 const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
     return (
-        <div className="group-member-list">
-        <span>{`群聊成员 ${members.length}`}</span>
+        <div className="group-notice-bar group-member-list">
+            <span>{`群聊成员 ${members.length}`}</span>
             {members.map((member, index) => {
                 return (
                     <div className="group-member" key={index}>
-                        <img style={{ height: '20px', width: '20px' }} src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`} alt={member.userName} />
+                        <img style={{ height: '20px', width: '20px', borderRadius: 'var(--border-radius)' }} src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`} alt={member.userName} />
                         <div className="group-member-name">{member.userName}</div>
                     </div>
                 )
@@ -143,7 +130,125 @@ const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
     );
 });
 
-const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage }) => {
+const ContactOption = ({ contact, currentUser, openContactOptions, deleteContactMessageHistory, deleteContact, onClose }) => {
+    const optionRef = useRef(null);
+    const [modal, modalContextHolder] = Modal.useModal();
+    const [serverUrl, setServerUrl] = useState('');
+
+
+    useEffect(() => {
+        window.electronAPI.getServerUrl().then((url) => {
+            setServerUrl(url);
+        });
+        const handleClickOutside = (event) => {
+            if (event.target.closest('.ant-modal-root') || event.target.closest('#contact-options-btn')) {
+                return;
+            }
+            if (optionRef.current && !optionRef.current.contains(event.target)) {
+                onClose();
+            }
+        };
+
+        if (openContactOptions) {
+            setTimeout(() => document.addEventListener('mousedown', handleClickOutside), 0);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [openContactOptions, onClose]);
+
+    const leaveGroup = (contact) => {
+        window.electronAPI.leaveGroup(contact.id, currentUser.userId).then(() => {
+            message.success('退出群聊成功！');
+            onClose();
+        }).catch((error) => {
+            message.error('退出群聊失败！');
+        });
+    }
+
+    const handleDeleteContact = () => {
+        modal.confirm({
+            zIndex: 2000,
+            centered: true,
+            maskClosable: false,
+            title: `确认删除好友 "${contact.username}" ？(将清空所有历史消息！)`,
+            onOk() {
+                deleteContact(contact);
+            }
+        });
+    };
+
+    const handleDeleteContactMessageHistory = () => {
+        modal.confirm({
+            zIndex: 2000,
+            centered: true,
+            maskClosable: false,
+            title: `确认清空 "${contact.username}" 的历史聊天记录？`,
+            onOk() {
+                deleteContactMessageHistory(contact);
+            }
+        });
+    };
+
+    const handleLeaveGroup = () => {
+        modal.confirm({
+            zIndex: 2000,
+            centered: true,
+            maskClosable: false,
+            title: `确认退出群聊 ${contact.username}？(将清空所有历史消息！)`,
+            onOk() {
+                leaveGroup(contact);
+            }
+        });
+    };
+
+    const inviteFriends = () => {
+        
+    }
+
+    return (
+        <div ref={optionRef} className={`contact-option ${openContactOptions ? 'visible' : ''}`} >
+            {modalContextHolder}
+            {contact.type === 'group' &&
+                <div className="contact-option-header" >
+                    <img style={{ width: '50px', height: '50px' }} src={`${serverUrl}/api/avatar/${contact.id}/group`} alt="群聊头像" />
+                    <div style={{ display: 'flex', flexDirection: 'column' }} >
+                        <strong>{contact.username}</strong>
+                        <h4>id:{contact.id}</h4>
+                    </div>
+
+                </div>
+            }
+            {contact.type === 'group' &&
+                <div className="group-member-list" >
+                    {contact.members.slice(0, Math.min(contact.members.length, 14)).map((member, index) => {
+                        return (
+                            <div className="group-member" key={index}>
+                                <img src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`} alt={member.userName} />
+                                <span className="group-member-name">{member.userName}</span>
+                            </div>
+                        )
+                    })}
+                    <div className="group-member" onClick={ () => inviteFriends() } >
+                        <button style={{ width:'40px', height:'40px', borderRadius:'50%',color:'var(--text-color)' , backgroundColor:'var(--contact-option-bg-color)', border:'none', cursor:'pointer' }}   >+</button>
+                        <span>邀请</span>
+                    </div>
+                </div>
+            }
+            <button className="delete-message-history" onClick={() => handleDeleteContactMessageHistory(contact)} >清空历史聊天记录</button>
+            {contact.type === 'group' ?
+                <button className="delete-message-history" onClick={() => handleLeaveGroup(contact)} >退出群聊</button>
+                :
+                <button className="delete-message-history" onClick={() => handleDeleteContact(contact.id)}>删除好友</button>
+            }
+        </div>
+    )
+}
+
+
+
+const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage, deleteContact }) => {
     const [messageApi, contextHolder] = message.useMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
@@ -169,6 +274,8 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
     //服务器地址
     const [serverUrl, setServerUrl] = useState('');
+
+    const [openContactOptions, setOpenContactOptions] = useState(false)
 
     const handleServerUrlChange = async () => {
         const url = await window.electronAPI.getServerUrl();
@@ -242,6 +349,10 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         }
         lastMessageTimestamp.current = newLastMessageTimestamp;
     }, [messages]);
+
+    useEffect(() => {
+        setOpenContactOptions(false)
+    }, [contact]);
 
     const handleSendMessage = (message) => {
         onSendMessage(message);
@@ -394,18 +505,41 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         }
     }
 
+    //打开联系人操作选项
+    const handleOpenContactOptions = () => {
+        if (openContactOptions) {
+            setOpenContactOptions(false)
+        }
+        else {
+            setOpenContactOptions(true)
+        }
+    }
+
+    const handleCloseContactOptions = () => {
+        setOpenContactOptions(false);
+    };
+
+    const handleDeleteContactMessageHistory = async (contact) => {
+        const res = await window.electronAPI.deleteContactMessageHistory(contact);
+        if (res.success) {
+            messageApi.success('历史消息记录已清空');
+        } else {
+            messageApi.error('清空历史消息记录失败: ' + res.error);
+        }
+    }
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
             {contextHolder}
             <div className='contact-info'>
-                <strong >
+                <strong>
                     {contact.username + (contact.type === 'friend' ? '' : `(${contact.members.length})`)}
                 </strong>
-                <MessageListTool />
+                <MessageListTool openContactOptions={handleOpenContactOptions} />
             </div>
-            <div style={{ display: 'flex', flex: '1', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flex: '1' }}>
                 <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>
                     <div className='history-message-box' ref={messageContainerRef}
                         onMouseLeave={() => {
@@ -458,7 +592,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                                                                 };
                                                             })()}
                                                             <div className={`file-message-content ${msg.sender === 'user' ? 'sent' : 'received'}`} >
-                                                                <div style={{ display: "flex", flexDirection: 'column', flex:'1', justifyContent: 'space-between', margin: '5px' }} className="file-information">
+                                                                <div style={{ display: "flex", flexDirection: 'column', flex: '1', justifyContent: 'space-between', margin: '5px' }} className="file-information">
                                                                     <span className="message-text">{msg.fileName}</span>
                                                                     <span style={{ color: 'gray' }}>{convertFileSize(msg.fileSize)}</span>
                                                                 </div>
@@ -529,6 +663,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                 {contact.type === 'group' && groupMemberListOpen && (
                     <GroupMember members={contact.members} serverUrl={serverUrl} currentUser={currentUser} />
                 )}
+                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} deleteContactMessageHistory={handleDeleteContactMessageHistory} deleteContact={deleteContact} onClose={handleCloseContactOptions} />
             </div>
         </div>
     )

@@ -1,15 +1,5 @@
 
 body.dark-mode {
-  background-color: var(--background-color);
+  background-color: black;
   color: #fff;
-}
-
-.dark-mode .contact-list {
-    background-color: var(--contact-list-color);
-    color: #fff;
-}
-
-.dark-mode .contact-information {
-    background-color: #444;
-    color: #fff;
 }

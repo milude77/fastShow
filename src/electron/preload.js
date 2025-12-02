@@ -32,7 +32,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getServerUrl: () => ipcRenderer.invoke('get-server-url'),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
-  openCreateGroupWindow:(currentID)=> ipcRenderer.send('open-create-group-window',{currentID}),
+  deleteContactMessageHistory: (contact) => ipcRenderer.invoke('delete-contact-message-history', { contact }),
+  leaveGroup: (groupId, currentUserID) => ipcRenderer.invoke('leave-group', { groupId, currentUserID }),
   
   showErrowMessage: (message) => ipcRenderer.send('show-error-window', message),
   receiveErrorMessage: (callback) => ipcRenderer.on('error-message', (event, message) => callback(message)),

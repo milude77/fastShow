@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Alert, Button, ConfigProvider, Dropdown, Menu } from 'antd';
+import { Alert, Button, ConfigProvider, Dropdown, Menu, message } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { SearchOutlined, PlusOutlined, UsergroupAddOutlined, CommentOutlined } from '@ant-design/icons';
 import './css/App.css';
@@ -15,10 +15,13 @@ import AddressBook from './components/addressBook';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import titleImage from './assets/title.png';
+import CustomModal from './components/CustomModal';
+import CreateGoupsApp from './CreateGoupsApp'; 
 
-const SearchBar = (currentUser) => {
+const SearchBar = ({ currentUser, onCreateGroup }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
+  
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && searchTerm.trim()) {
@@ -29,7 +32,7 @@ const SearchBar = (currentUser) => {
   const MenuItem = (
     <Menu>
       <Menu.Item className='menu-item' key="1">
-        <Button type="link" onClick={() => { window.electronAPI.openCreateGroupWindow(currentUser.id) }}><CommentOutlined />创建群聊</Button>
+        <Button type="link" onClick={onCreateGroup}><CommentOutlined />创建群聊</Button>
       </Menu.Item>
       <Menu.Item className='menu-item' key="2">
         <Button type="link" onClick={() => { window.electronAPI.openSearchWindow(currentUser.id, searchTerm) }}><UsergroupAddOutlined />添加好友</Button>
@@ -81,6 +84,8 @@ function App() {
   const socket = useSocket();
   const pendingTimersRef = useRef(new Map());
   const pendingGroupTimersRef = useRef(new Map());
+  const [messageApi, contextHolder] = message.useMessage();
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
 
   const handleAvatarUpdate = useCallback(() => {
     setCurrentUser(prevUser => ({
@@ -95,7 +100,7 @@ function App() {
 
   useEffect(() => {
     if (currentUser) {
-      window.electronAPI.resizeWindow(1000, 750);
+      window.electronAPI.resizeWindow(1100, 750);
     }
   }, [currentUser]);
 
@@ -116,7 +121,7 @@ function App() {
   }, [setCurrentUser]);
 
   const handleFriendsList = useCallback((friendsWithGroups) => {
-    setContacts(prevContacts => [...prevContacts, ...friendsWithGroups]);
+    setContacts(friendsWithGroups);
   }, [setContacts]);
 
   const friendsRequestAccepted = useCallback((data) => {
@@ -125,6 +130,12 @@ function App() {
 
   const handleNewGroup = useCallback((data) => {
     setContacts(prevContacts => [...prevContacts, data]);
+  }, []);
+
+  const handleLeaveGroupSuccess = useCallback((groupId) => {
+    messageApi.success('退出群聊成功');
+    setContacts(prevContacts => prevContacts.filter(contact => contact.type !== 'group' || contact.id !== groupId));
+    setSelectedContact(null)
   }, []);
 
   const handleConnect = useCallback(() => {
@@ -286,6 +297,7 @@ function App() {
     socket.on('reconnecting', handleReconnecting);
     socket.on('message-sent-success', handleSendMessageStatus)
     socket.on('new-group', handleNewGroup)
+    socket.on('leave-group-success', handleLeaveGroupSuccess)
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
@@ -298,6 +310,7 @@ function App() {
       socket.off('reconnecting', handleReconnecting);
       socket.off('message-sent-success', handleSendMessageStatus)
       socket.off('new-group', handleNewGroup)
+      socket.off('leave-group-success', handleLeaveGroupSuccess)
     };
   }, [socket, handleLoginSuccess, handleFriendsList, friendsRequestAccepted, handleConnect, handleDisconnect, handleReconnecting, handleNewGroup, handleNewMessage, handleSendMessageStatus]);
 
@@ -598,6 +611,7 @@ function App() {
           onLoadMore={() => loadMoreMessages(selectedContact.id)}
           onUploadFile={handleUploadFile}
           onResendMessage={handleResendMessage}
+          deleteContact={handleDeleteContact}
         />
       );
     }
@@ -632,6 +646,7 @@ function App() {
     <ConfigProvider locale={zhCN}>
       <div className="app-wrapper">
         <div className="app">
+          {contextHolder}
           <div className='app-features-bar'>
             <ToolBar
               currentUser={currentUser}
@@ -644,7 +659,7 @@ function App() {
           </div>
           <div className='contact-list-container'>
             {renderConnectionStatus()}
-            <SearchBar currentUser={currentUser} />
+            <SearchBar currentUser={currentUser} onCreateGroup={() => setIsCreateGroupModalOpen(true)} />
             <div className='contact-list'>
               {renderFeature()}
             </div>
@@ -653,10 +668,15 @@ function App() {
             <div className='message-box-header'>
               <AppHeaderBar />
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className='message-box-body'>
               {renderInformationFunctionBar()}
             </div>
           </div>
+
+          {/* 创建群聊模态框 */}
+          <CustomModal isOpen={isCreateGroupModalOpen} onClose={() => setIsCreateGroupModalOpen(false)}>
+            <CreateGoupsApp />
+          </CustomModal>
         </div>
       </div>
     </ConfigProvider>

@@ -15,8 +15,34 @@
     height: 40px;
     padding: 0 15px 5px 15px;
     -webkit-app-region: no-drag;
-    border-bottom: 1px solid #ccc;
+    border-bottom: 1px solid var(--boder-color);
     align-items: flex-end;
+    position: relative;
+}
+
+.message-list-tool {
+    display: flex;
+    justify-content: flex-end;
+    width: 300px;
+    gap: 30px;
+    position: absolute;
+    right: 0;
+    padding-right: 30px;
+}
+
+.message-list-tool .icon {
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 5px;
+}
+
+.message-list-tool .icon:hover {
+    background-color: var(--hover-contact-background-color);
+}
+
+.contact-username-head {
+    flex: 1;
 }
 
 .message-send-box {
@@ -24,7 +50,7 @@
     flex-direction: column;
     position: relative;
     align-items: center;
-    border-top: 1px solid #ccc;
+    border-top: 1px solid var(--boder-color);
     max-height: 500px;
     min-height: 200px;
     color: var(--text-color);
@@ -63,12 +89,11 @@
 
 .message-send-btn {
     position: absolute;
-    /* 绝对定位到输入框内部 */
     width: 80px;
     height: 30px;
     right: 20px;
     bottom: 20px;
-    border-radius: 4px;
+    border-radius: var(--border-radius);
     border: none;
     background-color: var(--selected-contact-background-color);
     color: var(--text-color);
@@ -117,7 +142,7 @@
 .message-content {
     display: 1;
     padding: 8px 12px;
-    border-radius: 18px;
+    border-radius: var(--border-radius);
 }
 
 .message-status {
@@ -152,15 +177,15 @@
     width: 300px;
     padding: 16px;
     box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    border-radius: 10px;
+    border-radius: var(--border-radius);
     height: 100px;
 }
 
-.file-message-content.sent{
+.file-message-content.sent {
     background-color: var(--history-message-user-color);
 }
 
-.file-message-content.received{
+.file-message-content.received {
     background-color: var(--history-message-other-color);
 }
 
@@ -190,23 +215,76 @@
     flex: 0 0 auto !important;
 }
 
-.group-member-list {
+.group-notice-bar.group-member-list {
     display: flex;
-    padding-top: 10px;
-    flex-direction: column;
     width: 200px;
-    border-left: 1px solid #ccc;
+    flex-direction: column;
+    border-left: 1px solid var(--boder-color);
+    background-color: var(--background-color);
+}
+
+.group-notice-bar.group-member-list .group-member {
+    display: flex;
+    align-items: center;
+    padding: 5px 5px;
     gap: 5px;
 }
 
-.group-member {
-    display: flex;
-    padding: 5px 5px;
+
+
+.contact-option .group-member-list {
+    display: grid;
+    margin: 10px 10px;
+    height: auto;
+    border-radius: var(--border-radius);
+    grid-template-columns: repeat(5, 1fr);
+    justify-items: center;
+    gap: 10px 0;
+    background-color: var(--background-color);
 }
 
 .group-member:hover {
     background-color: var(--hover-contact-background-color);
+}
 
+.contact-option .group-member-list .group-member {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 50px;
+    height: 80px;
+    border-radius: var(--border-radius);
+    padding: 5px;
+    justify-content: center;
+}
+
+.contact-option .group-member-list .group-member img{
+    grid-row: 1;
+    width: 40px;
+    height: 40px;
+    justify-self: center;
+    border-radius: var(--border-radius);
+}
+
+.contact-option .group-member-list .group-member span{
+    grid-row: 2;
+    font-size: 12px;
+    color: var(--text-color);
+    max-width: 50px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 5px;
+    justify-content: center;
+}
+
+.contact-option .delete-message-history{
+    color: red;
+    background-color: var(--background-color);
+    border: none;
+    border-radius: var(--border-radius);
+    margin: 10px;
+    height: 40px;
 }
 
 .group-member-toggle-btn {
@@ -216,4 +294,51 @@
     transform: translateY(-50%);
     height: 20px;
     width: 20px;
+}
+
+.contact-option {
+    display: flex;
+    box-sizing: border-box;
+    position: absolute;
+    flex-direction: column;
+    height: calc(100% - 100px);
+    right: 0;
+    width: 300px;
+    z-index: 10;
+    background-color: var(--contact-option-bg-color);
+    transform: translateX(100%);
+    transition: transform 0.3s ease-in-out;
+    border-radius: var(--border-radius);
+    overflow-y: auto;
+}
+
+.contact-option.visible {
+    transform: translateX(0);
+    background: var(--contact-option-bg-color);
+    box-shadow: -2px 0px 10px rgba(0, 0, 0, 0.3);
+}
+
+.input-toolbar{
+    background-color: var(--background-color);
+    display: flex;
+    width: 100%;
+}
+
+.contact-option-header{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px;
+    background-color: var(--background-color);
+}
+
+.contact-option-header strong{
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.contact-option-header h4{
+    opacity:0.5;
 }

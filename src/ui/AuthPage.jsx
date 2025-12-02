@@ -2,11 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { Button } from 'antd';
 
-const LastLoginUser = ({ credentials, onLogin, message }) => {
+const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
+
+  const [serverUrl, setServerUrl] = useState('');
+
+  const fetchServerUrl = async () => {
+    const url = await window.electronAPI.getServerUrl();
+    setServerUrl(url);
+  }
+
+  useEffect(() => {
+    fetchServerUrl();
+  }, [])
+
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', backgroundColor: 'white', width: '300px' }}>
-      <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '20px' }}>快速登录</span>
-      <span>ID ：{credentials.userId}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', width: '300px' }}>
+      <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>快速登录</span>
+      <img style={{ width: '100px', height: '100px' }} src={`${serverUrl}/api/avatar/${credentials.userId}/user`} alt="" />
       <span>{credentials.userName}</span>
       <Button
         type="primary"
@@ -15,8 +28,9 @@ const LastLoginUser = ({ credentials, onLogin, message }) => {
       >
         登录
       </Button>
-      {message && <span style={{ color: 'red', marginTop: '10px' }}>{message}</span>}
-    </div>
+      <span style={{ marginTop: '10px', color: '#666' }} onClick={() => handleNewUserLogin()  }>新账号登录</span>
+      { message && <span style={{ color: 'red', marginTop: '10px' }}>{message}</span> }
+    </div >
   )
 }
 
@@ -26,7 +40,7 @@ const AuthPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
-  const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(true);
+  const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(false);
   const [lastLoginUser, setLastLoginUser] = useState(null);
 
   const socket = useSocket();
@@ -75,6 +89,7 @@ const AuthPage = () => {
         const credentials = await window.electronAPI.getCurrentUserCredentials();
         if (credentials) {
           setLastLoginUser(credentials);
+          setShowAttemptAutoLogin(true);
         }
         if (!socket) {
           setMessage('错误: 无法连接服务器');
@@ -136,11 +151,20 @@ const AuthPage = () => {
     }
   };
 
+  const handleNewUserLogin = () => {
+    setLastLoginUser(null);
+    setShowAttemptAutoLogin(false);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f0f2f5' }}>
       {(socket && lastLoginUser && showAttemptAutoLogin)
         ?
-        <LastLoginUser credentials={lastLoginUser} onLogin={(token) => { socket.emit('login-with-token', token); }} message={message} />
+        <LastLoginUser
+          credentials={lastLoginUser}
+          onLogin={(token) => { socket.emit('login-with-token', token); }} message={message}
+          handleNewUserLogin={handleNewUserLogin}
+        />
         :
         <div style={{ padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', backgroundColor: 'white', width: '300px' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#333' }}>

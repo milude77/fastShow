@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
-import autoUpdater  from 'electron-updater';
+import autoUpdater from 'electron-updater';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
@@ -211,7 +211,7 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         const messageData = {
             id: msg.id,
             sender_id: msg.sender == 'user' ? currentUserID : msg.sender_id,
-            receiver_id: msg.sender == 'user' ? contactId : currentUserID,
+            receiver_id: msg.sender == 'user' ? contactId : (msg.type == 'private'? currentUserID : contactId),
             text: msg.text || '',
             username: msg.username || '',
             timestamp: msg.timestamp || new Date().toISOString(),
@@ -459,50 +459,6 @@ function createErrorWindow(error) {
     errorWindow.setMenu(null);
 }
 
-let groupWindow = null
-function createGroupWindow(currentID) {
-    if (groupWindow) {
-        groupWindow.focus();
-        return;
-    }
-
-    const parentWindow = BrowserWindow.getFocusedWindow() || mainWindow;
-    const parentBounds = parentWindow.getBounds();
-    const width = 600;
-    const height = 500;
-
-    const x = Math.round(parentBounds.x + (parentBounds.width - width) / 2);
-    const y = Math.round(parentBounds.y + (parentBounds.height - height) / 2);
-
-    groupWindow = new BrowserWindow({
-        width: width,
-        height: height,
-        x,
-        y,
-        parent: parentWindow,
-        modal: true,
-        frame: false,
-        webPreferences: {
-            preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
-            devTools: isDev
-        }
-    });
-    const createGroupUrl = isDev
-        ? `http://localhost:5234/createGroup.html?currentID=${currentID}`
-        : `file://${path.join(app.getAppPath(), "dist", "createGroup.html")}?currentID=${currentID}`;
-
-    groupWindow.loadURL(createGroupUrl).catch(err => console.error('Failed to load createGroup URL:', err));
-
-    if (isDev) {
-        groupWindow.webContents.openDevTools();
-    }
-
-    groupWindow.setMenu(null);
-    groupWindow.on('closed', () => {
-        groupWindow = null;
-    });
-}
-
 app.whenReady().then(async () => {
     // --- Socket.IO Connection ---
     connectSocket();
@@ -596,67 +552,74 @@ ipcMain.on('login-success', async (event, userID) => {
             console.error('User DB migration failed:', e);
         }
 
-        if (await db.schema.hasTable('friends')) {
-            socket.on('contacts-list', async (payload) => {
-                try {
-                    const contacts = Array.isArray(payload) ? payload : Object.values(payload || {});
-                    
-                    let remoteFriend = new Array()
-                    let remoteGroups = new Array()
-                  
-                    for (const contact of contacts) {
-                        if (contact.type == 'friend') remoteFriend.push(contact);
-                        else remoteGroups.push(contact);
-                    }
+        const handleContactsList = async (payload) => {
+            try {
+                const contacts = Array.isArray(payload) ? payload : Object.values(payload || {});
 
-                    const remoteFriendIds = new Set(remoteFriend.map(f => String(f.id)));
-                    const remoteGroupIds = new Set(remoteGroups.map(g => String(g.id)));
+                let remoteFriend = new Array()
+                let remoteGroups = new Array()
 
-                    const localFriends = await db('friends').select('id');
-                    const localFriendIds = new Set(localFriends.map(f => String(f.id)));
-
-                    const localGroups = await db('groups').select('id');
-                    const localGroupIds = new Set(localGroups.map(g => String(g.id)));
-
-                    const groupsToAdd = remoteGroups.filter(g => !localGroupIds.has(String(g.id)))
-                    const friendsToAdd = remoteFriend.filter(f => !localFriendIds.has(String(f.id)));
-
-                    if (friendsToAdd.length > 0) {
-                        const rows = friendsToAdd.map(f => ({
-                            id: String(f.id),
-                            userName: String(f.username || f.userName || ''),
-                            addTime: f.created_at ? new Date(f.created_at) : new Date(),
-                            nickName: f.nickName ? String(f.nickName) : null
-                        }));
-                        await db('friends').insert(rows).onConflict('id').ignore();
-                    }
-
-                    if (groupsToAdd.length > 0) {
-                        const rows = groupsToAdd.map(g => ({
-                            id: String(g.id),
-                            groupName: String(g.username),
-                            addTime: g.created_at ? new Date(g.joinedAt) : new Date(),
-                        }));
-                        await db('groups').insert(rows).onConflict('id').ignore();
-                    }
-
-                    const friendsToDelete = [...localFriendIds].filter(id => !remoteFriendIds.has(id));
-                    const groupsToDelete = [...localGroupIds].filter(id => !remoteGroupIds.has(id));
-
-                    if (groupsToDelete.length > 0) {
-                        await db('groups').whereIn('id', groupsToDelete).del();
-                    }
-                    if (friendsToDelete.length > 0) {
-                        await db('friends').whereIn('id', friendsToDelete).del();
-                    }
-
-                } catch (e) {
-                    console.error('Friends sync error:', e);
+                for (const contact of contacts) {
+                    if (contact.type == 'friend') remoteFriend.push(contact);
+                    else remoteGroups.push(contact);
                 }
-            });
+
+                const remoteFriendIds = new Set(remoteFriend.map(f => String(f.id)));
+                const remoteGroupIds = new Set(remoteGroups.map(g => String(g.id)));
+
+                const localFriends = await db('friends').select('id');
+                const localFriendIds = new Set(localFriends.map(f => String(f.id)));
+
+                const localGroups = await db('groups').select('id');
+                const localGroupIds = new Set(localGroups.map(g => String(g.id)));
+
+                const groupsToAdd = remoteGroups.filter(g => !localGroupIds.has(String(g.id)))
+                const friendsToAdd = remoteFriend.filter(f => !localFriendIds.has(String(f.id)));
+
+                if (friendsToAdd.length > 0) {
+                    const rows = friendsToAdd.map(f => ({
+                        id: String(f.id),
+                        userName: String(f.username || f.userName || ''),
+                        addTime: f.created_at ? new Date(f.created_at) : new Date(),
+                        nickName: f.nickName ? String(f.nickName) : null
+                    }));
+                    await db('friends').insert(rows).onConflict('id').ignore();
+                }
+
+                if (groupsToAdd.length > 0) {
+                    const rows = groupsToAdd.map(g => ({
+                        id: String(g.id),
+                        groupName: String(g.username),
+                        addTime: g.created_at ? new Date(g.joinedAt) : new Date(),
+                    }));
+                    await db('groups').insert(rows).onConflict('id').ignore();
+                }
+
+                const friendsToDelete = [...localFriendIds].filter(id => !remoteFriendIds.has(id));
+                const groupsToDelete = [...localGroupIds].filter(id => !remoteGroupIds.has(id));
+
+                if (groupsToDelete.length > 0) {
+                    await db('groups').whereIn('id', groupsToDelete).del();
+                }
+                if (friendsToDelete.length > 0) {
+                    await db('friends').whereIn('id', friendsToDelete).del();
+                }
+
+            } catch (e) {
+                console.error('Friends sync error:', e);
+            }
+        }
+
+
+
+        if (await db.schema.hasTable('friends')) {
+            if (socket && handleContactsList) {
+                socket.off('contacts-list', handleContactsList);
+            }
+            socket.on('contacts-list', handleContactsList);
         }
         socket.emit('get-contacts');
-    
+
     }
 
 
@@ -749,10 +712,6 @@ ipcMain.on('open-settings-window', () => {
 
 ipcMain.on('show-error-window', (event, error) => {
     createErrorWindow(error);
-});
-
-ipcMain.on('open-create-group-window', (event, { userId }) => {
-    createGroupWindow(userId);
 });
 
 // --- User Credentials IPC Handlers ---
@@ -1063,6 +1022,27 @@ ipcMain.handle('check-file-exists', async (event, { messageId }) => {
     }
 });
 
+ipcMain.handle('delete-contact-message-history', async (event, { contact }) => { 
+    if (!db) {
+        return { success: false, error: '数据库未连接' };
+    }
+    const contactId = contact.id;
+
+    if (contact.type == 'group') {
+        const deleted = await db('group_messages')
+            .where('group_id', contactId)
+            .del();
+        return { success: true, deleted };
+    }
+    else {
+        const deleted = await db('messages')
+            .where('receiver_id', contactId)
+            .orWhere('sender_id', contactId)
+            .del();
+        return { success: true, deleted };
+    }
+});
+
 // IPC handler to get current socket connection status
 ipcMain.handle('get-socket-status', () => {
     return socket ? socket.connected : false;
@@ -1074,7 +1054,7 @@ ipcMain.handle('get-friends-list', async () => {
         return [];
     }
     const friends = await db('friends')
-        .select('id', 'userName', 'nickName', 'addTime', 'type')
+        .select('id', 'userName')
     return friends;
 });
 
@@ -1088,6 +1068,23 @@ ipcMain.handle('read-file', async (event, filePath) => {
         return null;
     }
 });
+
+ipcMain.handle('leave-group', async (event, { groupId, currentUserID  }) => {
+    try {
+        if (!db) {
+            return { success: false, error: '数据库未连接' };
+        }
+
+        socket.emit('leave-group', { groupId, userId: currentUserID });
+
+        await db('group_messages')
+            .where('receiver_id', groupId)
+            .del();
+    } catch (error) {
+        console.error('Failed to leave group:', error);
+    }
+});
+
 // --- End Socket.IO IPC ---
 
 // --- IPC handler to reset migration version ---

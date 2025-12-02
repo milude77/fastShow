@@ -1,34 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket';
 import AppHeaderBar from './components/appHeaderBar';
-import { Alert } from 'antd';
+import { message } from 'antd';
 import selectImg from './assets/select.png';
 import { Button } from 'antd/es/radio';
 
 const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) => {
   const socket = useSocket();
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-  const [alertType, setAlertType] = useState('success');
+  const [messageApi, contextHolder] = message.useMessage();
+  const [serverUrl, setServerUrl] = useState('');
 
   const handleAddFriendCall = (message) => {
     if (message.success) {
-      setAlertType('success')
-      setAlertMessage('发送好友请求成功')
-      setShowAlert(true);
-      setTimeout(() => {
-        setShowAlert(false);
-      }, 3000);
+      messageApi.success('好友请求已发送');
     }
     else {
-      setAlertType('error')
-      setAlertMessage(`发送好友请求失败 错误原因：${message.message}`)
-      setShowAlert(true);
-      setTimeout(() => {
-        setShowAlert(false);
-      }, 3000);
+      messageApi.error(`发送好友请求失败 错误原因：${message.message}`);
     }
   }
+
+  useEffect(() => {
+    window.electronAPI.getServerUrl().then((url) => {
+      setServerUrl(url);
+    });
+  }, [])
+
 
   useEffect(() => {
     socket.on('add-friends-msg', (message) => { handleAddFriendCall(message) })
@@ -36,14 +32,14 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
     return () => {
       socket.off('add-friends-msg');
     }
-  })
+  }, [socket])
   const handleAddFriend = async (userId) => {
     await onAddFriend(userId);
   }
 
   return (
     <div className="search-user-container" style={{ display: 'flex', flexDirection: 'column' }}>
-      {showAlert && <Alert message={alertMessage} type={alertType} showIcon style={{ marginBottom: '10px' }} />}
+      {contextHolder}
       <form onSubmit={onSearch} style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
         <input
           style={{ width: '50%', alignItems: 'center', height: '30px' }}
@@ -67,37 +63,40 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
           搜索
         </button>
       </form>
-      <div style={{ flex:'1', marginTop: '10px', width: '100%', height:'100%', minHeight: '400px' }}>
+      <div style={{ flex: '1', marginTop: '10px', width: '100%', height: '100%', minHeight: '400px' }}>
         {searchResults.length > 0 ?
           (searchResults.map(user => (
             <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-              <span>{user.username} ({user.id})</span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <img style={{ width:'40px', height:'40px' }} src={`${serverUrl}/api/avatar/${user.id}/user`} alt='avatar' className='friend-avatar' />
+                <span>{user.username} ({user.id})</span>
+              </div>
               <Button onClick={() => handleAddFriend(user.id)}>添加好友</Button>
             </div>
           )))
           :
           (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{
-              backgroundImage: `url(${selectImg})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              height: '200px',
-              width: '200px',
-              margin: '0 auto',
-              justifyContent: 'center',
-              alignItems: 'center',
-              color: 'white',
-              fontSize: '20px',
-              fontWeight: 'bold',
-              opacity: 0.15,
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{
+                backgroundImage: `url(${selectImg})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                height: '200px',
+                width: '200px',
+                margin: '0 auto',
+                justifyContent: 'center',
+                alignItems: 'center',
+                color: 'white',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                opacity: 0.15,
+              }}>
+              </div>
+              <span>
+                搜索结果无用户/群聊
+              </span>
             </div>
-            <span>
-              搜索结果无用户/群聊
-            </span>
-          </div>
           )
         }
       </div>

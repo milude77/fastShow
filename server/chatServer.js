@@ -1,5 +1,5 @@
 import express from 'express';
-import path, { join } from 'path';
+import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -300,6 +300,7 @@ io.on('connection', (socket) => {
         senderId: msg.sender_id,
         receiverId: msg.receiver_id,
         messageType: msg.message_type,
+        status: 'success'
       });
       await db('group_message_read_status').where({ group_message_id: msg.id }).where({ user_id: user.userId }).update({ status: 'delivered' });
     }
@@ -317,6 +318,7 @@ io.on('connection', (socket) => {
         fileName: msg.file_name,
         fileUrl: msg.file_url,
         fileSize: msg.file_size,
+        status: 'success'
       });
       await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
     }
@@ -438,7 +440,8 @@ io.on('connection', (socket) => {
       timestamp: sendTimestamp,
       senderId: newMessage.sender_id,
       receiverId: newMessage.group_id,
-      type: 'group'
+      type: 'group',
+      status: 'success'
     };
 
     const onlineMemberSockets = Array.from(onlineUsers.entries())
@@ -619,7 +622,7 @@ io.on('connection', (socket) => {
     }
 
     if (checkedContacts.length > 2) {
-      groupName += `等${checkedContacts.length + 2}人`;
+      groupName += `等人`;
     }
 
     try {
@@ -667,12 +670,28 @@ io.on('connection', (socket) => {
 
       // 向所有在线群成员发送消息
       onlineMemberSockets.forEach(socketId => {
-        io.to(socketId).emit('new-group', { id: nextId, username: groupName, createdAt: nowDate, joinedAt: nowDate, type: 'group', members: checkedContacts.map(c => ({ id: c.id, username: c.userName })) });
+        io.to(socketId).emit('new-group', { id: nextId, username: groupName, createdAt: nowDate, joinedAt: nowDate, type: 'group', members: checkedContacts.map(c => ({ userId: c.id, userName: c.userName })) });
       });
     } catch (error) {
       console.error('Error creating group:', error);
       socket.emit('error', { message: '创建群组失败' });
     }
+  });
+
+  socket.on('leave-group', async ({ groupId, userId }) => {
+    const senderInfo = onlineUsers.get(socket.id);
+    if (!senderInfo || !groupId) return;
+
+    try {
+      await db('group_members')
+        .where({ group_id: groupId, user_id: userId })
+        .del();
+
+      socket.emit('leave-group-success', groupId);
+    } catch (error) {
+      console.error('Error leaving group:', error);
+    }
+
   });
 
 
@@ -905,8 +924,8 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
         await minioClient.statObject(bucketName, objectName);
         foundObject = objectName;
       } catch {
-        const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.png');
-        res.setHeader('Content-Type', 'image/png');
+        const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.jpg');
+        res.setHeader('Content-Type', 'image/jpg');
         res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
         return defaultAvatar.pipe(res);
       }
@@ -922,8 +941,8 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
         await minioClient.statObject(bucketName, objectName);
         foundObject = objectName;
       } catch {
-        const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.png');
-        res.setHeader('Content-Type', 'image/png');
+        const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.jpg');
+        res.setHeader('Content-Type', 'image/jpg');
         res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
         return defaultAvatar.pipe(res);
       }

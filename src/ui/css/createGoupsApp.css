@@ -1,21 +1,14 @@
 
 .create-group-title{
-    color: color-mix(in srgb, var(--text-color) 25%, transparent);
+    color: var(--text-color-light); 
+    font-weight: bold;
+    margin: 10px 0;
 }
 
 .create-groups-app-container {
-    width: 100%;
-    height: 100vh;
     display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.create-groups-app-content {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
+    width: 550px; 
+    height: 450px; 
 }
 
 .friends-list {
@@ -23,7 +16,6 @@
     flex-direction: column;
     width: 230px;
     height: 100%;
-    margin: 10px 0 0 20px;
     border-right: 1px solid var(--border-color);
     overflow-y: auto;
     flex-shrink: 0;
@@ -31,24 +23,36 @@
 
 
 .create-group-form {
-    flex: 1;
+    display: flex;
+    flex-direction: column;
     position: relative;
-    overflow-y: auto;
+    width: 230px;
+    height: 100%;
     min-height: 0;
-    padding: 10px;
+    overflow-y: auto;
+    flex-shrink: 0;
 }
 
 .create-group-button {
-    position: fixed;
+    position: absolute; 
     right: 20px;
     bottom: 20px;
 }
 
 .friend-item {
+    display: flex;
     padding: 10px 0 10px 0;
+    justify-items: center;
+    align-items: center;
+}
+
+.friend-item img{
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin-right: 10px;
 }
 
 .friend-item:hover {
     background-color: var(--hover-contact-background-color);
 }
-
