@@ -9,6 +9,7 @@ import apiClient from '../utils/api';
 const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
     const [avatarSrc, setAvatarSrc] = useState('');
     const [isUploaderOpen, setIsUploaderOpen] = useState(false);
+    const [hasNewInvite, setHasNewInvite] = useState(false);
 
     const updateAvatarSrc = async () => {
         if (currentUser && currentUser.userId) {
@@ -19,13 +20,23 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
                 console.error('Failed to get server URL:', error);
             }
         } else {
-            setAvatarSrc(''); 
+            setAvatarSrc('');
         }
     };
 
     useEffect(() => {
         updateAvatarSrc();
     }, [currentUser]);
+
+    useEffect(() => {
+        const handleNewInvite = () => {
+            setHasNewInvite(true);
+        };
+        window.electronAPI.ipcRenderer.on('receive-new-invite', handleNewInvite);
+        return () => {
+            window.electronAPI.ipcRenderer.removeListener('receive-new-invite', handleNewInvite);
+        };
+    }, []);
 
     const handleAvatarUpload = async (blob) => {
         try {
@@ -45,7 +56,7 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
             });
 
             await updateAvatarSrc();
-            if(onAvatarUpdate) {
+            if (onAvatarUpdate) {
                 onAvatarUpdate();
             }
 
@@ -67,7 +78,20 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
             )}
             <div className='base-tool-bar'>
                 <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} style={{ color: 'var(--text-color)' }} type="link" title='消息' icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
-                <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} style={{ color: 'var(--text-color)' }} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => setSelectFeatures('contact')}></Button>
+                <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} style={{ color: 'var(--text-color)' }} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => setSelectFeatures('contact')}>
+                {/* 显示新邀请的提示 */}
+                    {hasNewInvite && (
+                        <span style={{
+                            position: 'absolute',
+                            top: '0px',
+                            right: '0px',
+                            width: '8px',
+                            height: '8px',
+                            backgroundColor: 'red',
+                            borderRadius: '50%',
+                        }} />
+                    )}
+                </Button>
             </div>
             <div className='change-theme-bar'>
                 <Button style={{ color: 'var(--text-color)' }} type='link' icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />} onClick={() => toggleDarkMode()}></Button>

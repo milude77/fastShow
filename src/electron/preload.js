@@ -30,19 +30,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, page, pageSize, isGroup) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize, isGroup }),
   getServerUrl: () => ipcRenderer.invoke('get-server-url'),
+  getInviteInformationList: () => ipcRenderer.invoke('get-invite-information-list'),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
+  deleteContact: (contactId) => ipcRenderer.invoke('delete-contact', { contactId }),
   deleteContactMessageHistory: (contact) => ipcRenderer.invoke('delete-contact-message-history', { contact }),
   leaveGroup: (groupId, currentUserID) => ipcRenderer.invoke('leave-group', { groupId, currentUserID }),
-  
+
   showErrowMessage: (message) => ipcRenderer.send('show-error-window', message),
   receiveErrorMessage: (callback) => ipcRenderer.on('error-message', (event, message) => callback(message)),
   removeErrorListeners: () => ipcRenderer.removeAllListeners('error-message'),
 
-  loginSuccess: (userId)=> ipcRenderer.send('login-success', userId),
+  loginSuccess: (userId) => ipcRenderer.send('login-success', userId),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
   getFriendsList: () => ipcRenderer.invoke('get-friends-list'),
+  acceptGroupInvite: (requesterId) => ipcRenderer.send('accept-group-invite', requesterId),
+  acceptFriendRequest: (requesterId) => ipcRenderer.send('accept-friend-request', requesterId),
+  getInviteinformationList: () => ipcRenderer.invoke('get-invite-information-list'),
+  saveInviteinformationList: (credentials) => ipcRenderer.send('save-invite-information-list', credentials),
 
   saveUserListCredentials: (credentials) => ipcRenderer.send('save-user-credentials-list', credentials),
   getUserListCredentials: () => ipcRenderer.invoke('get-user-credentials-list'),
@@ -57,14 +63,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
   toggleAlwaysOnTop: () => ipcRenderer.send('toggle-always-on-top'),
   getInitialIsPinned: () => ipcRenderer.invoke('get-initial-always-on-top'),
-  onAlwaysOnTopChanged: (callback) => {
-    const handler = (event, isAlwaysOnTop) => callback(isAlwaysOnTop);
-    
-    ipcRenderer.on('always-on-top-changed', handler);
-    
-    return () => {
-      ipcRenderer.removeListener('always-on-top-changed', handler);
-    };
+
+
+  ipcRenderer: {
+    on: (channel, listener) => {
+      ipcRenderer.on(channel, listener);
+    },
+    removeListener: (channel, listener) => {
+      ipcRenderer.removeListener(channel, listener);
+    },
   },
 
   // --- Socket.IO IPC ---
@@ -78,7 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         if (data.args) {
           callback(...data.args);
         } else {
-          callback(data); 
+          callback(data);
         }
       }
     };

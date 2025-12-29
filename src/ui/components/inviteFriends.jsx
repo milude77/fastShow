@@ -1,10 +1,10 @@
 import { React, useEffect, useState } from 'react';
 import { Alert, Button, message } from 'antd';
-import './css/createGoupsApp.css';
+import '../css/createGoupsApp.css';
 import { Checkbox, Input, Select } from 'antd/lib/index.js';
-import { useSocket } from './hooks/useSocket';
+import { useSocket } from '../hooks/useSocket';
 
-const CreateGoupsApp = ({ onClose }) => {
+const InviteFriendsJoinGroup = ({ groupId, groupName , member, onClose }) => {
 
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
@@ -19,6 +19,10 @@ const CreateGoupsApp = ({ onClose }) => {
             setServerUrl(url)
         });
         window.electronAPI.getFriendsList().then((friends) => {
+            if (member){
+                const memberIds = new Set(member.map(m => m.userId));
+                friends = friends.filter(f => !memberIds.has(f.id));
+            }
             setContacts(friends);
         });
     }, []);
@@ -26,15 +30,15 @@ const CreateGoupsApp = ({ onClose }) => {
 
 
     useEffect(() => {
-        const handleGropCreateSuccess = () => {
-            messageApi.success('群聊创建成功');
+        const handleInviteFriendsJoinGroup = () => {
+            messageApi.success('邀请信息已发送');
             setCheckedContacts([]);
         }
 
-        socket.on('grops-create-success', handleGropCreateSuccess);
+        socket.on('invite-friends-join-group-success', handleInviteFriendsJoinGroup);
 
         return () => {
-            socket.off('grops-create-success', handleGropCreateSuccess);
+            socket.off('invite-friends-join-group-success', handleInviteFriendsJoinGroup);
         }
     }, []);
 
@@ -43,7 +47,7 @@ const CreateGoupsApp = ({ onClose }) => {
         <div className='create-groups-app-container'>
             {contextHolder}
             <div className='friends-list'>
-                <span className='create-group-title'>选择好友创建</span>
+                <span className='create-group-title'>邀请好友加入群聊</span>
                 {contacts && contacts.map((contact, index) => (
                     <div key={index} className='friend-item'
                         onClick={() => {
@@ -64,7 +68,7 @@ const CreateGoupsApp = ({ onClose }) => {
                 ))}
             </div>
             <div className='create-group-form'>
-                <span className='create-group-title'>创建群聊</span>
+                <span className='create-group-title'>选择好友</span>
                 {checkedContacts && checkedContacts.map((contact, index) => (
                     <div key={index} className='selected-contact-item'>
                         <div key={index} className='friend-item'>
@@ -78,11 +82,11 @@ const CreateGoupsApp = ({ onClose }) => {
                         type='primary'
                         disabled={checkedContacts.length === 0}
                         onClick={() => {
-                            socket.emit('create-group', { checkedContacts });
+                            socket.emit('invite-friends-join-group', { groupId, groupName, checkedContacts });
                         }}
                         style={{ marginTop: 12 }}
                     >
-                        创建
+                        邀请
                     </Button>
                     <Button
                         type='primary'
@@ -97,4 +101,4 @@ const CreateGoupsApp = ({ onClose }) => {
     );
 }
 
-export default CreateGoupsApp;
+export default InviteFriendsJoinGroup;

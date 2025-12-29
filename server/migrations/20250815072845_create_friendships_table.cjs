@@ -1,6 +1,6 @@
 exports.up = function(knex) {
   return knex.schema.createTable('friendships', function(table) {
-    table.increments('id').primary();
+    table.string('id').primary();
     
     table.string('user_id').notNullable();
     table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');

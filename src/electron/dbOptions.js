@@ -8,11 +8,13 @@ export async function initializeDatabase(db) {
     let friendTableExists;
     let groupMessageExists;
     let groupTableExists;
+    let inviteInformationExists;
     try {
       privateMessageExists = await db.schema.hasTable('messages');
       friendTableExists = await db.schema.hasTable('friends');
       groupTableExists = await db.schema.hasTable('groups');
       groupMessageExists = await db.schema.hasTable('group_messages');
+      inviteInformationExists = await db.schema.hasTable('invite_information');
     } catch (error) {
       console.error('Error checking if messages table exists:', error.message);
       privateMessageExists = false;
@@ -24,7 +26,7 @@ export async function initializeDatabase(db) {
         table.string('userName').notNullable();
         table.string('nickName').nullable().defaultTo(null);
         table.timestamp('addTime').defaultTo(db.fn.now());
-        table.string('type').nullable().defaultTo('private'); 
+        table.boolean('isFriend').defaultTo(true);
       })
     }
 
@@ -33,6 +35,7 @@ export async function initializeDatabase(db) {
         table.string('id').primary();
         table.string('groupName').notNullable();
         table.timestamp('addTime').defaultTo(db.fn.now());
+        table.boolean('isMember').defaultTo(true);
       })
     }
 
@@ -73,6 +76,19 @@ export async function initializeDatabase(db) {
         table.string('status').nullable().defaultTo('fail');
       })
     }
+    if (!inviteInformationExists) {
+      await db.schema.createTable('invite_information', (table) => {
+        table.string('id').primary();
+        table.string('inviter_id').notNullable();
+        table.string('inviter_name').notNullable();
+        table.string('group_id').nullable();
+        table.string('group_name').nullable();
+        table.boolean('is_group_invite').notNullable();
+        table.string('status').notNullable().defaultTo('pending');
+        table.timestamp('create_time').defaultTo(db.fn.now());
+        table.timestamp('update_time').defaultTo(db.fn.now());
+      })
+    }
   } catch (error) {
     console.error('Failed to initialize database:', error);
     console.error('Error details:', {
@@ -84,6 +100,7 @@ export async function initializeDatabase(db) {
     });
     throw error; // 重新抛出错误
   }
+
 }
 
 /**
@@ -101,7 +118,7 @@ export async function migrateUserDb(db, userId, dbPath, store) {
     const migrationKey = `dbMigrationVersion:${userId}`;
     const currentVer = store.get(migrationKey) || 0;
     // 目标版本
-    const targetVer = 5;
+    const targetVer = 6;
     // 若版本已满足，直接返回
     if (currentVer >= targetVer) {
       return;

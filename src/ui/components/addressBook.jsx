@@ -19,7 +19,6 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
   }
 
   useEffect(() => {
-    console.log(contacts)
     handleServerUrlChange();
   }, []);
 

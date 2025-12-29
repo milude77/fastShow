@@ -22,13 +22,14 @@ const store = new Store();
 // --- Socket.IO Main Process Setup ---
 const configPath = path.join(__dirname, '..', '..', 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-const SOCKET_SERVER_URL = isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL;
+const SOCKET_SERVER_URL = (isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL) || 'http://localhost:3001';
 let socket;
 let heartbeatInterval;
 let reconnectionTimer;
 let heartbeatTimeout;
 let tray = null;
 let mainWindow = null;
+let currentUserId;
 
 
 
@@ -211,10 +212,10 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         const messageData = {
             id: msg.id,
             sender_id: msg.sender == 'user' ? currentUserID : msg.sender_id,
-            receiver_id: msg.sender == 'user' ? contactId : (msg.type == 'private'? currentUserID : contactId),
+            receiver_id: msg.sender == 'user' ? contactId : (msg.type == 'private' ? currentUserID : contactId),
             text: msg.text || '',
             username: msg.username || '',
-            timestamp: msg.timestamp || new Date().toISOString(),
+            timestamp: msg.timestamp || new Date(),
             sender: msg.sender || 'user',
             messageType: msg.messageType || 'text',
             fileName: msg.fileName || null,
@@ -526,6 +527,7 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
 });
 
 ipcMain.on('login-success', async (event, userID) => {
+    currentUserId = userID;
     try {
         const userDbPath = path.join(app.getPath('userData'), `${userID}`);
 
@@ -599,10 +601,10 @@ ipcMain.on('login-success', async (event, userID) => {
                 const groupsToDelete = [...localGroupIds].filter(id => !remoteGroupIds.has(id));
 
                 if (groupsToDelete.length > 0) {
-                    await db('groups').whereIn('id', groupsToDelete).del();
+                    await db('groups').whereIn('id', groupsToDelete).update({ isMember: false });
                 }
                 if (friendsToDelete.length > 0) {
-                    await db('friends').whereIn('id', friendsToDelete).del();
+                    await db('friends').whereIn('id', friendsToDelete).update({ isFriend: false });
                 }
 
             } catch (e) {
@@ -618,8 +620,8 @@ ipcMain.on('login-success', async (event, userID) => {
             }
             socket.on('contacts-list', handleContactsList);
         }
+        socket.emit('initial-data-success', { userId: userID });
         socket.emit('get-contacts');
-
     }
 
 
@@ -1022,7 +1024,24 @@ ipcMain.handle('check-file-exists', async (event, { messageId }) => {
     }
 });
 
-ipcMain.handle('delete-contact-message-history', async (event, { contact }) => { 
+ipcMain.handle('delete-contact', async (event, { contactId }) => { 
+    if (!db) {
+        return { success: false, error: '数据库未连接' };
+    }
+    try {
+        socket.emit('delete-contact', contactId);
+        const deleted = await db('friends')
+            .where('id', contactId)
+            .update({ isFriend: false });
+        return { success: true, deleted };
+        
+    } catch (error) {
+        console.error('Failed to delete contact:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('delete-contact-message-history', async (event, { contact }) => {
     if (!db) {
         return { success: false, error: '数据库未连接' };
     }
@@ -1040,6 +1059,153 @@ ipcMain.handle('delete-contact-message-history', async (event, { contact }) => {
             .orWhere('sender_id', contactId)
             .del();
         return { success: true, deleted };
+    }
+});
+
+ipcMain.on('save-invite-information-list', async (event, inviteInformation) => {
+    if (!db) {
+        return { success: false, error: '数据库未连接' };
+    }
+    try {
+        if (inviteInformation.isGroup) {
+            // 检查是否已存在该邀请
+            const existingInvite = await db('invite_information')
+                .where('id', inviteInformation.id)
+                .first();
+
+            // 如果不存在则插入新记录
+            if (!existingInvite) {
+                const timestamp = Date.now();
+                await db('invite_information')
+                    .insert({
+                        id: inviteInformation.id,
+                        group_id: inviteInformation.groupId,
+                        group_name: inviteInformation.groupName,
+                        inviter_id: inviteInformation.inviterId,
+                        inviter_name: inviteInformation.inviterName,
+                        is_group_invite: true,
+                        create_time: timestamp,
+                        update_time: timestamp
+                    });
+
+                // 向渲染进程发送新邀请接收信号
+                event.sender.send('receive-new-invite');
+            }
+        } else {
+            // 检查是否已存在该好友邀请
+            const existingInvite = await db('invite_information')
+                .where('id', inviteInformation.id)
+                .first();
+
+            // 如果不存在则插入新记录
+            if (!existingInvite) {
+                const timestamp = Date.now();
+                await db('invite_information')
+                    .insert({
+                        id: inviteInformation.id,
+                        inviter_id: inviteInformation.inviterId,
+                        inviter_name: inviteInformation.inviterName,
+                        is_group_invite: false,
+                        create_time: timestamp,
+                        update_time: timestamp
+                    });
+
+                // 向渲染进程发送新邀请接收信号
+                event.sender.send('receive-new-invite');
+            }
+        }
+    } catch (error) {
+        console.error('保存邀请信息失败:', error);
+        // 向渲染进程发送错误信息
+        event.sender.send('invite-save-error', {
+            error: error.message
+        });
+    }
+});
+
+ipcMain.on('accept-friend-request', async (event, requestId ) => {
+    if (!db) {
+        return { success: false, error: '数据库未连接' };
+    }
+    try {
+        const timestamp = Date.now();
+        const updated = await db('invite_information')
+            .where('id', requestId)
+            .update({
+                status: 'accept',
+                update_time: timestamp
+            });
+        if (updated > 0) {
+            const newFriend = await db('invite_information')
+                .where('id', requestId)
+                .select('inviter_id', 'inviter_name')
+                .first();
+            const newFriendData = {
+                id: newFriend.inviter_id,
+                userName: newFriend.inviter_name,
+                addTime: timestamp,
+            }
+            await db('friends')
+                .insert(newFriendData)
+                .onConflict('id')
+                .merge()
+            const helloMessage = {
+                id:`temp_${timestamp}`,
+                sender_id: newFriend.inviter_id,
+                receiver_id: currentUserId,
+                text: '我们已经成为好友了，开始聊天吧！',
+                sender:'other',
+                username:newFriend.inviter_name,
+                messageType: 'text',
+                timestamp: timestamp,
+                status: 'success'
+            }
+            await db('messages')
+                .insert(helloMessage)
+            await db('invite_information')
+            event.sender.send('friend-request-accepted', { requestId });
+            event.sender.send('friends-list-updated');
+        }
+    } catch (error) {
+        console.error('接受好友请求失败:', error);
+        // 向渲染进程发送错误信息
+        event.sender.send('friend-request-accept-error', {
+            error: error.message
+        });
+    }
+});
+
+ipcMain.on('accept-group-invite', async (event, requestId) => { 
+    if (!db) {
+        return { success: false, error: '数据库未连接' };
+    }
+    try {
+        const timestamp = Date.now();
+        const updated = await db('invite_information')
+            .where('id', requestId)
+            .update({
+                status: 'accept',
+                update_time: timestamp
+            });
+        if (updated > 0) {
+            const gruopInformation = await db('invite_information')
+                .where('id', requestId)
+                .select('group_id as groupId', 'group_name as groupName')
+                .first();
+            await db('groups')
+                .insert({ id: gruopInformation.groupId, groupName: gruopInformation.groupName, addTime: timestamp })
+                .onConflict('id')
+                .merge()
+            await db('invite_information')
+            event.sender.send('group-invite-accepted', { requestId });
+            event.sender.send('groups-list-updated');
+        }
+    } catch (error) {
+        console.error('接受群组邀请失败:', error);
+        // 向渲染进程发送错误信息
+        event.sender.send('group-invite-accept-error', {
+            error: error.message
+        });
     }
 });
 
@@ -1069,7 +1235,7 @@ ipcMain.handle('read-file', async (event, filePath) => {
     }
 });
 
-ipcMain.handle('leave-group', async (event, { groupId, currentUserID  }) => {
+ipcMain.handle('leave-group', async (event, { groupId, currentUserID }) => {
     try {
         if (!db) {
             return { success: false, error: '数据库未连接' };
@@ -1084,6 +1250,16 @@ ipcMain.handle('leave-group', async (event, { groupId, currentUserID  }) => {
         console.error('Failed to leave group:', error);
     }
 });
+
+ipcMain.handle('get-invite-information-list', async () => {
+    if (!db) {
+        return [];
+    }
+    const inviteInformationList = await db('invite_information')
+        .select('*')
+    return inviteInformationList;
+});
+
 
 // --- End Socket.IO IPC ---
 

@@ -11,6 +11,10 @@ const AppHeaderBar = ({ style }) => {
   };
 
   useEffect(() => {
+
+    const handleTopChange = (event, isAlwaysOnTop) => {
+      customSetIsPinned(isAlwaysOnTop);
+    }
     const fetchInitialState = async () => {
       const initialState = await window.electronAPI.getInitialIsPinned();
       customSetIsPinned(initialState);
@@ -18,8 +22,10 @@ const AppHeaderBar = ({ style }) => {
 
     fetchInitialState();
 
-    const cleanup = window.electronAPI.onAlwaysOnTopChanged(customSetIsPinned);
-    return cleanup;
+    window.electronAPI.ipcRenderer.on('always-on-top-changed', handleTopChange);
+    return () => {
+      window.electronAPI.ipcRenderer.removeListener('always-on-top-changed', handleTopChange);
+    };
   }, []);
 
   const handleMinimize = () => {

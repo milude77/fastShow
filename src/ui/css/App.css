@@ -40,7 +40,7 @@
   height: 100%;
   width: 50px;
   flex-direction: column;
-  border-right: 1px solid var(--boder-color)
+  border-right: 1px solid var(--border-color)
 }
 
 .message-box-header {
@@ -53,7 +53,7 @@
   flex-direction: column;
   width: 200px;
   height: 100%;
-  border-right: 1px solid var(--boder-color);
+  border-right: 1px solid var(---border-color);
   box-shadow: 8px 0 10px -10px rgba(0, 0, 0, 0.15);
   z-index: 1;
 }
@@ -83,7 +83,7 @@
   background-color: var(--toobar-background-color);
 }
 
-.message-box-body{
+.message-box-body {
   flex: 1;
   display: flex;
   flex-direction: column;

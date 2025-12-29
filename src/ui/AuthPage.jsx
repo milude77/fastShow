@@ -19,7 +19,7 @@ const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) =>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', width: '300px' }}>
       <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>快速登录</span>
-      <img style={{ width: '100px', height: '100px' }} src={`${serverUrl}/api/avatar/${credentials.userId}/user`} alt="" />
+      <img style={{ width: '100px', height: '100px', borderRadius: '50%' }} src={`${serverUrl}/api/avatar/${credentials.userId}/user`} alt="" />
       <span>{credentials.userName}</span>
       <Button
         type="primary"

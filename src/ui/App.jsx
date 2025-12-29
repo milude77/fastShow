@@ -9,6 +9,7 @@ import ContactList from './components/contactList';
 import MessageList from './components/messageList';
 import ContactInformation from './components/contactInformation';
 import FriendsRequestManagement from './components/friendsRequesetManagement';
+import InviteFriendsJoinGroup from './components/inviteFriends';
 import ToolBar from './components/toolBar';
 import AuthPage from './AuthPage';
 import AddressBook from './components/addressBook';
@@ -16,12 +17,12 @@ import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import titleImage from './assets/title.png';
 import CustomModal from './components/CustomModal';
-import CreateGoupsApp from './CreateGoupsApp'; 
+import CreateGoupsApp from './CreateGoupsApp';
 
 const SearchBar = ({ currentUser, onCreateGroup }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
-  
+
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && searchTerm.trim()) {
@@ -46,6 +47,7 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
       <div className='search-input-bar'>
         <SearchOutlined />
         <input
+          style={{ color: 'var(--text-color)' }}
           className='search-input'
           type="search"
           placeholder="搜索"
@@ -79,13 +81,15 @@ function App() {
   const [messagePages, setMessagePages] = useState({});
   const [groupsMessagePages, setGroupsMessagePages] = useState({});
   const [contacts, setContacts] = useState([]);
+  const [friendsRequest, setFriendsRequest] = useState([]);
 
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
   const pendingTimersRef = useRef(new Map());
   const pendingGroupTimersRef = useRef(new Map());
   const [messageApi, contextHolder] = message.useMessage();
-  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalConment, setModalConment] = useState('');
 
   const handleAvatarUpdate = useCallback(() => {
     setCurrentUser(prevUser => ({
@@ -148,13 +152,6 @@ function App() {
   const handleDisconnect = useCallback(() => setConnectionStatus('disconnected'), []);
   const handleReconnecting = useCallback(() => setConnectionStatus('reconnecting'), []);
 
-
-  // 获取好友列表并发送离线消息
-  useEffect(() => {
-    if (currentUser && socket) {
-      socket.emit('send-disconnect-message', currentUser);
-    }
-  }, [currentUser, socket]);
 
   const handleNewMessage = useCallback((msg) => {
     // Safety check: Do not process messages if the user is not logged in.
@@ -285,6 +282,31 @@ function App() {
     }
   }, [])
 
+
+  const handleNewFriendRequests = useCallback((data) => {
+    data.isGroup = false
+    window.electronAPI.saveInviteinformationList(data)
+  }, []);
+
+  const handleNewGroupInvite = useCallback((data) => {
+    data.isGroup = true
+    window.electronAPI.saveInviteinformationList(data)
+  }, []);
+
+  const handleNotificationMessage = useCallback((data) => {
+    switch (data.status) {
+      case 'success':
+        messageApi.success(data.message);
+        break;
+      case 'error':
+        messageApi.error(data.message);
+        break;
+      case 'info':
+        messageApi.info(data.message);
+        break;
+    }
+  }, []);
+
   useEffect(() => {
     if (!socket) return;
 
@@ -298,6 +320,9 @@ function App() {
     socket.on('message-sent-success', handleSendMessageStatus)
     socket.on('new-group', handleNewGroup)
     socket.on('leave-group-success', handleLeaveGroupSuccess)
+    socket.on('new-friend-request', handleNewFriendRequests);
+    socket.on('group-invite', handleNewGroupInvite);
+    socket.on('notification', handleNotificationMessage );
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
@@ -311,6 +336,9 @@ function App() {
       socket.off('message-sent-success', handleSendMessageStatus)
       socket.off('new-group', handleNewGroup)
       socket.off('leave-group-success', handleLeaveGroupSuccess)
+      socket.off('new-friend-request', handleNewFriendRequests);
+      socket.off('group-invite', handleNewGroupInvite);
+      socket.off('notification', handleNotificationMessage );
     };
   }, [socket, handleLoginSuccess, handleFriendsList, friendsRequestAccepted, handleConnect, handleDisconnect, handleReconnecting, handleNewGroup, handleNewMessage, handleSendMessageStatus]);
 
@@ -343,7 +371,7 @@ function App() {
         text: message,
         sender: 'user',
         messageType: 'text',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
         username: currentUser.username,
         sender_id: currentUser.userId,
         status: 'sending',
@@ -388,7 +416,7 @@ function App() {
         text: message,
         sender: 'user',
         messageType: 'text',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
         senderId: currentUser.userId,
         username: currentUser.username,
         status: 'sending',
@@ -559,14 +587,14 @@ function App() {
 
 
   const handleDeleteContact = useCallback((contactId) => {
-    socket.emit('delete-contact', contactId);
+    window.electronAPI.deleteContact(contactId);
     setSelectedContactInformation(null)
+    setSelectedContact(null)
     setContacts(prevContacts => {
-      const newContacts = { ...prevContacts };
-      delete newContacts[contactId];
+      const newContacts = prevContacts.filter(contact => { return (contact.id !== contactId || contact.type !== 'friend') });
       return newContacts;
     });
-  }, [socket]);
+  }, []);
 
   const renderFeature = () => {
     switch (selectFeatures) {
@@ -612,6 +640,7 @@ function App() {
           onUploadFile={handleUploadFile}
           onResendMessage={handleResendMessage}
           deleteContact={handleDeleteContact}
+          inviteFriendsJoinGroup={() => { setIsModalOpen(true); setModalConment('inviteFriends') }}
         />
       );
     }
@@ -659,7 +688,7 @@ function App() {
           </div>
           <div className='contact-list-container'>
             {renderConnectionStatus()}
-            <SearchBar currentUser={currentUser} onCreateGroup={() => setIsCreateGroupModalOpen(true)} />
+            <SearchBar currentUser={currentUser} onCreateGroup={() => { setIsModalOpen(true); setModalConment('createGroup') }} />
             <div className='contact-list'>
               {renderFeature()}
             </div>
@@ -674,9 +703,20 @@ function App() {
           </div>
 
           {/* 创建群聊模态框 */}
-          <CustomModal isOpen={isCreateGroupModalOpen} onClose={() => setIsCreateGroupModalOpen(false)}>
-            <CreateGoupsApp />
-          </CustomModal>
+          <CustomModal isOpen={isModalOpen} >
+            {
+              (() => {
+                switch (modalConment) {
+                  case 'createGroup':
+                    return <CreateGoupsApp onClose={() => setIsModalOpen(false)} />;
+                  case 'inviteFriends':
+                    return <InviteFriendsJoinGroup groupId={selectedContact.id} groupName={selectedContact.username} member={selectedContact.members || []} onClose={() => setIsModalOpen(false)} />;
+                  default:
+                    return null;
+                }
+              })()
+            }
+          </CustomModal  >
         </div>
       </div>
     </ConfigProvider>

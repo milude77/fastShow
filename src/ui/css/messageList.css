@@ -1,7 +1,7 @@
 .history-message-box {
     flex: 1;
     overflow-y: auto;
-    background-color: var(--background-color);
+    background-color: var(--information-bg-color);
     color: var(--text-color);
     scrollbar-color: transparent transparent;
     scrollbar-width: 10px;
@@ -15,7 +15,7 @@
     height: 40px;
     padding: 0 15px 5px 15px;
     -webkit-app-region: no-drag;
-    border-bottom: 1px solid var(--boder-color);
+    border-bottom: 1px solid var(--border-color);
     align-items: flex-end;
     position: relative;
 }
@@ -50,7 +50,7 @@
     flex-direction: column;
     position: relative;
     align-items: center;
-    border-top: 1px solid var(--boder-color);
+    border-top: 1px solid var(--border-color);
     max-height: 500px;
     min-height: 200px;
     color: var(--text-color);
@@ -78,7 +78,7 @@
     font-family: sans-serif;
     font-size: 16px;
     overflow-y: auto;
-    background-color: var(--background-color);
+    background-color: var(--information-bg-color);
     color: var(--text-color);
     resize: none;
 }
@@ -110,7 +110,7 @@
     margin: 0;
     display: flex;
     flex-direction: column;
-    background-color: var(--background-color);
+    background-color: var(--information-bg-color);
     color: var(--text-color);
 }
 
@@ -219,8 +219,8 @@
     display: flex;
     width: 200px;
     flex-direction: column;
-    border-left: 1px solid var(--boder-color);
-    background-color: var(--background-color);
+    border-left: 1px solid var(--border-color);
+    background-color: var(--information-bg-color);
 }
 
 .group-notice-bar.group-member-list .group-member {
@@ -263,7 +263,7 @@
     width: 40px;
     height: 40px;
     justify-self: center;
-    border-radius: var(--border-radius);
+    border-radius: 50%;
 }
 
 .contact-option .group-member-list .group-member span{
@@ -319,7 +319,7 @@
 }
 
 .input-toolbar{
-    background-color: var(--background-color);
+    background-color: var(--information-bg-color);
     display: flex;
     width: 100%;
 }

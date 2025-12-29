@@ -29,4 +29,5 @@ release
 
 server/uploads/*
 config.json
+*.env
 

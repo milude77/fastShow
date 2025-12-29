@@ -130,7 +130,7 @@ const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
     );
 });
 
-const ContactOption = ({ contact, currentUser, openContactOptions, deleteContactMessageHistory, deleteContact, onClose }) => {
+const ContactOption = ({ contact, currentUser, openContactOptions, deleteContactMessageHistory, deleteContact, onClose, inviteFriendsJoinGroup }) => {
     const optionRef = useRef(null);
     const [modal, modalContextHolder] = Modal.useModal();
     const [serverUrl, setServerUrl] = useState('');
@@ -164,6 +164,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             onClose();
         }).catch((error) => {
             message.error('退出群聊失败！');
+            console.error(error);
         });
     }
 
@@ -172,9 +173,14 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             zIndex: 2000,
             centered: true,
             maskClosable: false,
-            title: `确认删除好友 "${contact.username}" ？(将清空所有历史消息！)`,
+            title: (
+            <>
+                确认删除好友 {contact.username}？
+                <span style={{ color: 'red' }}>(将清空所有历史消息！)</span>
+            </>
+            ),
             onOk() {
-                deleteContact(contact);
+                deleteContact(contact.id);
             }
         });
     };
@@ -196,7 +202,12 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             zIndex: 2000,
             centered: true,
             maskClosable: false,
-            title: `确认退出群聊 ${contact.username}？(将清空所有历史消息！)`,
+            title: (
+                <>
+                    确认退出群聊 {contact.username}？
+                    <span style={{ color: 'red' }}>(将清空所有历史消息！)</span>
+                </>
+            ),
             onOk() {
                 leaveGroup(contact);
             }
@@ -204,7 +215,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
     };
 
     const inviteFriends = () => {
-        
+
     }
 
     return (
@@ -212,7 +223,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             {modalContextHolder}
             {contact.type === 'group' &&
                 <div className="contact-option-header" >
-                    <img style={{ width: '50px', height: '50px' }} src={`${serverUrl}/api/avatar/${contact.id}/group`} alt="群聊头像" />
+                    <img style={{ width: '50px', height: '50px', borderRadius: '50%' }} src={`${serverUrl}/api/avatar/${contact.id}/group`} alt="群聊头像" />
                     <div style={{ display: 'flex', flexDirection: 'column' }} >
                         <strong>{contact.username}</strong>
                         <h4>id:{contact.id}</h4>
@@ -230,8 +241,8 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
                             </div>
                         )
                     })}
-                    <div className="group-member" onClick={ () => inviteFriends() } >
-                        <button style={{ width:'40px', height:'40px', borderRadius:'50%',color:'var(--text-color)' , backgroundColor:'var(--contact-option-bg-color)', border:'none', cursor:'pointer' }}   >+</button>
+                    <div className="group-member" onClick={() => inviteFriends()} >
+                        <button onClick={inviteFriendsJoinGroup} style={{ width: '40px', height: '40px', borderRadius: '50%', color: 'var(--text-color)', backgroundColor: 'var(--contact-option-bg-color)', border: 'none', cursor: 'pointer' }}   >+</button>
                         <span>邀请</span>
                     </div>
                 </div>
@@ -248,7 +259,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
 
 
 
-const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage, deleteContact }) => {
+const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage, deleteContact, inviteFriendsJoinGroup }) => {
     const [messageApi, contextHolder] = message.useMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
@@ -663,7 +674,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                 {contact.type === 'group' && groupMemberListOpen && (
                     <GroupMember members={contact.members} serverUrl={serverUrl} currentUser={currentUser} />
                 )}
-                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} deleteContactMessageHistory={handleDeleteContactMessageHistory} deleteContact={deleteContact} onClose={handleCloseContactOptions} />
+                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} deleteContactMessageHistory={handleDeleteContactMessageHistory} deleteContact={deleteContact} onClose={handleCloseContactOptions} inviteFriendsJoinGroup={inviteFriendsJoinGroup} />
             </div>
         </div>
     )
