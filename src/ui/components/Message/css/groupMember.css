@@ -1,0 +1,14 @@
+.group-notice-bar.group-member-list {
+    display: flex;
+    width: 200px;
+    flex-direction: column;
+    border-left: 1px solid var(--border-color);
+    background-color: var(--information-bg-color);
+}
+
+.group-notice-bar.group-member-list .group-member {
+    display: flex;
+    align-items: center;
+    padding: 5px 5px;
+    gap: 5px;
+}

@@ -10,6 +10,7 @@ import fetch from 'node-fetch';
 import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
+import { snowflake } from './snowFlake.js';
 
 
 // ESM-compliant __dirname
@@ -129,80 +130,67 @@ let db;
 
 
 // 读取指定联系人的聊天记录
-async function readChatHistory(contactId, currentUserID, page = 1, pageSize = 20, isGroup) {
+async function readChatHistory(
+    contactId,
+    currentUserID,
+    pageSize = 20,
+    isGroup,
+    beforeTimestamp = null
+) {
     try {
-        // 获取私聊消息
-        if (!isGroup) {
-            // 确保数据库已初始化
-            const exists = await db.schema.hasTable('messages');
-            if (!exists) {
-                await initializeDatabase(db);
-                // 重新检查表是否存在
-                const existsAfterInit = await db.schema.hasTable('messages');
-                if (!existsAfterInit) {
-                    console.error('Failed to create messages table');
-                    return [];
-                }
+        const tableName = isGroup ? 'group_messages' : 'messages';
+
+        const exists = await db.schema.hasTable(tableName);
+        if (!exists) {
+            await initializeDatabase(db);
+            if (!(await db.schema.hasTable(tableName))) {
+                console.error(`Failed to create ${tableName} table`);
+                return [];
             }
-
-            const offset = (page - 1) * pageSize;
-
-            const history = await db('messages')
-                .select('*')
-                .where(function () {
-                    this.where('sender_id', String(currentUserID)).andWhere('receiver_id', String(contactId));
-                })
-                .orWhere(function () {
-                    this.where('sender_id', String(contactId)).andWhere('receiver_id', String(currentUserID));
-                })
-                .orderBy('timestamp', 'desc')
-                .limit(pageSize)
-                .offset(offset);
-
-            return history.reverse(); // 保证消息按时间升序排列
         }
-        else {
-            const exists = await db.schema.hasTable('group_messages');
-            if (!exists) {
-                await initializeDatabase(db);
-                // 重新检查表是否存在
-                const existsAfterInit = await db.schema.hasTable('group_messages');
-                if (!existsAfterInit) {
-                    console.error('Failed to create messages table');
-                    return [];
-                }
-            }
 
-            const offset = (page - 1) * pageSize;
+        let query = db(tableName).select('*');
 
-            const history = await db('group_messages')
-                .select('*')
-                .where(function () {
-                    this.where('receiver_id', String(contactId));
-                })
-                .orderBy('timestamp', 'desc')
-                .limit(pageSize)
-                .offset(offset);
-
-            return history.reverse(); // 保证消息按时间升序排列
+        if (isGroup) {
+            query = query.where('receiver_id', String(contactId));
+        } else {
+            // query = query.where(function () {
+            //     this.where('sender_id', String(currentUserID))
+            //         .andWhere('receiver_id', String(contactId));
+            // }).orWhere(function () {
+            //     this.where('sender_id', String(contactId))
+            //         .andWhere('receiver_id', String(currentUserID));
+            // });
+            query = query.where(function () {
+                this.where(function () {
+                    this.where('sender_id', String(currentUserID))
+                        .andWhere('receiver_id', String(contactId));
+                }).orWhere(function () {
+                    this.where('sender_id', String(contactId))
+                        .andWhere('receiver_id', String(currentUserID));
+                });
+            });
         }
+        if (beforeTimestamp) {
+            query = query.where('timestamp', '<', beforeTimestamp);
+        }
+
+        const history = await query
+            .orderBy('timestamp', 'desc')
+            .limit(pageSize);
+
+        return history.reverse();
     } catch (error) {
         console.error(`Failed to read chat history for contact ${contactId}:`, error);
-        console.error('Error details:', {
-            message: error.message,
-            code: error.code,
-            errno: error.errno,
-            sql: error.sql,
-            bindings: error.bindings
-        });
         return [];
     }
 }
 
 // 写入指定联系人的聊天记录
-async function writeChatHistory(contactId, currentUserID, msg) {
+async function writeChatHistory(contactId, msg) {
     try {
         // 确保数据库已初始化
+        console.log(msg)
         const exists = await db.schema.hasTable('messages') && await db.schema.hasTable('group_messages');
         if (!exists) {
             await initializeDatabase(db);
@@ -211,8 +199,8 @@ async function writeChatHistory(contactId, currentUserID, msg) {
         // 确保所有必需字段都存在并转换为正确的类型
         const messageData = {
             id: msg.id,
-            sender_id: msg.sender == 'user' ? currentUserID : msg.sender_id,
-            receiver_id: msg.sender == 'user' ? contactId : (msg.type == 'private' ? currentUserID : contactId),
+            sender_id: msg.sender == 'user' ? currentUserId : msg.sender_id,
+            receiver_id: msg.sender == 'user' ? contactId : (msg.type == 'private' ? currentUserId : contactId),
             text: msg.text || '',
             username: msg.username || '',
             timestamp: msg.timestamp || new Date(),
@@ -229,6 +217,7 @@ async function writeChatHistory(contactId, currentUserID, msg) {
             await db('messages').insert(messageData);
         }
         else {
+            console.log(messageData);
             await db('group_messages').insert(messageData);
         }
     } catch (error) {
@@ -389,6 +378,8 @@ function createMainWindow() {
     mainWindow = new BrowserWindow({
         width: 400,
         height: 600,
+        minHeight: 300,
+        minWidth: 400,
         frame: false,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
@@ -639,16 +630,49 @@ ipcMain.on('login-success', async (event, userID) => {
 })
 
 
-ipcMain.on('chat-message', (event, { contactId, currentUserID, msg }) => {
+ipcMain.on('chat-message', (event, { contactId, msg }) => {
     // Safety check to prevent writing undefined data
     if (!msg) {
         console.error('Received chat-message with undefined msg object.');
         return;
     }
-    writeChatHistory(contactId, currentUserID, msg);
+    writeChatHistory(contactId, msg);
 });
 
-ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, receiverId, status, isGroup }) => {
+ipcMain.handle('send-private-message', async (event, { receiverId, message }) => {
+    const messageId = snowflake.nextId().toString();
+
+
+    const fullMessage = {
+        ...message,
+        id: messageId,
+        receiver_id: receiverId,
+        timestamp: Date.now(),
+        sender: 'user',
+    };
+
+    await writeChatHistory(receiverId, fullMessage);
+    socket.emit('send-private-message', fullMessage);
+
+    return messageId;
+});
+
+ipcMain.handle('send-group-message', async (event, { groupId, message }) => { 
+    const messageId = snowflake.nextId().toString();
+    const fullMessage = {
+        ...message,
+        id: messageId,
+        receiver_id: groupId,
+        timestamp: Date.now(),
+        sender: 'user',
+    };
+    await writeChatHistory(groupId, fullMessage);
+    socket.emit('send-group-message', fullMessage);
+    return messageId;
+});
+
+
+ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, isGroup }) => {
     try {
 
         const userDbPath = path.join(app.getPath('userData'), String(senderInfo?.userId || senderInfo));
@@ -668,16 +692,14 @@ ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, rec
         //改变私聊信息状态
         if (!isGroup) {
             await senderDb('messages')
-                .where('id', String(sendMessageId))
-                .andWhere('receiver_id', String(receiverId))
-                .update({ status: status });
+                .where('id', sendMessageId)
+                .update({ status: 'success' });
         }
         //改变群聊信息状态
         else {
             await senderDb('group_messages')
-                .where('id', String(sendMessageId))
-                .andWhere('receiver_id', String(receiverId))
-                .update({ status: status });
+                .where('id', sendMessageId)
+                .update({ status: 'success' });
         }
 
     } catch (error) {
@@ -692,8 +714,8 @@ ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, rec
     }
 });
 
-ipcMain.handle('get-chat-history', async (event, { contactId, currentUserID, page, pageSize, isGroup }) => {
-    return await readChatHistory(contactId, currentUserID, page, pageSize, isGroup);
+ipcMain.handle('get-chat-history', async (event, { contactId, currentUserID, pageSize, isGroup, beforeTimestamp }) => {
+    return await readChatHistory(contactId, currentUserID, pageSize, isGroup, beforeTimestamp);
 });
 
 ipcMain.handle('get-app-version', () => {
@@ -1024,7 +1046,7 @@ ipcMain.handle('check-file-exists', async (event, { messageId }) => {
     }
 });
 
-ipcMain.handle('delete-contact', async (event, { contactId }) => { 
+ipcMain.handle('delete-contact', async (event, { contactId }) => {
     if (!db) {
         return { success: false, error: '数据库未连接' };
     }
@@ -1034,7 +1056,7 @@ ipcMain.handle('delete-contact', async (event, { contactId }) => {
             .where('id', contactId)
             .update({ isFriend: false });
         return { success: true, deleted };
-        
+
     } catch (error) {
         console.error('Failed to delete contact:', error);
         return { success: false, error: error.message };
@@ -1123,7 +1145,7 @@ ipcMain.on('save-invite-information-list', async (event, inviteInformation) => {
     }
 });
 
-ipcMain.on('accept-friend-request', async (event, requestId ) => {
+ipcMain.on('accept-friend-request', async (event, requestId) => {
     if (!db) {
         return { success: false, error: '数据库未连接' };
     }
@@ -1150,12 +1172,12 @@ ipcMain.on('accept-friend-request', async (event, requestId ) => {
                 .onConflict('id')
                 .merge()
             const helloMessage = {
-                id:`temp_${timestamp}`,
+                id: `temp_${timestamp}`,
                 sender_id: newFriend.inviter_id,
                 receiver_id: currentUserId,
                 text: '我们已经成为好友了，开始聊天吧！',
-                sender:'other',
-                username:newFriend.inviter_name,
+                sender: 'other',
+                username: newFriend.inviter_name,
                 messageType: 'text',
                 timestamp: timestamp,
                 status: 'success'
@@ -1175,7 +1197,7 @@ ipcMain.on('accept-friend-request', async (event, requestId ) => {
     }
 });
 
-ipcMain.on('accept-group-invite', async (event, requestId) => { 
+ipcMain.on('accept-group-invite', async (event, requestId) => {
     if (!db) {
         return { success: false, error: '数据库未连接' };
     }

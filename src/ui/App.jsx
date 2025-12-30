@@ -6,7 +6,7 @@ import './css/App.css';
 import './css/dark-mode.css';
 import AppHeaderBar from './components/appHeaderBar';
 import ContactList from './components/contactList';
-import MessageList from './components/messageList';
+import MessageList from './components/Message/messageList';
 import ContactInformation from './components/contactInformation';
 import FriendsRequestManagement from './components/friendsRequesetManagement';
 import InviteFriendsJoinGroup from './components/inviteFriends';
@@ -78,10 +78,7 @@ function App() {
   const [groupMessages, setGroupMessages] = useState({});
   const [drafts, setDrafts] = useState({});
   const [groupDrafts, setGroupDrafts] = useState({});
-  const [messagePages, setMessagePages] = useState({});
-  const [groupsMessagePages, setGroupsMessagePages] = useState({});
   const [contacts, setContacts] = useState([]);
-  const [friendsRequest, setFriendsRequest] = useState([]);
 
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
@@ -155,12 +152,11 @@ function App() {
 
   const handleNewMessage = useCallback((msg) => {
     // Safety check: Do not process messages if the user is not logged in.
-    if (!currentUser) {
-      return;
-    }
+    console.log("收到新消息:", msg);
 
     const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
-    const messageId = `temp_${Date.now()}`
+    const messageId = msg.message_id;
+
 
     // const savedMessage = {
     //   id: sendMessageId,
@@ -174,26 +170,28 @@ function App() {
 
 
     // When receiving a message from others, save it to local history.
-    if (msg.senderId !== currentUser.userId) {
-      const newMessage = {
-        id: messageId,
-        text: msg.content,
-        sender: 'other',
-        sender_id: msg.senderId,
-        timestamp: new Date(msg.timestamp).toISOString(),
-        username: msg.username,
-        fileName: msg.fileName,
-        messageType: msg.messageType,
-        type: msg.type,
-        fileUrl: msg.fileUrl,
-        fileSize: msg.fileSize,
-      }
 
-      if (window.electronAPI) {
-        try { window.electronAPI.chatMessage(contactId, currentUser.userId, newMessage); }
-        catch (e) { console.error("保存消息失败:", e) };
-      }
+    const newMessage = {
+      id: messageId,
+      text: msg.content,
+      sender: 'other',
+      sender_id: msg.senderId,
+      timestamp: new Date(msg.timestamp),
+      username: msg.username,
+      fileName: msg.fileName,
+      messageType: msg.messageType,
+      type: msg.type,
+      fileUrl: msg.fileUrl,
+      fileSize: msg.fileSize,
     }
+
+    console.log("收到新消息:", newMessage);
+
+    if (window.electronAPI) {
+      try { window.electronAPI.chatMessage(contactId, newMessage); }
+      catch (e) { console.error("保存消息失败:", e) };
+    }
+
 
     if (msg.type == 'private') {
       setMessages(prev => {
@@ -235,51 +233,39 @@ function App() {
         };
       });
     };
-  }, [currentUser, setMessages, setGroupMessages]);
+  }, [currentUser]);
 
-  const handleSendMessageStatus = useCallback(({ senderInfo, sendMessageId, receiverId, status, isGroup }) => {
+  const handleSendMessageStatus = useCallback(({ senderInfo, sendMessageId, receiverId, isGroup }) => {
     // 收到服务端成功回执，清除超时计时器
     let timer;
     if (isGroup) {
       timer = pendingGroupTimersRef.current.get(sendMessageId);
+      clearTimeout(timer);
+      pendingGroupTimersRef.current.delete(sendMessageId);
+      setGroupMessages(prev => {
+        const contactMessages = prev[receiverId] || [];
+        return {
+          ...prev,
+          [receiverId]: contactMessages.map(msg =>
+            msg.id === sendMessageId ? { ...msg, status: 'success' } : msg
+          )
+        };
+      });
     } else {
       timer = pendingTimersRef.current.get(sendMessageId);
-    }
-
-    if (timer) {
       clearTimeout(timer);
-      if (isGroup) {
-        pendingGroupTimersRef.current.delete(sendMessageId);
-      } else {
-        pendingTimersRef.current.delete(sendMessageId);
-      }
+      pendingTimersRef.current.delete(sendMessageId);
+      setMessages(prev => {
+        const contactMessages = prev[receiverId] || [];
+        return {
+          ...prev,
+          [receiverId]: contactMessages.map(msg =>
+            msg.id === sendMessageId ? { ...msg, status: 'success' } : msg
+          )
+        };
+      });
     }
-
-    if (sendMessageId && receiverId && status == 'success') {
-      if (!isGroup) {
-        setMessages(prev => {
-          const contactMessages = prev[receiverId] || [];
-          return {
-            ...prev,
-            [receiverId]: contactMessages.map(msg =>
-              msg.id === sendMessageId ? { ...msg, status } : msg
-            )
-          };
-        });
-      }
-      else {
-        setGroupMessages(prev => {
-          const contactMessages = prev[receiverId] || [];
-          return {
-            ...prev,
-            [receiverId]: contactMessages.map(msg =>
-              msg.id === sendMessageId ? { ...msg, status } : msg
-            )
-          };
-        });
-      }
-      window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, receiverId, status, isGroup);
-    }
+    window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, isGroup);
   }, [])
 
 
@@ -322,7 +308,7 @@ function App() {
     socket.on('leave-group-success', handleLeaveGroupSuccess)
     socket.on('new-friend-request', handleNewFriendRequests);
     socket.on('group-invite', handleNewGroupInvite);
-    socket.on('notification', handleNotificationMessage );
+    socket.on('notification', handleNotificationMessage);
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
@@ -338,21 +324,20 @@ function App() {
       socket.off('leave-group-success', handleLeaveGroupSuccess)
       socket.off('new-friend-request', handleNewFriendRequests);
       socket.off('group-invite', handleNewGroupInvite);
-      socket.off('notification', handleNotificationMessage );
+      socket.off('notification', handleNotificationMessage);
     };
-  }, [socket, handleLoginSuccess, handleFriendsList, friendsRequestAccepted, handleConnect, handleDisconnect, handleReconnecting, handleNewGroup, handleNewMessage, handleSendMessageStatus]);
+  }, [socket]);
 
 
   const handleMessageListSelectContact = useCallback(async (contact) => {
     setSelectedContact(contact);
-    setMessagePages({ [contact.id]: 1 });
     if (window.electronAPI && currentUser) {
       if (contact.type == 'group') {
-        const localGroupHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 1, 20, true);
+        const localGroupHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 20, true, null);
         setGroupMessages(prev => ({ ...prev, [contact.id]: localGroupHistory }));
       }
       else {
-        const localHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 1, 20, false);
+        const localHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 20, false, null);
         setMessages(prev => ({ ...prev, [contact.id]: localHistory }));
       }
     }
@@ -362,63 +347,75 @@ function App() {
     setSelectedContactInformation(contact);
   }, []);
 
-  //发送私聊消息
-  const handleSendMessage = useCallback((message) => {
-    if (selectedContact && currentUser && socket) {
-      const tempId = `temp_${Date.now()}`;
-      const newMessage = {
-        id: tempId,
-        text: message,
-        sender: 'user',
-        messageType: 'text',
-        timestamp: new Date(),
-        username: currentUser.username,
-        sender_id: currentUser.userId,
-        status: 'sending',
-        type: 'private'
-      };
+  const handleSendMessage = useCallback(async (text) => {
+    if (!selectedContact || !currentUser) return;
 
+
+    const messageId = await window.electronAPI.sendPrivateMessage({
+      receiverId: selectedContact.id,
+      message: {
+        text,
+        messageType: 'text',
+        sender_id: currentUser.userId,
+        username: currentUser.username,
+        type: 'private'
+      }
+    });
+
+
+    const newMessage = {
+      id: messageId,
+      text,
+      sender: 'user',
+      messageType: 'text',
+      timestamp: Date.now(),
+      username: currentUser.username,
+      sender_id: currentUser.userId,
+      status: 'sending',
+      type: 'private'
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
+    }));
+
+    const timer = setTimeout(() => {
       setMessages(prev => ({
         ...prev,
-        [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
+        [selectedContact.id]: (prev[selectedContact.id] || []).map(msg =>
+          msg.id === messageId ? { ...msg, status: 'fail' } : msg
+        )
       }));
+      pendingTimersRef.current.delete(messageId);
+    }, 10000);
 
-      if (window.electronAPI) {
-        window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
-      }
+    pendingTimersRef.current.set(messageId, timer);
+    setDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
 
-      socket.emit('send-private-message', { message: newMessage, receiverId: selectedContact.id });
+  }, [selectedContact, currentUser]);
 
-      // 启动 10 秒超时计时器，若未收到成功回执则标记为失败
-      const timer = setTimeout(() => {
-        setMessages(prev => {
-          const contactMessages = prev[selectedContact.id] || [];
-          return {
-            ...prev,
-            [selectedContact.id]: contactMessages.map(msg =>
-              msg.id === tempId ? { ...msg, status: 'fail' } : msg
-            )
-          };
-        });
-        pendingTimersRef.current.delete(tempId);
-      }, 10000);
-      pendingTimersRef.current.set(tempId, timer);
-
-      setDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
-    }
-  }, [selectedContact, currentUser, socket]);
-
-  const handleSendgroupMessage = useCallback((message) => {
+  const handleSendgroupMessage = useCallback(async (text) => {
     if (selectedContact && currentUser && socket) {
-      const tempId = `temp_${Date.now()}`;
+      const messageId = await window.electronAPI.sendGroupMessage({
+        groupId: selectedContact.id,
+        message: {
+          text,
+          messageType: 'text',
+          sender_id: currentUser.userId,
+          username: currentUser.username,
+          type: 'group'
+        }
+      });
+
       const newMessage = {
-        id: tempId,
-        text: message,
+        id: messageId,
+        text,
         sender: 'user',
         messageType: 'text',
-        timestamp: new Date(),
-        senderId: currentUser.userId,
+        timestamp: Date.now(),
         username: currentUser.username,
+        sender_id: currentUser.userId,
         status: 'sending',
         type: 'group'
       };
@@ -428,11 +425,6 @@ function App() {
         [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
       }));
 
-      if (window.electronAPI) {
-        window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, newMessage);
-      }
-
-      socket.emit('send-group-message', { message: newMessage, groupId: selectedContact.id });
 
       // 启动 10 秒超时计时器，若未收到成功回执则标记为失败
       const timer = setTimeout(() => {
@@ -441,14 +433,13 @@ function App() {
           return {
             ...prev,
             [selectedContact.id]: contactMessages.map(msg =>
-              msg.id === tempId ? { ...msg, status: 'fail' } : msg
+              msg.id === messageId ? { ...msg, status: 'fail' } : msg
             )
           };
         });
-        pendingGroupTimersRef.current.delete(tempId);
+        pendingGroupTimersRef.current.delete(messageId);
       }, 10000);
-      pendingGroupTimersRef.current.set(tempId, timer);
-
+      pendingGroupTimersRef.current.set(messageId, timer);
       setGroupDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
     }
   }, [selectedContact, currentUser, socket]);
@@ -470,7 +461,7 @@ function App() {
       }));
       handleSendgroupMessage(msg.text);
     }
-  }, [messages, groupMessages])
+  }, [])
 
 
   const handleDraftChange = useCallback((contactId, contactType, text) => {
@@ -482,21 +473,52 @@ function App() {
     }
   }, []);
 
-  const loadMoreMessages = useCallback(async (contactId) => {
-    const currentPage = messagePages[contactId] || 1;
-    const nextPage = currentPage + 1;
+  const messagesRef = useRef(messages);
 
-    if (window.electronAPI && currentUser) {
-      const olderMessages = await window.electronAPI.getChatHistory(contactId, currentUser.userId, nextPage, 20);
-      if (olderMessages.length > 0) {
-        setMessages(prev => ({
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const loadMoreMessages = useCallback(async (contact) => {
+    if (!window.electronAPI || !currentUser) return;
+
+    const contactId = contact.id;
+    const isGroup = contact.type === 'group';
+
+    const currentMessages = messagesRef.current[contactId] || [];
+    const oldestMessage = currentMessages[0];
+    const beforeTimestamp = oldestMessage?.timestamp ?? null;
+
+    const olderMessages = await window.electronAPI.getChatHistory(
+      contactId,
+      currentUser.userId,
+      20,
+      isGroup,
+      beforeTimestamp
+    );
+
+
+    if (Array.isArray(olderMessages) && olderMessages.length > 0) {
+      setMessages(prev => {
+        const existing = prev[contactId] || [];
+        const existingIds = new Set(existing.map(m => m.id));
+
+        const dedupedOlder = olderMessages.filter(
+          m => !existingIds.has(m.id)
+        );
+
+        if (dedupedOlder.length === 0) {
+          return prev;
+        }
+
+        return {
           ...prev,
-          [contactId]: [...olderMessages, ...prev[contactId]]
-        }));
-        setMessagePages(prev => ({ ...prev, [contactId]: nextPage }));
-      }
+          [contactId]: [...dedupedOlder, ...existing]
+        };
+      });
     }
-  }, [currentUser, messagePages]);
+  }, [currentUser]);
+
 
   const handleUploadFile = useCallback(async ({ filePath }) => {
     if (!currentUser || !selectedContact) return;
@@ -557,7 +579,7 @@ function App() {
 
         // 4. 将最终消息保存到本地数据库
         if (window.electronAPI) {
-          window.electronAPI.chatMessage(selectedContact.id, currentUser.userId, finalMessage);
+          window.electronAPI.chatMessage(selectedContact.id, finalMessage);
         }
 
       } else {
@@ -636,7 +658,7 @@ function App() {
           onDraftChange={handleDraftChange}
           onSendMessage={handleSendMessage}
           onSendGroupMessage={handleSendgroupMessage}
-          onLoadMore={() => loadMoreMessages(selectedContact.id)}
+          onLoadMore={() => loadMoreMessages(selectedContact)}
           onUploadFile={handleUploadFile}
           onResendMessage={handleResendMessage}
           deleteContact={handleDeleteContact}

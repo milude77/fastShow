@@ -1,8 +1,10 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  chatMessage: (contactId, currentUserID, msg) => ipcRenderer.send('chat-message', { contactId, currentUserID, msg }),
-  sendMessageStatusChange: (senderInfo, sendMessageId, receiverId, status, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, receiverId, status, isGroup }),
+  chatMessage: (contactId, msg) => ipcRenderer.send('chat-message', { contactId, msg }),
+  sendPrivateMessage: ( { receiverId, message } ) => ipcRenderer.invoke('send-private-message', { receiverId, message }),
+  sendGroupMessage: ( { groupId, message } ) => ipcRenderer.invoke('send-group-message', { groupId, message }),
+  sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
   resendMessage: (messageId) => ipcRenderer.invoke('resend-message', { messageId }),
   // 触发文件选择对话框，并返回文件路径
   selectFile: () => ipcRenderer.invoke('select-file'),
@@ -28,7 +30,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFileLocation: (messageId) => ipcRenderer.invoke('open-file-location', { messageId }),
   checkFileExists: (messageId) => ipcRenderer.invoke('check-file-exists', { messageId }),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
-  getChatHistory: (contactId, currentUserID, page, pageSize, isGroup) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, page, pageSize, isGroup }),
+  getChatHistory: (contactId, currentUserID, pageSize, isGroup, beforeTimestamp) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, pageSize, isGroup, beforeTimestamp }),
   getServerUrl: () => ipcRenderer.invoke('get-server-url'),
   getInviteInformationList: () => ipcRenderer.invoke('get-invite-information-list'),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),

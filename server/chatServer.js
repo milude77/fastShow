@@ -162,7 +162,7 @@ async function handleSendDisconnectMessage(socket, user) {
     .join('users as u', 'm.sender_id', 'u.id')
     .where({ 'm.receiver_id': user.userId, 'm.status': 'sent' })
     .select(
-      'm.id',
+      'm.message_id',
       'm.sender_id',
       'm.receiver_id',
       'm.content',
@@ -177,11 +177,11 @@ async function handleSendDisconnectMessage(socket, user) {
 
   // 使用 JOIN 查询一次性获取未送达的群聊消息和发送者信息
   const undeliveredGroupMessages = await db('group_message_read_status as gmrs')
-    .join('group_messages as gm', 'gm.id', 'gmrs.group_message_id')
+    .join('group_messages as gm', 'gm.message_id', 'gmrs.group_message_id')
     .join('users as u', 'gm.sender_id', 'u.id')
     .where({ 'gmrs.user_id': user.userId, 'gmrs.status': 'sent' })
     .select(
-      'gm.id',
+      'gm.message_id',
       'gm.sender_id',
       'gm.group_id as receiver_id',
       'gm.content',
@@ -194,6 +194,7 @@ async function handleSendDisconnectMessage(socket, user) {
   // 发送群聊消息
   for (const msg of undeliveredGroupMessages) {
     socket.emit('new-message', {
+      message_id: msg.message_id,
       username: msg.sender_username,
       content: msg.content,
       timestamp: msg.timestamp,
@@ -203,12 +204,13 @@ async function handleSendDisconnectMessage(socket, user) {
       messageType: msg.message_type,
       status: 'success'
     });
-    await db('group_message_read_status').where({ group_message_id: msg.id }).where({ user_id: user.userId }).update({ status: 'delivered' });
+    await db('group_message_read_status').where({ group_message_id: msg.message_id }).where({ user_id: user.userId }).update({ status: 'delivered' });
   }
 
   // 发送私聊消息
   for (const msg of undeliveredMessages) {
     socket.emit('new-message', {
+      message_id: msg.message_id,
       username: msg.sender_username,
       content: msg.content,
       timestamp: msg.timestamp,
@@ -221,7 +223,7 @@ async function handleSendDisconnectMessage(socket, user) {
       fileSize: msg.file_size,
       status: 'success'
     });
-    await db('messages').where({ id: msg.id }).update({ status: 'delivered' });
+    await db('messages').where({ message_id: msg.message_id }).update({ status: 'delivered' });
   }
 }
 
@@ -370,8 +372,10 @@ io.on('connection', (socket) => {
 
 
   // 处理私聊消息
-  socket.on('send-private-message', async (data) => {
-    const { message, receiverId } = data; // 接收 receiverId
+  socket.on('send-private-message', async (message) => {
+
+    const receiverId = message.receiver_id;
+
     const senderInfo = onlineUsers.get(socket.id);
 
     if (!senderInfo) {
@@ -388,8 +392,10 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: `用户ID ${receiverId} 不存在` });
       return;
     }
+    const sendMessageId = message.id
 
     const newMessage = {
+      message_id: sendMessageId,
       sender_id: senderInfo.userId,
       receiver_id: receiverUser.id,
       room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`,
@@ -402,7 +408,7 @@ io.on('connection', (socket) => {
 
     // 存储消息到数据库
     const [messageId] = await db('messages').insert(newMessage);
-    const sendMessageId = message.id
+
     const savedMessage = {
       id: sendMessageId,
       username: senderInfo.username,
@@ -416,12 +422,10 @@ io.on('connection', (socket) => {
     };
 
 
-    // 查找接收方是否在线
-    const targetSocketId = Array.from(onlineUsers.entries())
-      .find(([, uInfo]) => uInfo.userId === receiverUser.id)?.[0];
 
-    if (targetSocketId) {
-      // 接收方在线，直接发送
+
+    if (onlineUsersIds.has(receiverId)) {
+      const targetSocketId = onlineUsersIds.get(receiverId).socketId;
       io.to(targetSocketId).emit('new-message', savedMessage);
       await db('messages').where({ id: messageId }).update({ status: 'delivered' });
     } else {
@@ -429,13 +433,14 @@ io.on('connection', (socket) => {
       console.log(`用户 ${receiverUser.username} 离线，消息将等待上线后投递`);
     }
 
-    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId, status: 'success', isGroup: false });
+    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId, isGroup: false });
 
   });
 
-  socket.on('send-group-message', async (data) => {
-    const { message, groupId } = data;
+  socket.on('send-group-message', async (message) => {
     const senderInfo = onlineUsers.get(socket.id);
+    const groupId = message.receiver_id;
+    const sendMessageId = message.id
 
     if (!senderInfo) {
       socket.emit('error', { message: '发送者信息不存在' });
@@ -452,12 +457,10 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // 再获取群组所有成员
     const groupMembers = await db('group_members')
       .where({ group_id: groupId })
       .select('user_id');
 
-    const groupMemberIds = groupMembers.map(m => m.user_id);
     const sendTimestamp = new Date();
 
     const newMessage = {
@@ -465,19 +468,10 @@ io.on('connection', (socket) => {
       sender_id: senderInfo.userId,
       content: message.text,
       timestamp: sendTimestamp,
+      message_id: sendMessageId,
     };
 
-    // 存储消息到数据库
-    const [messageId] = await db('group_messages').insert(newMessage);
-    for (const member of groupMembers) {
-      await db('group_message_read_status').insert({
-        group_message_id: messageId,
-        user_id: member.user_id,
-        status: 'sent',
-        timestamp: sendTimestamp
-      });
-    }
-    const sendMessageId = message.id
+
     const savedMessage = {
       id: sendMessageId,
       username: senderInfo.username,
@@ -489,15 +483,23 @@ io.on('connection', (socket) => {
       status: 'success'
     };
 
-    const onlineMemberSockets = Array.from(onlineUsers.entries())
-      .filter(([, userInfo]) => groupMemberIds.includes(userInfo.userId))
-      .map(([socketId]) => socketId);
-    // 向所有在线群成员发送消息
-    onlineMemberSockets.forEach(socketId => {
-      io.to(socketId).emit('new-message', savedMessage);
-    });
-
-    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, status: 'success', isGroup: true });
+    // 存储消息到数据库
+    await db('group_messages').insert(newMessage);
+    for (const member of groupMembers) {
+      if (onlineUsersIds.has(member.user_id)) {
+        const targetSocketId = onlineUsersIds.get(member.user_id).socketId;
+        io.to(targetSocketId).emit('new-message', savedMessage);
+      }
+      else {
+        await db('group_message_read_status').insert({
+          group_message_id: sendMessageId,
+          user_id: member.user_id,
+          status: 'sent',
+          timestamp: sendTimestamp,
+        });
+      }
+    }
+    socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, isGroup: true });
   });
 
 
@@ -652,10 +654,10 @@ io.on('connection', (socket) => {
   });
 
   //接受群聊邀请的请求
-  socket.on('accept-group-invite', async (requesterId) => { 
+  socket.on('accept-group-invite', async (requesterId) => {
     const senderInfo = onlineUsers.get(socket.id);
     if (!senderInfo || !requesterId) return;
-    try { 
+    try {
       const timestamp = new Date();
       await db('group_invitations')
         .where({ id: requesterId, status: 'pending' })
@@ -665,7 +667,7 @@ io.on('connection', (socket) => {
         .join('users', 'group_invitations.invited_user_id', 'users.id')
         .select('gi.group_id as groupId', 'users.id as userId', 'users.username')
         .first();
-      
+
       await db('group_members').insert({
         group_id: newMemberInformation.groupId,
         user_id: newMemberInformation.userId,
@@ -680,19 +682,19 @@ io.on('connection', (socket) => {
         .join('group_members as gm', 'group_invitations.group_id', 'group_members.group_id')
         .select('gm.id');
 
-      groupMembers.map(member => { 
-        if (onlineUsersIds.get(member.id)) { 
-          io.to(onlineUsersIds.get(member.id)).emit('new-group-member', { 
+      groupMembers.map(member => {
+        if (onlineUsersIds.get(member.id)) {
+          io.to(onlineUsersIds.get(member.id)).emit('new-group-member', {
             id: newMemberInformation.userId,
             username: newMemberInformation.username,
             groupId: newMemberInformation.groupId,
-          }); 
+          });
         }
-})
-    } catch (error) { 
-      console.error('Error accepting group invite:', error); 
+      })
+    } catch (error) {
+      console.error('Error accepting group invite:', error);
     }
-})
+  })
 
   socket.on('create-group', async ({ checkedContacts }) => {
     const senderInfo = onlineUsers.get(socket.id);
@@ -793,7 +795,7 @@ io.on('connection', (socket) => {
           .where({ group_id: groupId, user_id: contact.id })
           .first();
         if (existingMember) {
-          socket.emit('notification', { status:'error', message: `${contact.userName} 已是群成员` });
+          socket.emit('notification', { status: 'error', message: `${contact.userName} 已是群成员` });
           continue; // 跳过当前联系人，继续处理下一个
         }
 
@@ -805,7 +807,7 @@ io.on('connection', (socket) => {
           .where('id', invitationId)
           .first();
         if (existingInvite) {
-          socket.emit('notification', {status:'error', message: `已邀请 ${contact.userName}, 勿重复邀请` });
+          socket.emit('notification', { status: 'error', message: `已邀请 ${contact.userName}, 勿重复邀请` });
           continue; // 跳过当前联系人，继续处理下一个
         }
 
@@ -831,9 +833,9 @@ io.on('connection', (socket) => {
           });
         }
       }
-      socket.emit('notification', {status:'success', message: `发送请求成功` });
+      socket.emit('notification', { status: 'success', message: `发送请求成功` });
     }
-    
+
     catch (error) {
       console.error('Error inviting friends to join group:', error);
     }
