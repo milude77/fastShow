@@ -338,7 +338,7 @@ function createTray(mainWindow) {
     if (tray) {
         return;
     }
-    const iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'title.png');
+    const iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
     tray = new Tray(iconPath);
 
     const contextMenu = Menu.buildFromTemplate([
@@ -373,12 +373,14 @@ function createTray(mainWindow) {
 }
 
 function createMainWindow() {
+    const iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
     mainWindow = new BrowserWindow({
         width: 400,
         height: 600,
         minHeight: 300,
         minWidth: 400,
         frame: false,
+        icon: iconPath,
         webPreferences: {
             preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
             devTools: isDev
