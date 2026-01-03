@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 触发文件选择对话框，并返回文件路径
   selectFile: () => ipcRenderer.invoke('select-file'),
   // 使用新的MinIO上传流程
-  initiateFileUpload: (filePath, senderId, receiverId) => ipcRenderer.invoke('initiate-file-upload', { filePath, senderId, receiverId }),
+  initiateFileUpload: (filePath, senderId, receiverId, isGroup) => ipcRenderer.invoke('initiate-file-upload', { filePath, senderId, receiverId, isGroup }),
   getDropFilePath: (droppedFiles) => {
     try {
       const list = Array.isArray(droppedFiles) ? droppedFiles : Array.from(droppedFiles || []);

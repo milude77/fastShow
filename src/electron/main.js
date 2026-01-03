@@ -11,6 +11,7 @@ import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
+import { text } from 'stream/consumers';
 
 
 // ESM-compliant __dirname
@@ -190,7 +191,6 @@ async function readChatHistory(
 async function writeChatHistory(contactId, msg) {
     try {
         // 确保数据库已初始化
-        console.log(msg)
         const exists = await db.schema.hasTable('messages') && await db.schema.hasTable('group_messages');
         if (!exists) {
             await initializeDatabase(db);
@@ -217,7 +217,6 @@ async function writeChatHistory(contactId, msg) {
             await db('messages').insert(messageData);
         }
         else {
-            console.log(messageData);
             await db('group_messages').insert(messageData);
         }
     } catch (error) {
@@ -657,7 +656,7 @@ ipcMain.handle('send-private-message', async (event, { receiverId, message }) =>
     return messageId;
 });
 
-ipcMain.handle('send-group-message', async (event, { groupId, message }) => { 
+ipcMain.handle('send-group-message', async (event, { groupId, message }) => {
     const messageId = snowflake.nextId().toString();
     const fullMessage = {
         ...message,
@@ -812,7 +811,7 @@ ipcMain.handle('select-file', async (event) => {
 });
 
 // 2. 处理文件上传流程
-ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, receiverId }) => {
+ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, receiverId, isGroup }) => {
     if (!filePath) {
         return { success: false, error: '文件路径不能为空' };
     }
@@ -825,7 +824,9 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         // --- 步骤 1: 从服务器获取预签名 URL ---
         const initiateResponse = await axios.post(`${SOCKET_SERVER_URL}/api/upload/initiate`, {
             fileName,
-            senderId
+            senderId,
+            isGroup,
+            receiverId
         }, {
             headers: {
                 'authorization': `Bearer ${store.get('currentUserCredentials').token}`
@@ -853,6 +854,8 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             }
         });
 
+        const messageId = snowflake.nextId().toString();
+
         // --- 步骤 3: 通知服务器上传完成 ---
         const completeResponse = await axios.post(`${SOCKET_SERVER_URL}/api/upload/complete`, {
             fileName,
@@ -860,7 +863,9 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             fileId,
             fileSize,
             receiverId,
-            senderId
+            senderId,
+            messageId,
+            isGroup
         }, {
             headers: {
                 'authorization': `Bearer ${store.get('currentUserCredentials').token}`
@@ -868,7 +873,27 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         }
         );
 
-        return { success: true, messageData: completeResponse.data.messageData };
+        const returnedData = completeResponse.data.messageData;
+
+        const saveMessage = {
+            id: messageId,
+            text: returnedData.content,
+            sender: 'user',
+            sender_id: returnedData.senderId,
+            timestamp: returnedData.timestamp,
+            username: returnedData.username,
+            fileName: returnedData.fileName,
+            messageType: returnedData.messageType,
+            type: returnedData.type,
+            fileUrl: returnedData.fileUrl,
+            fileSize: returnedData.fileSize,
+            status: 'success',
+            fileExt: true,
+        }
+
+        await writeChatHistory(receiverId, saveMessage)
+
+        return { success: true, messageData: returnedData };
 
     } catch (error) {
         console.error('文件上传失败:', error.response ? error.response.data : error.message);

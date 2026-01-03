@@ -185,7 +185,6 @@ function App() {
       fileSize: msg.fileSize,
     }
 
-    console.log("收到新消息:", newMessage);
 
     if (window.electronAPI) {
       try { window.electronAPI.chatMessage(contactId, newMessage); }
@@ -525,6 +524,7 @@ function App() {
 
     const fileName = filePath.split(/[\\/]/).pop();
     const tempId = `temp_file_${Date.now()}`;
+    const isGroup = selectedContact.type === 'group';
 
     // 1. 在UI中立即显示一个“正在上传”的临时消息
     const tempMessage = {
@@ -532,7 +532,7 @@ function App() {
       text: '',
       sender: 'user',
       sender_id: currentUser.userId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
       username: currentUser.username,
       messageType: 'file',
       fileName: fileName,
@@ -542,18 +542,25 @@ function App() {
       fileExt: true,
       status: 'sending'
     };
-
-    setMessages(prev => ({
-      ...prev,
-      [selectedContact.id]: [...(prev[selectedContact.id] || []), tempMessage]
-    }));
-
+    if (isGroup) {
+      setGroupMessages(prev => ({
+        ...prev,
+        [selectedContact.id]: [...(prev[selectedContact.id] || []), tempMessage]
+      }));
+    }
+    else {
+      setMessages(prev => ({
+        ...prev,
+        [selectedContact.id]: [...(prev[selectedContact.id] || []), tempMessage]
+      }));
+    }
     try {
       // 2. 调用主进程的上传函数
       const result = await window.electronAPI.initiateFileUpload(
         filePath,
         currentUser.userId,
-        selectedContact.id
+        selectedContact.id,
+        isGroup
       );
 
       if (result.success) {
@@ -567,21 +574,28 @@ function App() {
           status: 'success'
         };
 
-        setMessages(prev => {
-          const contactMessages = prev[selectedContact.id] || [];
-          return {
-            ...prev,
-            [selectedContact.id]: contactMessages.map(msg =>
-              msg.id === tempId ? finalMessage : msg
-            )
-          };
-        });
-
-        // 4. 将最终消息保存到本地数据库
-        if (window.electronAPI) {
-          window.electronAPI.chatMessage(selectedContact.id, finalMessage);
+        if (isGroup) {
+          setMessages(prev => {
+            const contactMessages = prev[selectedContact.id] || [];
+            return {
+              ...prev,
+              [selectedContact.id]: contactMessages.map(msg =>
+                msg.id === tempId ? finalMessage : msg
+              )
+            };
+          })
         }
-
+        else {
+          setGroupMessages(prev => {
+            const contactMessages = prev[selectedContact.id] || [];
+            return {
+              ...prev,
+              [selectedContact.id]: contactMessages.map(msg =>
+                msg.id === tempId ? finalMessage : msg
+              )
+            };
+          })
+        }
       } else {
         throw new Error(result.error);
       }
