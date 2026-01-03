@@ -11,7 +11,6 @@ import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
-import { text } from 'stream/consumers';
 
 
 // ESM-compliant __dirname
@@ -889,6 +888,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             fileSize: returnedData.fileSize,
             status: 'success',
             fileExt: true,
+            localPath: filePath,
         }
 
         await writeChatHistory(receiverId, saveMessage)
@@ -901,7 +901,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
     }
 });
 
-ipcMain.handle('download-file', async (event, { fileUrl, fileName }) => {
+ipcMain.handle('download-file', async (event, { messageId, fileUrl, fileName, isGroup }) => {
     try {
         if (!fileUrl) {
             throw new Error('文件URL为空');
@@ -910,7 +910,7 @@ ipcMain.handle('download-file', async (event, { fileUrl, fileName }) => {
         // 如果是相对路径，构建完整URL
         let fullUrl = fileUrl;
         if (!fileUrl.startsWith('http')) {
-            fullUrl = `${SOCKET_SERVER_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+            fullUrl = `${SOCKET_SERVER_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}/${String(isGroup)}`;
         }
 
         // 获取下载文件夹路径
@@ -936,8 +936,8 @@ ipcMain.handle('download-file', async (event, { fileUrl, fileName }) => {
         try {
             if (db) {
                 // 根据fileUrl查找并更新fileExt状态和localFilePath
-                await db('messages')
-                    .where('fileUrl', fileUrl)
+                await db(isGroup ? 'group_messages' : 'messages')
+                    .where('id', messageId)
                     .update({
                         fileExt: true,
                         localFilePath: filePath
@@ -955,7 +955,7 @@ ipcMain.handle('download-file', async (event, { fileUrl, fileName }) => {
     }
 });
 
-ipcMain.handle('open-file-location', async (event, { messageId }) => {
+ipcMain.handle('open-file-location', async (event, { messageId, isGroup }) => {
     try {
         if (!messageId) {
             throw new Error('消息ID为空');
@@ -966,7 +966,7 @@ ipcMain.handle('open-file-location', async (event, { messageId }) => {
             throw new Error('数据库未连接');
         }
 
-        const message = await db('messages')
+        const message = await db(isGroup ? 'group_messages' :'messages')
             .select('localFilePath', 'fileUrl')
             .where('id', messageId)
             .first();
@@ -981,7 +981,7 @@ ipcMain.handle('open-file-location', async (event, { messageId }) => {
         if (!fs.existsSync(filePath)) {
             // 更新数据库中的文件存在状态
             try {
-                await db('messages')
+                await db(isGroup ? 'group_messages' : 'messages' )
                     .where('id', messageId)
                     .update({ fileExt: false });
                 console.log('Updated fileExt status to false for:', messageId);
@@ -1026,7 +1026,7 @@ ipcMain.handle('resend-message', async (event, { messageId, isGroup }) => {
     }
 });
 
-ipcMain.handle('check-file-exists', async (event, { messageId }) => {
+ipcMain.handle('check-file-exists', async (event, { messageId, isGroup }) => {
     try {
         if (!messageId) {
             return { exists: false, error: '消息ID为空' };
@@ -1037,14 +1037,14 @@ ipcMain.handle('check-file-exists', async (event, { messageId }) => {
             return { exists: false, error: '数据库未连接' };
         }
 
-        const message = await db('messages')
+        const message = await db(isGroup ? 'group_messages' : 'messages')
             .select('localFilePath')
             .where('id', messageId)
             .first();
 
         if (!message || !message.localFilePath) {
             try {
-                await db('messages')
+                await db(isGroup ? 'group_messages' : 'messages')
                     .where('id', messageId)
                     .update({ fileExt: false });
             } catch (dbError) {
@@ -1055,7 +1055,7 @@ ipcMain.handle('check-file-exists', async (event, { messageId }) => {
 
         if (!fs.existsSync(message.localFilePath)) {
             try {
-                await db('messages')
+                await db(isGroup ? 'group_messages' : 'messages')
                     .where('id', messageId)
                     .update({ fileExt: false });
             } catch (dbError) {

@@ -15,7 +15,8 @@ const MessageItem = ({
     handleResendFile, 
     handleOpenFileLocation, 
     handleDownloadFile, 
-    convertFileSize 
+    convertFileSize,
+    isGroup
 }) => {
     const showTimestamp = shouldShowTimestamp(msg.timestamp, messages[index - 1]?.timestamp);
     const key = msg.id || `${msg.timestamp}-${index}`;
@@ -65,7 +66,7 @@ const MessageItem = ({
                                             <Button
                                                 style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#52c41a', color: 'white' }}
                                                 type="primary"
-                                                onClick={() => handleOpenFileLocation(msg.id)}
+                                                onClick={() => handleOpenFileLocation(msg.id, isGroup)}
                                                 title="打开文件位置"
                                             >
                                                 <FolderOpenOutlined />
@@ -74,7 +75,7 @@ const MessageItem = ({
                                             <Button
                                                 style={{ top: '50%', transform: 'translateY(-50%)', backgroundColor: '#8f8f8fff', color: 'white' }}
                                                 type="primary"
-                                                onClick={() => handleDownloadFile(msg.fileUrl, msg.fileName)}
+                                                onClick={() => handleDownloadFile(msg.id, msg.fileUrl, msg.fileName, isGroup)}
                                                 title="下载文件"
                                             >
                                                 <DownloadOutlined />

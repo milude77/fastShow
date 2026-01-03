@@ -24,11 +24,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return null;
     }
   },
-  downloadFile: (fileUrl, fileName) => ipcRenderer.invoke('download-file', { fileUrl, fileName }),
+  downloadFile: (messageId, fileUrl, fileName, isGroup) => ipcRenderer.invoke('download-file', { messageId, fileUrl, fileName, isGroup }),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
-  openFileLocation: (messageId) => ipcRenderer.invoke('open-file-location', { messageId }),
-  checkFileExists: (messageId) => ipcRenderer.invoke('check-file-exists', { messageId }),
+  openFileLocation: (messageId, isGroup) => ipcRenderer.invoke('open-file-location', { messageId, isGroup }),
+  checkFileExists: (messageId, isGroup) => ipcRenderer.invoke('check-file-exists', { messageId, isGroup }), 
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, pageSize, isGroup, beforeTimestamp) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, pageSize, isGroup, beforeTimestamp }),
   getServerUrl: () => ipcRenderer.invoke('get-server-url'),

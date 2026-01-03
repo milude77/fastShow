@@ -231,12 +231,12 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
 
     // 处理文件下载
-    const handleDownloadFile = async (fileUrl, fileName) => {
+    const handleDownloadFile = async (messageId, fileUrl, fileName, isGroup) => {
         try {
             if (!fileUrl) {
                 return;
             }
-            const result = await window.electronAPI.downloadFile(fileUrl, fileName);
+            const result = await window.electronAPI.downloadFile(messageId, fileUrl, fileName, isGroup);
             if (result.success) {
                 return
             } else {
@@ -250,12 +250,12 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     };
 
     // 处理打开文件位置
-    const handleOpenFileLocation = async (messageId) => {
+    const handleOpenFileLocation = async (messageId, isGroup) => {
         try {
             // 检查文件是否存在
-            const checkResult = await window.electronAPI.checkFileExists(messageId);
+            const checkResult = await window.electronAPI.checkFileExists(messageId, isGroup);
             if (checkResult.exists) {
-                const result = await window.electronAPI.openFileLocation(messageId);
+                const result = await window.electronAPI.openFileLocation(messageId, isGroup);
                 if (!result.success) {
                     messageApi.error('无法打开文件位置: ' + result.error);
                 }
@@ -391,6 +391,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                                     handleOpenFileLocation={handleOpenFileLocation}
                                     handleDownloadFile={handleDownloadFile}
                                     convertFileSize={convertFileSize}
+                                    isGroup={contact.type === 'group'}
                                 />
                             ))}
                         </ul >

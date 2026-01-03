@@ -12,7 +12,6 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import * as Minio from 'minio';
 
-
 // 获取当前文件的目录路径（ES模块中需要这样处理）
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -175,6 +174,7 @@ async function handleSendDisconnectMessage(socket, user) {
     )
     .orderBy('m.timestamp', 'asc');
 
+
   // 使用 JOIN 查询一次性获取未送达的群聊消息和发送者信息
   const undeliveredGroupMessages = await db('group_message_read_status as gmrs')
     .join('group_messages as gm', 'gm.message_id', 'gmrs.group_message_id')
@@ -187,6 +187,9 @@ async function handleSendDisconnectMessage(socket, user) {
       'gm.content',
       'gm.timestamp',
       'gm.message_type',
+      'gm.file_name',
+      'gm.file_url',
+      'gm.file_size',
       'u.username as sender_username'
     )
     .orderBy('gm.timestamp', 'asc');
@@ -202,6 +205,9 @@ async function handleSendDisconnectMessage(socket, user) {
       senderId: msg.sender_id,
       receiverId: msg.receiver_id,
       messageType: msg.message_type,
+      fileName: msg.file_name,
+      fileUrl: msg.file_url,
+      fileSize: msg.file_size,
       status: 'success'
     });
     await db('group_message_read_status').where({ group_message_id: msg.message_id }).where({ user_id: user.userId }).update({ status: 'delivered' });
@@ -876,14 +882,23 @@ app.get('/api/health', (req, res) => {
 });
 
 // 文件下载接口（修改为从MinIO下载）
-app.get('/api/download/:fileId', async (req, res) => {
-  const { fileId } = req.params;
+app.get('/api/download/:fileId/:isGroup', async (req, res) => {
+  const { fileId, isGroup } = req.params;
+
+  const isGroupBool = isGroup === 'true';
 
   try {
-    const fileMessage = await db('messages')
-      .where({ file_id: fileId, message_type: 'file' })
-      .first();
-
+    let fileMessage;
+    if (isGroupBool) {
+      fileMessage = await db('group_messages')
+        .where({ file_id: fileId, message_type: 'file' })
+        .first();
+    }
+    else {
+      fileMessage = await db('messages')
+        .where({ file_id: fileId, message_type: 'file' })
+        .first();
+    }
     if (!fileMessage) {
       return res.status(404).json({ error: '文件不存在或已被清理' });
     }
@@ -905,7 +920,6 @@ app.get('/api/download/:fileId', async (req, res) => {
 // JWT 验证中间件
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  console.log('Authorization header:', authHeader);
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token == null) return res.sendStatus(401);
@@ -998,20 +1012,22 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
         .select('user_id');
       for (const member of groupMembers) {
         if (onlineUsersIds.has(member.user_id)) {
-          const targetSocketId = onlineUsersIds.get(member.user_id)?.socketId; 
+          const targetSocketId = onlineUsersIds.get(member.user_id)?.socketId;
           io.to(targetSocketId).emit('new-group-message', savedMessage);
-          }
-        else{
+        }
+        else {
           await db('group_message_read_status').insert({
             group_message_id: messageId,
             user_id: member.user_id,
             status: 'sent',
             timestamp: timestamp,
           });
-        }}
+        }
+      }
     }
     else {
       newMessage.room_id = `private_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
+      newMessage.receiver_id = receiverId;
       await db('messages').insert(newMessage);
       const targetSocketId = onlineUsersIds.get(receiverId)?.socketId;
       if (targetSocketId) {
