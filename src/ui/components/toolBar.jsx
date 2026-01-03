@@ -41,7 +41,6 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
     const handleAvatarUpload = async (blob) => {
         try {
             const serverUrl = await window.electronAPI.getServerUrl();
-            console.log(localStorage.getItem('token'));
             const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`);
             const { presignedUrl, objectName } = initiateResponse.data;
 

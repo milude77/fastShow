@@ -874,6 +874,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
 
         const returnedData = completeResponse.data.messageData;
 
+
         const saveMessage = {
             id: messageId,
             text: returnedData.content,
@@ -890,6 +891,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             fileExt: true,
             localPath: filePath,
         }
+
 
         await writeChatHistory(receiverId, saveMessage)
 

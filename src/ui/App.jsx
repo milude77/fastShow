@@ -152,7 +152,6 @@ function App() {
 
   const handleNewMessage = useCallback((msg) => {
     // Safety check: Do not process messages if the user is not logged in.
-    console.log("收到新消息:", msg);
 
     const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
     const messageId = msg.message_id;

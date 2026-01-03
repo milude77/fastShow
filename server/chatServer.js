@@ -970,7 +970,7 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
   try {
     const receiverUser = await db('users').where({ id: receiverId }).first();
 
-    const timestamp = new Date();
+    const timestamp = new Date().getTime();
 
     const newMessage = {
       sender_id: senderId,
@@ -1037,6 +1037,7 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
         console.log(`用户 ${receiverUser.username} 离线，文件消息将等待上线后投递`);
       }
     }
+
 
     res.status(200).json({ message: '文件记录成功', messageData: savedMessage });
 
