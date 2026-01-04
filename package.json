@@ -57,8 +57,7 @@
     "productName": "fastShow",
     "files": [
       "dist/**/*",
-      "src/electron/main.js",
-      "src/electron/preload.js",
+      "src/electron/*",
       "index.html",
       "package.json",
       "config.json"

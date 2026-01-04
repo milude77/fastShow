@@ -7,6 +7,7 @@ import ContactOption from "./contactOption";
 import GroupMember from "./groupMember";
 import MessageInput from "./messageInput";
 import MessageItem from "./messageItem";
+import apiClient from '../../utils/api.js';
 
 
 const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
@@ -51,11 +52,11 @@ const MessageListTool = ({ openContactOptions }) => {
     )
 }
 
-const MessageListHead = ({ contact, openContactOptions }) => {
+const MessageListHead = ({ contact, openContactOptions, memberLength }) => {
     return (
         <div className='contact-info'>
             <strong>
-                {contact.username + (contact.type === 'friend' ? '' : `(${contact.members.length})`)}
+                {contact.username + (contact.type === 'friend' ? '' : `(${memberLength})`)}
             </strong>
             <MessageListTool openContactOptions={openContactOptions} />
         </div>
@@ -86,6 +87,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     const isResizingRef = useRef(false);
     const startYRef = useRef(0);
     const startHeightRef = useRef(80);
+    const [groupMemberList, setGroupMemberList] = useState([]);
     const [groupMemberListOpen, setGroupMemberListOpen] = useState(true)
     const [groupMemberListBtnDisplay, setGroupMemberListBtnDisplay] = useState(false)
 
@@ -97,6 +99,10 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     const handleServerUrlChange = async () => {
         const url = await window.electronAPI.getServerUrl();
         setServerUrl(url);
+        if (contact.type === 'group') {
+            const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
+            setGroupMemberList(response.data);
+        }
     }
 
     const onResizeMouseMove = (e) => {
@@ -157,6 +163,18 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         scrollToBottom();
     }, []);
 
+    const getGroupMemberList = async () => {
+        const url = await window.electronAPI.getServerUrl();
+        if (contact.type === 'group') {
+            const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
+            setGroupMemberList(response.data);
+        }
+    }
+
+    useEffect(() => {
+        getGroupMemberList();
+    }, [contact]);
+
     useEffect(() => {
         const newLastMessageTimestamp = messages?.[messages.length - 1]?.timestamp;
         if (newLastMessageTimestamp && newLastMessageTimestamp !== lastMessageTimestamp.current) {
@@ -168,6 +186,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     useEffect(() => {
         setOpenContactOptions(false)
     }, [contact]);
+
 
     const handleSendMessage = (message) => {
         onSendMessage(message);
@@ -361,7 +380,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
             {contextHolder}
-            <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} />
+            <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} memberLength={groupMemberList?.length || 0} />
             <div style={{ display: 'flex', flex: '1' }}>
                 <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>
                     <div className='history-message-box' style={{ height: messageHeight }} ref={messageContainerRef}
@@ -429,9 +448,9 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                     </div>
                 </div>
                 {contact.type === 'group' && groupMemberListOpen && (
-                    <GroupMember members={contact.members} serverUrl={serverUrl} currentUser={currentUser} />
+                    <GroupMember members={groupMemberList} serverUrl={serverUrl} currentUser={currentUser} />
                 )}
-                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} deleteContactMessageHistory={handleDeleteContactMessageHistory} deleteContact={deleteContact} onClose={handleCloseContactOptions} inviteFriendsJoinGroup={inviteFriendsJoinGroup} />
+                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} deleteContactMessageHistory={handleDeleteContactMessageHistory} deleteContact={deleteContact} onClose={handleCloseContactOptions} inviteFriendsJoinGroup={inviteFriendsJoinGroup} groupMemberList={groupMemberList} />
             </div>
         </div>
     )

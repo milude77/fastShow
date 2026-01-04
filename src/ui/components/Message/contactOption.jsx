@@ -3,7 +3,7 @@ import { message, Modal } from 'antd';
 import './css/contactOption.css'
 
 
-const ContactOption = ({ contact, currentUser, openContactOptions, deleteContactMessageHistory, deleteContact, onClose, inviteFriendsJoinGroup }) => {
+const ContactOption = ({ contact, currentUser, openContactOptions, deleteContactMessageHistory, deleteContact, onClose, inviteFriendsJoinGroup, groupMemberList }) => {
     const optionRef = useRef(null);
     const [modal, modalContextHolder] = Modal.useModal();
     const [serverUrl, setServerUrl] = useState('');
@@ -106,7 +106,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             }
             {contact.type === 'group' &&
                 <div className="group-member-list" >
-                    {contact.members.slice(0, Math.min(contact.members.length, 14)).map((member, index) => {
+                    {groupMemberList.slice(0, Math.min(groupMemberList.length, 14)).map((member, index) => {
                         return (
                             <div className="group-member" key={index}>
                                 <img src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`} alt={member.userName} />

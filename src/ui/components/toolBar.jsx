@@ -4,7 +4,7 @@ import { Button } from 'antd';
 import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import AvatarUploader from './AvatarUploader';
-import apiClient from '../utils/api';
+import apiClient from '../utils/api.js';
 
 const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
     const [avatarSrc, setAvatarSrc] = useState('');

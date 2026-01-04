@@ -120,41 +120,20 @@ async function getGroupsList(socket) {
 
   const groupIds = baseGroups.map(g => g.groupId);
 
-  let membersByGroup = {};
   if (groupIds.length > 0) {
-    const members = await db('group_members as m')
-      .whereIn('m.group_id', groupIds)
-      .select(
-        'm.group_id as groupId',
-        'm.user_id as userId',
-        'm.user_name as userName',
-        'm.created_at as createdAt',
-        'm.role as role'
-      );
 
-    membersByGroup = members.reduce((acc, m) => {
-      (acc[m.groupId] = acc[m.groupId] || []).push({
-        userId: m.userId,
-        userName: m.userName,
-        role: m.role
-      });
-      return acc;
-    }, {});
+    // 组装返回结构：每个群附带成员列表
+    const payload = baseGroups.map(g => ({
+      id: g.groupId,
+      username: g.groupName,
+      myName: g.myName,
+      myRole: g.myRole,
+      joinedAt: g.joinedAt,
+      type: 'group'
+    }));
+    return payload;
   }
-
-  // 组装返回结构：每个群附带成员列表
-  const payload = baseGroups.map(g => ({
-    id: g.groupId,
-    username: g.groupName,
-    myName: g.myName,
-    myRole: g.myRole,
-    members: membersByGroup[g.groupId] || [],
-    joinedAt: g.joinedAt,
-    type: 'group'
-  }));
-  return payload;
 }
-
 async function handleSendDisconnectMessage(socket, user) {
   // 使用 JOIN 查询一次性获取未送达的私聊消息和发送者信息
   const undeliveredMessages = await db('messages as m')
@@ -1145,6 +1124,21 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
     console.error('头像下载失败:', error);
     res.status(500).json({ error: '头像下载失败' });
   }
+});
+
+
+app.get('/api/getGroupMember/:groupId/', authenticateToken , async (req, res) => {
+  const { groupId } = req.params;
+
+  const groupMembers = await db('group_members as m')
+    .where('m.group_id', groupId)
+    .select(
+      'm.user_id as userId',
+      'm.user_name as userName',
+      'm.role as role'
+    );
+
+  res.json(groupMembers);
 });
 
 // 启动服务器

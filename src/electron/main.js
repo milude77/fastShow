@@ -7,6 +7,7 @@ import Store from 'electron-store';
 import knex from 'knex';
 import fs from 'fs';
 import fetch from 'node-fetch';
+import apiClient from './api.js';
 import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
@@ -373,7 +374,28 @@ function createTray(mainWindow) {
 }
 
 function createMainWindow() {
-    const iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
+    let iconPath;
+    if (isDev) {
+        iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
+    } else {
+        // 生产环境中图标可能在 dist 目录下，或者直接在根目录
+        iconPath = path.join(app.getAppPath(), 'dist', 'assets', 'icon.png');
+        // 如果上面的路径不存在，尝试其他可能的位置
+        if (!fs.existsSync(iconPath)) {
+            iconPath = path.join(app.getAppPath(), 'resources', 'app.asar.unpacked', 'src', 'ui', 'assets', 'icon.png');
+        }
+        if (!fs.existsSync(iconPath)) {
+            iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
+        }
+    }
+
+    // 确保图标文件存在，否则不设置图标
+    if (!fs.existsSync(iconPath)) {
+        console.warn('Icon file not found:', iconPath);
+        iconPath = null; // 或者使用默认图标
+    }
+
+
     mainWindow = new BrowserWindow({
         width: 400,
         height: 600,
@@ -823,15 +845,11 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         const fileSize = fileStats.size;
 
         // --- 步骤 1: 从服务器获取预签名 URL ---
-        const initiateResponse = await axios.post(`${SOCKET_SERVER_URL}/api/upload/initiate`, {
+        const initiateResponse = await apiClient.post(`${SOCKET_SERVER_URL}/api/upload/initiate`, {
             fileName,
             senderId,
             isGroup,
             receiverId
-        }, {
-            headers: {
-                'authorization': `Bearer ${store.get('currentUserCredentials').token}`
-            },
         });
 
         const { presignedUrl, objectName, fileId } = initiateResponse.data;
@@ -858,7 +876,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         const messageId = snowflake.nextId().toString();
 
         // --- 步骤 3: 通知服务器上传完成 ---
-        const completeResponse = await axios.post(`${SOCKET_SERVER_URL}/api/upload/complete`, {
+        const completeResponse = await apiClient.post(`${SOCKET_SERVER_URL}/api/upload/complete`, {
             fileName,
             objectName,
             fileId,
@@ -867,12 +885,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             senderId,
             messageId,
             isGroup
-        }, {
-            headers: {
-                'authorization': `Bearer ${store.get('currentUserCredentials').token}`
-            },
-        }
-        );
+        });
 
         const returnedData = completeResponse.data.messageData;
 
@@ -970,7 +983,7 @@ ipcMain.handle('open-file-location', async (event, { messageId, isGroup }) => {
             throw new Error('数据库未连接');
         }
 
-        const message = await db(isGroup ? 'group_messages' :'messages')
+        const message = await db(isGroup ? 'group_messages' : 'messages')
             .select('localFilePath', 'fileUrl')
             .where('id', messageId)
             .first();
@@ -985,7 +998,7 @@ ipcMain.handle('open-file-location', async (event, { messageId, isGroup }) => {
         if (!fs.existsSync(filePath)) {
             // 更新数据库中的文件存在状态
             try {
-                await db(isGroup ? 'group_messages' : 'messages' )
+                await db(isGroup ? 'group_messages' : 'messages')
                     .where('id', messageId)
                     .update({ fileExt: false });
                 console.log('Updated fileExt status to false for:', messageId);
