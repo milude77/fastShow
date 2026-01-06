@@ -339,8 +339,37 @@ function createTray(mainWindow) {
     if (tray) {
         return;
     }
-    const iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
-    tray = new Tray(iconPath);
+
+    let trayIconPath;
+    if (isDev) {
+        trayIconPath = path.join(__dirname, '..', '..', 'build', 'icon.png');
+    } else {
+        // 托盘图标使用与主窗口相同的路径策略
+        const resourceIconPath = path.join(process.resourcesPath, 'build', 'icon.png');
+        if (fs.existsSync(resourceIconPath)) {
+            trayIconPath = resourceIconPath;
+        } else {
+            const appIconPath = path.join(app.getAppPath(), 'build', 'icon.png');
+            if (fs.existsSync(appIconPath)) {
+                trayIconPath = appIconPath;
+            } else {
+                const unpackedIconPath = path.join(app.getAppPath(), 'resources', 'app.asar.unpacked', 'build', 'icon.png');
+                if (fs.existsSync(unpackedIconPath)) {
+                    trayIconPath = unpackedIconPath;
+                } else {
+                    console.warn('Tray icon file not found');
+                    trayIconPath = null;
+                }
+            }
+        }
+    }
+
+    if (!trayIconPath || !fs.existsSync(trayIconPath)) {
+        console.warn('Tray icon file not found:', trayIconPath);
+        return; // 如果托盘图标不存在，则不创建托盘
+    }
+
+    tray = new Tray(trayIconPath);
 
     const contextMenu = Menu.buildFromTemplate([
         {
@@ -376,25 +405,37 @@ function createTray(mainWindow) {
 function createMainWindow() {
     let iconPath;
     if (isDev) {
-        iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
+        // 开发环境：直接使用项目根目录下的 build 文件夹
+        iconPath = path.join(__dirname, '..', '..', 'build', 'icon.png');
     } else {
-        // 生产环境中图标可能在 dist 目录下，或者直接在根目录
-        iconPath = path.join(app.getAppPath(), 'dist', 'assets', 'icon.png');
-        // 如果上面的路径不存在，尝试其他可能的位置
-        if (!fs.existsSync(iconPath)) {
-            iconPath = path.join(app.getAppPath(), 'resources', 'app.asar.unpacked', 'src', 'ui', 'assets', 'icon.png');
-        }
-        if (!fs.existsSync(iconPath)) {
-            iconPath = path.join(app.getAppPath(), 'src', 'ui', 'assets', 'icon.png');
+        // 生产环境：有多种可能的路径
+        // 首先尝试 process.resourcesPath（这是最常见的情况）
+        const resourceIconPath = path.join(process.resourcesPath, 'build', 'icon.png');
+        if (fs.existsSync(resourceIconPath)) {
+            iconPath = resourceIconPath;
+        } else {
+            // 如果上面的路径不存在，尝试 app.getAppPath()
+            const appIconPath = path.join(app.getAppPath(), 'build', 'icon.png');
+            if (fs.existsSync(appIconPath)) {
+                iconPath = appIconPath;
+            } else {
+                // 最后尝试在 app.asar.unpacked 目录中查找
+                const unpackedIconPath = path.join(app.getAppPath(), 'resources', 'app.asar.unpacked', 'build', 'icon.png');
+                if (fs.existsSync(unpackedIconPath)) {
+                    iconPath = unpackedIconPath;
+                } else {
+                    console.warn('Icon file not found in any expected location');
+                    iconPath = null;
+                }
+            }
         }
     }
 
     // 确保图标文件存在，否则不设置图标
-    if (!fs.existsSync(iconPath)) {
+    if (iconPath && !fs.existsSync(iconPath)) {
         console.warn('Icon file not found:', iconPath);
-        iconPath = null; // 或者使用默认图标
+        iconPath = null;
     }
-
 
     mainWindow = new BrowserWindow({
         width: 400,
@@ -417,9 +458,8 @@ function createMainWindow() {
     }
     mainWindow.setMenu(null);
 
-    // 创建托盘
+    // 创建托盘 - 同样需要更新托盘图标路径
     createTray(mainWindow);
-
 
     // 显示时恢复任务栏图标
     mainWindow.on('show', () => {
@@ -435,7 +475,6 @@ function createMainWindow() {
         }
     });
 }
-
 // 在应用退出前清理
 app.on('before-quit', () => {
     app.quitting = true;

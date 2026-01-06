@@ -70,7 +70,6 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
             groupList.map(group => (
               <div key={group.id} className="address-book-item">
                 <span className='contact-username' >{group.username}</span>
-                <span className='contact-username'>{group.members.length} 人</span>
               </div>
             ))
           ) : (

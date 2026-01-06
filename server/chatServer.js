@@ -118,21 +118,19 @@ async function getGroupsList(socket) {
     )
     .orderBy('g.updated_at', 'desc');
 
-  const groupIds = baseGroups.map(g => g.groupId);
 
-  if (groupIds.length > 0) {
 
-    // 组装返回结构：每个群附带成员列表
-    const payload = baseGroups.map(g => ({
-      id: g.groupId,
-      username: g.groupName,
-      myName: g.myName,
-      myRole: g.myRole,
-      joinedAt: g.joinedAt,
-      type: 'group'
-    }));
-    return payload;
-  }
+  // 组装返回结构：每个群附带成员列表
+  const payload = baseGroups.map(g => ({
+    id: g.groupId,
+    username: g.groupName,
+    myName: g.myName,
+    myRole: g.myRole,
+    joinedAt: g.joinedAt,
+    type: 'group'
+  }));
+  return payload;
+
 }
 async function handleSendDisconnectMessage(socket, user) {
   // 使用 JOIN 查询一次性获取未送达的私聊消息和发送者信息
@@ -1127,7 +1125,7 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
 });
 
 
-app.get('/api/getGroupMember/:groupId/', authenticateToken , async (req, res) => {
+app.get('/api/getGroupMember/:groupId/', authenticateToken, async (req, res) => {
   const { groupId } = req.params;
 
   const groupMembers = await db('group_members as m')

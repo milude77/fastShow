@@ -55,12 +55,14 @@
   "build": {
     "appId": "com.example.fastShow",
     "productName": "fastShow",
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "src/electron/*",
       "index.html",
       "package.json",
-      "config.json"
+      "config.json",
+      "build/**/*"
     ],
     "asarUnpack": [
       "**/icudtl.dat"
