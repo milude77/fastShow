@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendGroupMessage: ( { groupId, message } ) => ipcRenderer.invoke('send-group-message', { groupId, message }),
   sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
   resendMessage: (messageId) => ipcRenderer.invoke('resend-message', { messageId }),
+  getLastMessage: (contactId, isGroup) => ipcRenderer.invoke('get-last-message', { contactId, isGroup }),
   // 触发文件选择对话框，并返回文件路径
   selectFile: () => ipcRenderer.invoke('select-file'),
   // 使用新的MinIO上传流程

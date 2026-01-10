@@ -68,7 +68,6 @@ function connectSocket() {
     });
 
     socket.on('connect', () => {
-        console.log('Socket connected to server in main process:', socket.id);
         if (reconnectionTimer) {
             clearTimeout(reconnectionTimer);
             reconnectionTimer = null;
@@ -78,7 +77,7 @@ function connectSocket() {
         });
 
         const creds = store.get('currentUserCredentials');
-        if (creds && creds.token) {
+        if (creds && creds.token && tray) {
             socket.emit('login-with-token', creds.token);
         }
 
@@ -335,7 +334,6 @@ function createSearchWindow(userId, selectInformation) {
 }
 
 function createTray(mainWindow) {
-    // 避免重复创建托盘
     if (tray) {
         return;
     }
@@ -458,8 +456,7 @@ function createMainWindow() {
     }
     mainWindow.setMenu(null);
 
-    // 创建托盘 - 同样需要更新托盘图标路径
-    createTray(mainWindow);
+
 
     // 显示时恢复任务栏图标
     mainWindow.on('show', () => {
@@ -548,8 +545,15 @@ ipcMain.on('maximize-window', () => {
 
 ipcMain.on('close-window', () => {
     const window = BrowserWindow.getFocusedWindow();
-    if (window) {
-        window.close();
+    if (window && !app.quitting) {
+        if (window === mainWindow && !tray) {
+            app.quit();
+        } else {
+            window.close();
+        }
+    }
+    else {
+        app.quit();
     }
 });
 
@@ -665,13 +669,17 @@ ipcMain.on('login-success', async (event, userID) => {
         }
 
 
-
         if (await db.schema.hasTable('friends')) {
             if (socket && handleContactsList) {
                 socket.off('contacts-list', handleContactsList);
             }
             socket.on('contacts-list', handleContactsList);
         }
+        // 创建托盘 - 同样需要更新托盘图标路径
+        createTray(mainWindow);
+        socket.on('disconnect-messages-sent-success', () => {
+            mainWindow.webContents.send('disconnect-messages-sent-success');
+        })
         socket.emit('initial-data-success', { userId: userID });
         socket.emit('get-contacts');
     }
@@ -729,6 +737,7 @@ ipcMain.handle('send-group-message', async (event, { groupId, message }) => {
     };
     await writeChatHistory(groupId, fullMessage);
     socket.emit('send-group-message', fullMessage);
+
     return messageId;
 });
 
@@ -839,11 +848,6 @@ ipcMain.on('delete-saved-user', (event, removeUserID) => {
     store.set('userCredentials', userList);
 });
 
-ipcMain.on('logout', () => {
-    store.delete('currentUserCredentials');
-    app.relaunch();
-    app.exit();
-});
 // --- End User Credentials IPC Handlers ---
 
 // --- Socket.IO IPC ---
@@ -1326,6 +1330,33 @@ ipcMain.handle('get-friends-list', async () => {
         .select('id', 'userName')
     return friends;
 });
+
+ipcMain.handle('get-last-message', async (event, { contactId, isGroup }) => {
+    if (!db) {
+        return null;
+    }
+
+    let lastMessage;
+    if (isGroup) {
+        lastMessage = await db('group_messages')
+            .where('receiver_id', contactId)
+            .orderBy('timestamp', 'desc')
+            .first();
+    } else {
+        lastMessage = await db('messages')
+            .where(function () {
+                this.where('sender_id', contactId)
+                    .orWhere('receiver_id', contactId);
+            })
+            .orderBy('timestamp', 'desc')
+            .first();
+    }
+    return {
+        username: lastMessage?.username,
+        text: lastMessage?.text,
+        timestamp: lastMessage?.timestamp
+    };
+})
 
 
 ipcMain.handle('read-file', async (event, filePath) => {

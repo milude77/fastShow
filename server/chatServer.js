@@ -351,6 +351,8 @@ io.on('connection', (socket) => {
     const formattedId = String(user.id).padStart(6, '0');
     handleSendDisconnectMessage(socket, { userId: formattedId, username: user.username });
     handleGetFriendRequests(socket);
+
+    socket.emit('disconnect-messages-sent-success');
   });
 
 
@@ -442,6 +444,7 @@ io.on('connection', (socket) => {
 
     const groupMembers = await db('group_members')
       .where({ group_id: groupId })
+      .andWhereNot('user_id', senderInfo.userId)
       .select('user_id');
 
     const sendTimestamp = new Date();

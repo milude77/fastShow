@@ -5,7 +5,7 @@ import { SearchOutlined, PlusOutlined, UsergroupAddOutlined, CommentOutlined } f
 import './css/App.css';
 import './css/dark-mode.css';
 import AppHeaderBar from './components/appHeaderBar';
-import ContactList from './components/contactList';
+import ContactList from './components/Contact/contactList';
 import MessageList from './components/Message/messageList';
 import ContactInformation from './components/contactInformation';
 import FriendsRequestManagement from './components/friendsRequesetManagement';
@@ -156,19 +156,6 @@ function App() {
     const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
     const messageId = msg.message_id;
 
-
-    // const savedMessage = {
-    //   id: sendMessageId,
-    //   username: senderInfo.username,
-    //   content: newMessage.content,
-    //   timestamp: sendTimestamp,
-    //   senderId: newMessage.sender_id,
-    //   receiverId: newMessage.group_id,
-    //   type: 'group'
-    // };
-
-
-    // When receiving a message from others, save it to local history.
 
     const newMessage = {
       id: messageId,
@@ -422,7 +409,6 @@ function App() {
         ...prev,
         [selectedContact.id]: [...(prev[selectedContact.id] || []), newMessage]
       }));
-
 
       // 启动 10 秒超时计时器，若未收到成功回执则标记为失败
       const timer = setTimeout(() => {
