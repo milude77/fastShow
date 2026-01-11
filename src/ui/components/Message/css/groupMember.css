@@ -4,6 +4,7 @@
     flex-direction: column;
     border-left: 1px solid var(--border-color);
     background-color: var(--information-bg-color);
+    color: var(--text-color);
 }
 
 .group-notice-bar.group-member-list .group-member {
@@ -11,4 +12,5 @@
     align-items: center;
     padding: 5px 5px;
     gap: 5px;
+    color: var(--text-color);
 }

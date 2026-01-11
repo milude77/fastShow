@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  chatMessage: (contactId, msg) => ipcRenderer.send('chat-message', { contactId, msg }),
+  newChatMessage: (contactId, msg) => ipcRenderer.send('new-chat-message', { contactId, msg }),
   sendPrivateMessage: ( { receiverId, message } ) => ipcRenderer.invoke('send-private-message', { receiverId, message }),
   sendGroupMessage: ( { groupId, message } ) => ipcRenderer.invoke('send-group-message', { groupId, message }),
   sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
@@ -44,7 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   receiveErrorMessage: (callback) => ipcRenderer.on('error-message', (event, message) => callback(message)),
   removeErrorListeners: () => ipcRenderer.removeAllListeners('error-message'),
 
-  loginSuccess: (userId) => ipcRenderer.send('login-success', userId),
+  loginSuccess: ({ userId, token }) => ipcRenderer.send('login-success', { userId, token}),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
   getFriendsList: () => ipcRenderer.invoke('get-friends-list'),

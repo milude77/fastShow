@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../css/toolBar.css';
-import { Button } from 'antd';
+import { Button, Badge, Space } from 'antd';
+
 import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import AvatarUploader from './AvatarUploader';
@@ -10,6 +11,7 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
     const [avatarSrc, setAvatarSrc] = useState('');
     const [isUploaderOpen, setIsUploaderOpen] = useState(false);
     const [hasNewInvite, setHasNewInvite] = useState(false);
+    const [newMessageCount, setNewMessageCount] = useState(0);
 
     const updateAvatarSrc = async () => {
         if (currentUser && currentUser.userId) {
@@ -32,9 +34,15 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
         const handleNewInvite = () => {
             setHasNewInvite(true);
         };
+
+        const handleNewMessage = () => {
+            setNewMessageCount((newMessageCount) => newMessageCount + 1);
+        };
         window.electronAPI.ipcRenderer.on('receive-new-invite', handleNewInvite);
+        window.electronAPI.ipcRenderer.on('receive-new-message', handleNewMessage);
         return () => {
             window.electronAPI.ipcRenderer.removeListener('receive-new-invite', handleNewInvite);
+            window.electronAPI.ipcRenderer.removeListener('receive-new-message', handleNewMessage);
         };
     }, []);
 
@@ -76,21 +84,12 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
                 />
             )}
             <div className='base-tool-bar'>
-                <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} style={{ color: 'var(--text-color)' }} type="link" title='消息' icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
-                <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} style={{ color: 'var(--text-color)' }} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => setSelectFeatures('contact')}>
-                {/* 显示新邀请的提示 */}
-                    {hasNewInvite && (
-                        <span style={{
-                            position: 'absolute',
-                            top: '0px',
-                            right: '0px',
-                            width: '8px',
-                            height: '8px',
-                            backgroundColor: 'red',
-                            borderRadius: '50%',
-                        }} />
-                    )}
-                </Button>
+                <Badge size="small" count={newMessageCount}>
+                    <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} type="link" title='消息' icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
+                </Badge>
+                <Badge size="small" dot={hasNewInvite} >
+                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => setSelectFeatures('contact')}></Button>
+                </Badge>
             </div>
             <div className='change-theme-bar'>
                 <Button style={{ color: 'var(--text-color)' }} type='link' icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />} onClick={() => toggleDarkMode()}></Button>

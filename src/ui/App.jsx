@@ -114,7 +114,7 @@ function App() {
   }, [darkMode]);
 
   const handleLoginSuccess = useCallback((user) => {
-    window.electronAPI.loginSuccess(user.userId);
+    window.electronAPI.loginSuccess({ userId:user.userId, token: user.token ?? user.newToken });
     window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
     window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
     localStorage.setItem('token', user.token ?? user.newToken);
@@ -153,6 +153,7 @@ function App() {
   const handleNewMessage = useCallback((msg) => {
     // Safety check: Do not process messages if the user is not logged in.
 
+
     const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
     const messageId = msg.message_id;
 
@@ -173,7 +174,7 @@ function App() {
 
 
     if (window.electronAPI) {
-      try { window.electronAPI.chatMessage(contactId, newMessage); }
+      try { window.electronAPI.newChatMessage(contactId, newMessage); }
       catch (e) { console.error("保存消息失败:", e) };
     }
 
@@ -318,11 +319,11 @@ function App() {
     setSelectedContact(contact);
     if (window.electronAPI && currentUser) {
       if (contact.type == 'group') {
-        const localGroupHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 20, true, null);
+        const localGroupHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 15, true, null);
         setGroupMessages(prev => ({ ...prev, [contact.id]: localGroupHistory }));
       }
       else {
-        const localHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 20, false, null);
+        const localHistory = await window.electronAPI.getChatHistory(contact.id, currentUser.userId, 15, false, null);
         setMessages(prev => ({ ...prev, [contact.id]: localHistory }));
       }
     }
@@ -476,7 +477,7 @@ function App() {
     const olderMessages = await window.electronAPI.getChatHistory(
       contactId,
       currentUser.userId,
-      20,
+      15,
       isGroup,
       beforeTimestamp
     );

@@ -30,7 +30,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   --history-message-user-color: #aae7f4;
   --history-message-other-color: rgb(229, 229, 229);
-  --selected-contact-background-color: #42b7ed;
+  --selected-contact-background-color: #63bbe4;
   --hover-contact-background-color: #d6d6d6;
   --history-file--color: #ffffff;
   --search-bar-background-color: #f5f5f5;
@@ -51,7 +51,7 @@ body.dark-mode {
   --history-message-user-color: rgb(19, 151, 172);
   --history-message-other-color: #545454;
   --hover-contact-background-color: #727272;
-  --selected-contact-background-color: #1182b6;
+  --selected-contact-background-color: #3ea2d1;
   --text-color: rgb(195, 195, 195);
   --search-bar-background-color: #4a4a4a;
   --border-color: rgba(90, 90, 90, 0.6);

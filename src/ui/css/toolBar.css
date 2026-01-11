@@ -16,6 +16,10 @@
     object-fit: cover;
 }
 
+.tool-bar-button{
+    color: var(--text-color) !important;
+}
+
 .tool-bar-button.active{
     color: var(--tool-bar-selected-color) !important;
 }
@@ -27,7 +31,8 @@
 .base-tool-bar {
     display: flex;
     flex-direction: column;
-    flex-grow: 1; 
+    flex-grow: 1;
+    align-items: center; 
     width: 100%;
     gap: 20px;
     padding-top: 20px; 
@@ -46,4 +51,8 @@
 
 .tool-bar .ant-btn {
     width: 100%; 
+}
+
+.ant-badge{
+    width: 60%;
 }

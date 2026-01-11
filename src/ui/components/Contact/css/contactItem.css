@@ -27,9 +27,10 @@
 }
 
 .contact-info-grid .contact-message {
-    grid-column: 1 / -1; /* 跨越所有列 */
+    grid-column: 1;
     grid-row: 2;
-    max-width: 100%;
+    width: 90%;
+    max-width: 90%;
     justify-self: start;
     align-self: center;
     white-space: nowrap;
@@ -38,4 +39,9 @@
     font-size: 0.8em;
     min-height: 1.2em;
     color: #666;
+}
+
+.contact-info-grid .message-badge {
+    grid-column: 2;
+    grid-row: 2;
 }

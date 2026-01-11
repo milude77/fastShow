@@ -647,10 +647,10 @@ io.on('connection', (socket) => {
       const timestamp = new Date();
       await db('group_invitations')
         .where({ id: requesterId, status: 'pending' })
-        .update({ status: 'accepted', update_time: timestamp });
+        .update({ status: 'accepted', updated_at: timestamp });
       const newMemberInformation = await db('group_invitations as gi')
-        .where({ id: requesterId })
-        .join('users', 'group_invitations.invited_user_id', 'users.id')
+        .where({ 'gi.id': requesterId })
+        .join('users', 'gi.invited_user_id', 'users.id')
         .select('gi.group_id as groupId', 'users.id as userId', 'users.username')
         .first();
 
@@ -665,8 +665,8 @@ io.on('connection', (socket) => {
 
       const groupMembers = await db('group_invitations')
         .where({ 'group_invitations.id': requesterId })
-        .join('group_members as gm', 'group_invitations.group_id', 'group_members.group_id')
-        .select('gm.id');
+        .join('group_members as gm', 'group_invitations.group_id', 'gm.group_id')
+        .select('gm.user_id');
 
       groupMembers.map(member => {
         if (onlineUsersIds.get(member.id)) {
@@ -950,7 +950,7 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
   try {
     const receiverUser = await db('users').where({ id: receiverId }).first();
 
-    const timestamp = new Date().getTime();
+    const timestamp = new Date();
 
     const newMessage = {
       sender_id: senderId,

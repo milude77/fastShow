@@ -79,14 +79,8 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     const messagesEndRef = useRef(null);
     const messageContainerRef = useRef(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [prevScrollHeight, setPrevScrollHeight] = useState(null);
     const [modal, modalContextHolder] = Modal.useModal();
 
-    const [inputHeight, setInputHeight] = useState(210);                                        //输入框高度
-    const [messageHeight, setMessageHeight] = useState(window.innerHeight - inputHeight - 100); //消息列表高度
-    const isResizingRef = useRef(false);
-    const startYRef = useRef(0);
-    const startHeightRef = useRef(80);
     const [groupMemberList, setGroupMemberList] = useState([]);
     const [groupMemberListOpen, setGroupMemberListOpen] = useState(true)
     const [groupMemberListBtnDisplay, setGroupMemberListBtnDisplay] = useState(false)
@@ -105,50 +99,26 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         }
     }
 
-    const onResizeMouseMove = (e) => {
-        if (!isResizingRef.current) return;
-        const delta = startYRef.current - e.clientY;
-        let next = startHeightRef.current + delta;
-        const min = 100;
-        const max = Math.max(min, Math.floor(window.innerHeight * 0.6));
-        next = Math.max(min, Math.min(max, next));
 
-        const newHistoryBoxHeight = window.innerHeight - next - 40; // 将40px调整成显示
-        setMessageHeight(newHistoryBoxHeight);
-
-        setInputHeight(next);
-
-    };
-    const onResizeMouseUp = () => {
-        if (!isResizingRef.current) return;
-        isResizingRef.current = false;
-        document.removeEventListener('mousemove', onResizeMouseMove);
-        document.removeEventListener('mouseup', onResizeMouseUp);
-    };
-
-    const onResizeMouseDown = (e) => {
-        isResizingRef.current = true;
-        startYRef.current = e.clientY;
-        startHeightRef.current = inputHeight;
-        document.addEventListener('mousemove', onResizeMouseMove);
-        document.addEventListener('mouseup', onResizeMouseUp);
-        e.preventDefault();
-    };
-
-    useEffect(() => {
-        return () => {
-            document.removeEventListener('mousemove', onResizeMouseMove);
-            document.removeEventListener('mouseup', onResizeMouseUp);
-        };
-    }, []);
 
     const handleScroll = async () => {
         if (messageContainerRef.current.scrollTop < 1 && !isLoadingMore) {
-            let scrollHeight = messageContainerRef.current.scrollHeight;
+            const currentScrollTop = messageContainerRef.current.scrollTop;
+            const scrollHeightBeforeLoad = messageContainerRef.current.scrollHeight;
+
             setIsLoadingMore(true);
             await onLoadMore();
-            setPrevScrollHeight(scrollHeight);
-            setIsLoadingMore(false);
+
+            // 等待 DOM 更新完成后再调整滚动位置
+            setTimeout(() => {
+                // 保持原来距离顶部的位置
+                const newScrollHeight = messageContainerRef.current.scrollHeight;
+                const heightAdded = newScrollHeight - scrollHeightBeforeLoad;
+
+                // 调整滚动位置，保持原来的内容在视口中的位置
+                messageContainerRef.current.scrollTop = currentScrollTop + heightAdded;
+                setIsLoadingMore(false);
+            }, 0);
         }
     };
 
@@ -293,7 +263,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         const res = await window.electronAPI.resendMessage(msg.id, isGroup)
         if (res.success) {
             onResendMessage(contact.id, msg, contact.type)
-            scrollToBottom();
+            scrollToBottom("smooth");
         } else {
             messageApi.error('消息重新发送失败: ' + res.error);
         }
@@ -383,7 +353,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
             <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} memberLength={groupMemberList?.length || 0} />
             <div style={{ display: 'flex', flex: '1' }}>
                 <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>
-                    <div className='history-message-box' style={{ height: messageHeight }} ref={messageContainerRef}
+                    <div className='history-message-box' style={{ height: window.innerHeight - 310 }} ref={messageContainerRef}
                         onMouseLeave={() => {
                             messageContainerRef.current.style.scrollbarColor = 'transparent transparent'; // 隐藏滚动条颜色
                         }}
@@ -441,10 +411,12 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                         </div>
                         <div ref={messagesEndRef} />
                     </div >
-                    <div className='message-send-box' style={{ height: inputHeight }} >
-                        <div className="resize-handle" onMouseDown={onResizeMouseDown} />
+                    <div className='message-send-box' style={{ height: 210 }} >
+                        {/* 移除了 <div className="resize-handle" onMouseDown={onResizeMouseDown} /> */}
                         <InputToolBar contact={contact} onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
-                        <MessageInput contactID={contact?.id} contactType={contact?.type} savedDraft={draft} onDraftChange={onDraftChange} onSendMessage={handleSendMessage} onSendGroupMessage={handleSendGroupMessage} />
+                        <MessageInput contactID={contact?.id} contactType={contact?.type} savedDraft={draft}
+                            onDraftChange={onDraftChange} onSendMessage={handleSendMessage}
+                            onSendGroupMessage={handleSendGroupMessage} />
                     </div>
                 </div>
                 {contact.type === 'group' && groupMemberListOpen && (

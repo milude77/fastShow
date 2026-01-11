@@ -51,7 +51,7 @@
 .contact-list-container {
   display: flex;
   flex-direction: column;
-  width: 200px;
+  width: 20%;
   height: 100%;
   border-right: 1px solid var(---border-color);
   box-shadow: 8px 0 10px -10px rgba(0, 0, 0, 0.15);
@@ -84,8 +84,7 @@
 }
 
 .message-box-body {
-  flex: 1;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  overflow: hidden;
 }

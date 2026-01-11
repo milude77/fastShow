@@ -177,17 +177,6 @@
 
 }
 
-/* 顶部拖动调整 textarea 高度的抓手样式 */
-.message-send-box .resize-handle {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 6px;
-    cursor: ns-resize;
-    background: transparent;
-    z-index: 1;
-}
 
 
 .message-send-box {

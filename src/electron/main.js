@@ -32,6 +32,7 @@ let heartbeatTimeout;
 let tray = null;
 let mainWindow = null;
 let currentUserId;
+let currentUserToken;
 
 
 
@@ -76,9 +77,8 @@ function connectSocket() {
             win.webContents.send('socket-event', { event: 'connect', id: socket.id });
         });
 
-        const creds = store.get('currentUserCredentials');
-        if (creds && creds.token && tray) {
-            socket.emit('login-with-token', creds.token);
+        if (currentUserToken && tray) {
+            socket.emit('login-with-token', currentUserToken);
         }
 
         // Start heartbeat
@@ -154,13 +154,7 @@ async function readChatHistory(
         if (isGroup) {
             query = query.where('receiver_id', String(contactId));
         } else {
-            // query = query.where(function () {
-            //     this.where('sender_id', String(currentUserID))
-            //         .andWhere('receiver_id', String(contactId));
-            // }).orWhere(function () {
-            //     this.where('sender_id', String(contactId))
-            //         .andWhere('receiver_id', String(currentUserID));
-            // });
+
             query = query.where(function () {
                 this.where(function () {
                     this.where('sender_id', String(currentUserID))
@@ -582,10 +576,11 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
     return false;
 });
 
-ipcMain.on('login-success', async (event, userID) => {
-    currentUserId = userID;
+ipcMain.on('login-success', async (event,{ userId, token }) => {
+    currentUserId = userId;
+    currentUserToken = token;
     try {
-        const userDbPath = path.join(app.getPath('userData'), `${userID}`);
+        const userDbPath = path.join(app.getPath('userData'), `${userId}`);
 
         if (!fs.existsSync(userDbPath)) {
             fs.mkdirSync(userDbPath, { recursive: true });
@@ -605,7 +600,7 @@ ipcMain.on('login-success', async (event, userID) => {
         // 初始化数据库（确保表存在）
         await initializeDatabase(db);
         try {
-            await migrateUserDb(db, userID, dbPath, store);
+            await migrateUserDb(db, userId, dbPath, store);
         } catch (e) {
             console.error('User DB migration failed:', e);
         }
@@ -677,10 +672,7 @@ ipcMain.on('login-success', async (event, userID) => {
         }
         // 创建托盘 - 同样需要更新托盘图标路径
         createTray(mainWindow);
-        socket.on('disconnect-messages-sent-success', () => {
-            mainWindow.webContents.send('disconnect-messages-sent-success');
-        })
-        socket.emit('initial-data-success', { userId: userID });
+        socket.emit('initial-data-success', { userId: userId });
         socket.emit('get-contacts');
     }
 
@@ -699,13 +691,15 @@ ipcMain.on('login-success', async (event, userID) => {
 })
 
 
-ipcMain.on('chat-message', (event, { contactId, msg }) => {
+ipcMain.on('new-chat-message', (event, { contactId, msg }) => {
     // Safety check to prevent writing undefined data
     if (!msg) {
         console.error('Received chat-message with undefined msg object.');
         return;
     }
+
     writeChatHistory(contactId, msg);
+    event.sender.send('receive-new-message', contactId);
 });
 
 ipcMain.handle('send-private-message', async (event, { receiverId, message }) => {
@@ -1392,6 +1386,12 @@ ipcMain.handle('get-invite-information-list', async () => {
     const inviteInformationList = await db('invite_information')
         .select('*')
     return inviteInformationList;
+});
+
+ipcMain.on('logout', () => {
+    store.delete('currentUserCredentials');
+    app.relaunch();
+    app.exit();
 });
 
 
