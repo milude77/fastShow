@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { dbMigrationManager } from './store.js';
 
 export async function initializeDatabase(db) {
   try {
@@ -112,15 +113,15 @@ export async function initializeDatabase(db) {
  * - 使用 electron-store 按用户记录迁移版本，避免重复执行
  */
 /** moved to ./db.js: migrateUserDb() */
-export async function migrateUserDb(db, userId, dbPath, store) {
+export async function migrateUserDb(db, userId, dbPath) {
   try {
-    // 幂等版本控制（每用户）
-    const migrationKey = `dbMigrationVersion:${userId}`;
-    const currentVer = store.get(migrationKey) || 0;
+
+    const curuentDbVersion = dbMigrationManager.getMigrationVersion(userId);
+
     // 目标版本
     const targetVer = 6;
     // 若版本已满足，直接返回
-    if (currentVer >= targetVer) {
+    if (curuentDbVersion >= targetVer) {
       return;
     }
 
@@ -277,7 +278,7 @@ export async function migrateUserDb(db, userId, dbPath, store) {
       console.warn('Backup cleanup warning:', cleanupErr?.message || cleanupErr);
     }
 
-    store.set(migrationKey, targetVer);
+    dbMigrationManager.setMigrationVersion(userId, targetVer);
   } catch (error) {
     console.error('Database migration failed:', error);
     console.error('Error details:', {

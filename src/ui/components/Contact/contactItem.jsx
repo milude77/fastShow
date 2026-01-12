@@ -67,20 +67,18 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
                 <span className="contact-username">{contact.username}</span>
                 <span className="contact-message">{lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : ''}</span>
                 <span className="contact-timestamp">{formatTime(lastMessage?.timestamp)}</span>
-                {newMessageCount > 0 && (
-                    <Badge
-                        size="small"
-                        className="message-badge"
-                        count={newMessageCount}
-                        style={{
-                            position: 'absolute',
-                            bottom: '5px',
-                            right: '5px',
-                            backgroundColor: '#ff4d4f',
-                            color: 'white'
-                        }}
-                    />
-                )}
+                <Badge
+                    size="small"
+                    className="message-badge"
+                    count={newMessageCount}
+                    style={{
+                        position: 'absolute',
+                        bottom: '5px',
+                        right: '5px',
+                        backgroundColor: '#ff4d4f',
+                        color: 'white'
+                    }}
+                />
             </div>
         </div>
     )

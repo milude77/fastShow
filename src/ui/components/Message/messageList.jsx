@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Modal, Card, Button, message } from 'antd';
 import './css/messageList.css';
-import { DownloadOutlined, FileOutlined, FolderOpenOutlined, LoadingOutlined, ExclamationCircleOutlined, CheckOutlined, TeamOutlined } from '@ant-design/icons';
+import { DownloadOutlined, FileOutlined, TeamOutlined } from '@ant-design/icons';
 import { WhatsAppOutlined, EllipsisOutlined } from '@ant-design/icons';
 import ContactOption from "./contactOption";
 import GroupMember from "./groupMember";
@@ -229,7 +229,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
             if (result.success) {
                 return
             } else {
-                console.error('文件下载失败:', result.error);
+                console.error('文件下载失败:', result);
                 messageApi.error('文件下载失败: ' + result.error);
             }
         } catch (error) {
@@ -332,18 +332,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         }
     }
 
-    //节流函数
-    const troller = (fn, delay) => {
-        let timer = null
-        return function (...args) {
-            if (!timer) {
-                fn.apply(this, args)
-                timer = setTimeout(() => {
-                    timer = null;
-                }, delay);
-            }
-        }
-    }
+
 
 
     return (

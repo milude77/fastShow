@@ -1,14 +1,12 @@
 import axios from 'axios';
-import Store from 'electron-store';
-
-const store = new Store();
+import { userCredentialsManager } from './store.js';
 
 const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(
   (config) => {
-    const credentials = store.get('currentUserCredentials');
+    const credentials = userCredentialsManager.getCurrentCredentials();
     const token = credentials?.token;
     if (token) {
       config.headers['authorization'] = `Bearer ${token}`;

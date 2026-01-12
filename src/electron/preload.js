@@ -2,15 +2,16 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   newChatMessage: (contactId, msg) => ipcRenderer.send('new-chat-message', { contactId, msg }),
-  sendPrivateMessage: ( { receiverId, message } ) => ipcRenderer.invoke('send-private-message', { receiverId, message }),
-  sendGroupMessage: ( { groupId, message } ) => ipcRenderer.invoke('send-group-message', { groupId, message }),
+  getNewMessageId: () => ipcRenderer.invoke('get-new-message-id'),
+  sendPrivateMessage: ( { receiverId, message, messageId } ) => ipcRenderer.send('send-private-message', { receiverId, message, messageId }),
+  sendGroupMessage: ( { groupId, message, messageId } ) => ipcRenderer.send('send-group-message', { groupId, message, messageId }),
   sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
   resendMessage: (messageId) => ipcRenderer.invoke('resend-message', { messageId }),
   getLastMessage: (contactId, isGroup) => ipcRenderer.invoke('get-last-message', { contactId, isGroup }),
   // 触发文件选择对话框，并返回文件路径
   selectFile: () => ipcRenderer.invoke('select-file'),
   // 使用新的MinIO上传流程
-  initiateFileUpload: (filePath, senderId, receiverId, isGroup) => ipcRenderer.invoke('initiate-file-upload', { filePath, senderId, receiverId, isGroup }),
+  initiateFileUpload: (filePath, senderId, receiverId, isGroup, messageId) => ipcRenderer.invoke('initiate-file-upload', { filePath, senderId, receiverId, isGroup, messageId }),
   getDropFilePath: (droppedFiles) => {
     try {
       const list = Array.isArray(droppedFiles) ? droppedFiles : Array.from(droppedFiles || []);

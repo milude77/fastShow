@@ -29,10 +29,8 @@
 .contact-info-grid .contact-message {
     grid-column: 1;
     grid-row: 2;
-    width: 90%;
     max-width: 90%;
     justify-self: start;
-    align-self: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -44,4 +42,6 @@
 .contact-info-grid .message-badge {
     grid-column: 2;
     grid-row: 2;
+    justify-self: end;
+    min-width: 1.2rem;
 }

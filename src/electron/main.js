@@ -3,7 +3,6 @@ import autoUpdater from 'electron-updater';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
-import Store from 'electron-store';
 import knex from 'knex';
 import fs from 'fs';
 import fetch from 'node-fetch';
@@ -13,13 +12,21 @@ import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
 
+import {
+    initializeDefaultSettings,
+    userCredentialsManager,
+    settingsManager,
+    appConfigManager,
+    storageManager,
+    dbMigrationManager
+} from './store.js';
+
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDev = process.env.NODE_ENV === "development"
-const store = new Store();
 
 // --- Socket.IO Main Process Setup ---
 const configPath = path.join(__dirname, '..', '..', 'config.json');
@@ -508,6 +515,8 @@ app.whenReady().then(async () => {
     connectSocket();
     // --- End Socket.IO Connection ---
 
+    initializeDefaultSettings();
+
     createMainWindow()
     autoUpdater.checkForUpdatesAndNotify();
 
@@ -576,7 +585,7 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
     return false;
 });
 
-ipcMain.on('login-success', async (event,{ userId, token }) => {
+ipcMain.on('login-success', async (event, { userId, token }) => {
     currentUserId = userId;
     currentUserToken = token;
     try {
@@ -600,7 +609,7 @@ ipcMain.on('login-success', async (event,{ userId, token }) => {
         // 初始化数据库（确保表存在）
         await initializeDatabase(db);
         try {
-            await migrateUserDb(db, userId, dbPath, store);
+            await migrateUserDb(db, userId, dbPath);
         } catch (e) {
             console.error('User DB migration failed:', e);
         }
@@ -702,10 +711,15 @@ ipcMain.on('new-chat-message', (event, { contactId, msg }) => {
     event.sender.send('receive-new-message', contactId);
 });
 
-ipcMain.handle('send-private-message', async (event, { receiverId, message }) => {
-    const messageId = snowflake.nextId().toString();
+function getNewMessageId() {
+    return snowflake.nextId().toString();
+}
 
+ipcMain.handle('get-new-message-id', async () => {
+    return getNewMessageId();
+})
 
+ipcMain.on('send-private-message', async (event, { receiverId, message, messageId }) => {
     const fullMessage = {
         ...message,
         id: messageId,
@@ -716,12 +730,9 @@ ipcMain.handle('send-private-message', async (event, { receiverId, message }) =>
 
     await writeChatHistory(receiverId, fullMessage);
     socket.emit('send-private-message', fullMessage);
-
-    return messageId;
 });
 
-ipcMain.handle('send-group-message', async (event, { groupId, message }) => {
-    const messageId = snowflake.nextId().toString();
+ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) => {
     const fullMessage = {
         ...message,
         id: messageId,
@@ -804,42 +815,38 @@ ipcMain.on('show-error-window', (event, error) => {
 
 // --- User Credentials IPC Handlers ---
 ipcMain.on('save-user-credentials-list', (event, credentials) => {
-    let originalUserList = store.get('userCredentials') || {};
-    originalUserList[credentials.userId] = {
-        userId: credentials.userId,
-        userName: credentials.userName,
-        token: credentials.token
-    };
-    store.set('userCredentials', originalUserList);
+    userCredentialsManager.saveUserCredentials(credentials);
 });
 
 ipcMain.handle('get-user-credentials-list', () => {
-    return store.get('userCredentials');
+    return userCredentialsManager.getUserCredentialsList();
 });
 
 ipcMain.on('save-current-user-credentials', (event, credentials) => {
-    store.set('currentUserCredentials', {
-        userId: credentials.userId,
-        userName: credentials.userName,
-        token: credentials.token
-    });
+    userCredentialsManager.saveCurrentCredentials(credentials);
 });
 
 ipcMain.handle('get-current-user-credentials', () => {
-    return store.get('currentUserCredentials');
+    return userCredentialsManager.getCurrentCredentials();
+});
+
+// 使用设置管理器
+ipcMain.handle('get-app-settings', () => {
+    return settingsManager.getAllSettings();
+});
+
+ipcMain.on('update-app-setting', (event, { key, value }) => {
+    settingsManager.updateSetting(key, value);
 });
 
 ipcMain.on('switch-user', (event, switchUserID) => {
-    const userList = store.get('userCredentials') || {};
-    store.set('currentUserCredentials', userList[switchUserID]);
+    userCredentialsManager.switchUser(switchUserID);
     app.relaunch();
     app.exit();
 });
 
 ipcMain.on('delete-saved-user', (event, removeUserID) => {
-    let userList = store.get('userCredentials') || {};
-    delete userList[removeUserID];
-    store.set('userCredentials', userList);
+    userCredentialsManager.deleteUser(removeUserID);
 });
 
 // --- End User Credentials IPC Handlers ---
@@ -871,7 +878,7 @@ ipcMain.handle('select-file', async (event) => {
 });
 
 // 2. 处理文件上传流程
-ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, receiverId, isGroup }) => {
+ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, receiverId, isGroup, messageId }) => {
     if (!filePath) {
         return { success: false, error: '文件路径不能为空' };
     }
@@ -904,13 +911,9 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             // 可选：添加上传进度监控
             onUploadProgress: (progressEvent) => {
                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                // 你可以在这里通过 event.sender.send 将进度发送回渲染进程
-                // event.sender.send('upload-progress', { fileId, percentCompleted });
-                console.log(`上传进度: ${percentCompleted}%`);
+                event.sender.send('upload-progress', { messageId, percentCompleted });
             }
         });
-
-        const messageId = snowflake.nextId().toString();
 
         // --- 步骤 3: 通知服务器上传完成 ---
         const completeResponse = await apiClient.post(`${SOCKET_SERVER_URL}/api/upload/complete`, {
@@ -932,7 +935,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
             text: returnedData.content,
             sender: 'user',
             sender_id: returnedData.senderId,
-            timestamp: returnedData.timestamp,
+            timestamp: new Date(),
             username: returnedData.username,
             fileName: returnedData.fileName,
             messageType: returnedData.messageType,
@@ -947,7 +950,10 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
 
         await writeChatHistory(receiverId, saveMessage)
 
-        return { success: true, messageData: returnedData };
+        event.sender.send('file-upload-complete', { messageId });
+
+
+        return { success: true, messageData: returnedData, messageId };
 
     } catch (error) {
         console.error('文件上传失败:', error.response ? error.response.data : error.message);
@@ -961,53 +967,124 @@ ipcMain.handle('download-file', async (event, { messageId, fileUrl, fileName, is
             throw new Error('文件URL为空');
         }
 
-        // 如果是相对路径，构建完整URL
+        // 构建完整 URL
         let fullUrl = fileUrl;
         if (!fileUrl.startsWith('http')) {
             fullUrl = `${SOCKET_SERVER_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}/${String(isGroup)}`;
         }
 
-        // 获取下载文件夹路径
+        // 下载路径
         const downloadsPath = app.getPath('downloads');
-        const fullFileName = fileName || `file_${Date.now()}`;
-        const filePath = path.join(downloadsPath, fullFileName);
+        const finalFileName = fileName || `file_${Date.now()}`;
+        const filePath = path.join(downloadsPath, finalFileName);
 
-        // 从服务器下载文件
-        const response = await fetch(fullUrl);
-        if (!response.ok) {
-            const errorInfo = await response.json();
-            return { success: false, error: errorInfo.error };
+        try {
+            // 发起请求（Node Stream）
+            const response = await apiClient.get(fullUrl, {
+                responseType: 'stream',
+                timeout: 0,
+            });
+
+            // 文件总大小（用于进度计算）
+            const total = Number(response.headers['content-length']) || 0;
+            let loaded = 0;
+
+            // 通知开始下载
+            event.sender.send('file-download-start', {
+                messageId,
+                fileName: finalFileName,
+                total,
+            });
+
+            const writer = fs.createWriteStream(filePath);
+
+            response.data.on('data', chunk => {
+                loaded += chunk.length;
+
+                if (total) {
+                    const progress = Math.round((loaded / total) * 100);
+                    event.sender.send('download-progress', {
+                        messageId,
+                        progress,
+                        loaded,
+                        total,
+                    });
+                }
+            });
+
+            // 错误处理
+            response.data.on('error', err => {
+                writer.destroy();
+                throw err;
+            });
+
+            writer.on('error', err => {
+                response.data.destroy();
+                throw err;
+            });
+
+            // 管道写入
+            response.data.pipe(writer);
+
+            // 等待写入完成
+            await new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', reject);
+            });
+
+            event.sender.send('file-download-complete', { messageId });
+        }
+        catch (error) {
+            if (error.response) {
+                const status = error.response.status;
+
+                // responseType: stream 时，错误体是一个 stream
+                let errorMessage = '下载失败';
+
+                try {
+                    const chunks = [];
+                    for await (const chunk of error.response.data) {
+                        chunks.push(chunk);
+                    }
+                    const text = Buffer.concat(chunks).toString('utf-8');
+                    const json = JSON.parse(text);
+                    errorMessage = json.error || errorMessage;
+                } catch {
+                    // 忽略解析失败
+                }
+
+                return {
+                    success: false,
+                    error: errorMessage,
+                    status,
+                };
+            }
         }
 
-        // 将文件内容写入本地
-        const buffer = Buffer.from(await response.arrayBuffer());
-        fs.writeFileSync(filePath, buffer);
-
-        // 打开文件资源管理器并选中文件
+        // 打开文件位置
         shell.showItemInFolder(filePath);
 
-        // 更新数据库中的文件存在状态和本地文件路径
+        // 更新数据库
         try {
             if (db) {
-                // 根据fileUrl查找并更新fileExt状态和localFilePath
                 await db(isGroup ? 'group_messages' : 'messages')
                     .where('id', messageId)
                     .update({
                         fileExt: true,
-                        localFilePath: filePath
+                        localFilePath: filePath,
                     });
-                console.log('Updated fileExt status to true and localFilePath for:', fileUrl);
             }
         } catch (dbError) {
-            console.error('Failed to update fileExt and localFilePath in database:', dbError);
+            console.error('数据库更新失败:', dbError);
         }
 
-        return { success: true, filePath, action: 'downloaded' };
+        return { success: true, filePath };
     } catch (error) {
-        console.error('Failed to download file:', error);
+        console.error('文件下载失败:', error);
         return { success: false, error: error.message };
     }
 });
+
 
 ipcMain.handle('open-file-location', async (event, { messageId, isGroup }) => {
     try {
@@ -1389,7 +1466,6 @@ ipcMain.handle('get-invite-information-list', async () => {
 });
 
 ipcMain.on('logout', () => {
-    store.delete('currentUserCredentials');
     app.relaunch();
     app.exit();
 });
@@ -1399,9 +1475,8 @@ ipcMain.on('logout', () => {
 
 // --- IPC handler to reset migration version ---
 ipcMain.on('reset-migration-version', async (event, { userId, version }) => {
-    const migrationKey = `dbMigrationVersion:${userId}`;
     try {
-        store.set(migrationKey, version);
+        dbMigrationManager.setMigrationVersion(userId, version);
         console.log(`Migration version for user ${userId} set to ${version}`);
         event.sender.send('migration-version-reset-success', { userId, version });
     } catch (error) {

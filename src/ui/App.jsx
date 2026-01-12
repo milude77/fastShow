@@ -114,7 +114,7 @@ function App() {
   }, [darkMode]);
 
   const handleLoginSuccess = useCallback((user) => {
-    window.electronAPI.loginSuccess({ userId:user.userId, token: user.token ?? user.newToken });
+    window.electronAPI.loginSuccess({ userId: user.userId, token: user.token ?? user.newToken });
     window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
     window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
     localStorage.setItem('token', user.token ?? user.newToken);
@@ -336,18 +336,7 @@ function App() {
   const handleSendMessage = useCallback(async (text) => {
     if (!selectedContact || !currentUser) return;
 
-
-    const messageId = await window.electronAPI.sendPrivateMessage({
-      receiverId: selectedContact.id,
-      message: {
-        text,
-        messageType: 'text',
-        sender_id: currentUser.userId,
-        username: currentUser.username,
-        type: 'private'
-      }
-    });
-
+    const messageId = await window.electronAPI.getNewMessageId();
 
     const newMessage = {
       id: messageId,
@@ -379,20 +368,23 @@ function App() {
     pendingTimersRef.current.set(messageId, timer);
     setDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
 
+    await window.electronAPI.sendPrivateMessage({
+      receiverId: selectedContact.id,
+      message: {
+        text,
+        messageType: 'text',
+        sender_id: currentUser.userId,
+        username: currentUser.username,
+        type: 'private'
+      },
+      messageId
+    });
+
   }, [selectedContact, currentUser]);
 
   const handleSendgroupMessage = useCallback(async (text) => {
     if (selectedContact && currentUser && socket) {
-      const messageId = await window.electronAPI.sendGroupMessage({
-        groupId: selectedContact.id,
-        message: {
-          text,
-          messageType: 'text',
-          sender_id: currentUser.userId,
-          username: currentUser.username,
-          type: 'group'
-        }
-      });
+      const messageId = await window.electronAPI.getNewMessageId();
 
       const newMessage = {
         id: messageId,
@@ -426,6 +418,18 @@ function App() {
       }, 10000);
       pendingGroupTimersRef.current.set(messageId, timer);
       setGroupDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
+
+      await window.electronAPI.sendGroupMessage({
+        groupId: selectedContact.id,
+        message: {
+          text,
+          messageType: 'text',
+          sender_id: currentUser.userId,
+          username: currentUser.username,
+          type: 'group'
+        },
+        messageId
+      });
     }
   }, [selectedContact, currentUser, socket]);
 
@@ -509,7 +513,7 @@ function App() {
     if (!currentUser || !selectedContact) return;
 
     const fileName = filePath.split(/[\\/]/).pop();
-    const tempId = `temp_file_${Date.now()}`;
+    const tempId = await window.electronAPI.getNewMessageId();
     const isGroup = selectedContact.type === 'group';
 
     // 1. 在UI中立即显示一个“正在上传”的临时消息
@@ -523,10 +527,9 @@ function App() {
       messageType: 'file',
       fileName: fileName,
       fileUrl: null,
-      fileSize: '上传中...',
       localPath: filePath,
       fileExt: true,
-      status: 'sending'
+      status: 'uploading'
     };
     if (isGroup) {
       setGroupMessages(prev => ({
@@ -546,7 +549,8 @@ function App() {
         filePath,
         currentUser.userId,
         selectedContact.id,
-        isGroup
+        isGroup,
+        tempId
       );
 
       if (result.success) {
@@ -557,11 +561,12 @@ function App() {
           sender: 'user', // 确保UI正确显示
           localPath: filePath,
           fileExt: true,
-          status: 'success'
+          status: 'success',
+          id: result.messageId,
         };
 
         if (isGroup) {
-          setMessages(prev => {
+          setGroupMessages(prev => {
             const contactMessages = prev[selectedContact.id] || [];
             return {
               ...prev,
@@ -572,7 +577,8 @@ function App() {
           })
         }
         else {
-          setGroupMessages(prev => {
+
+          setMessages(prev => {
             const contactMessages = prev[selectedContact.id] || [];
             return {
               ...prev,
