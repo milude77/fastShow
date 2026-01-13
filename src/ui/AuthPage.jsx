@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { Button } from 'antd';
+import { Modal, message as Message } from 'antd';
 
 const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
 
@@ -28,8 +29,8 @@ const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) =>
       >
         登录
       </Button>
-      <span style={{ marginTop: '10px', color: '#666' }} onClick={() => handleNewUserLogin()  }>新账号登录</span>
-      { message && <span style={{ color: 'red', marginTop: '10px' }}>{message}</span> }
+      <span style={{ marginTop: '10px', color: '#666' }} onClick={() => handleNewUserLogin()}>新账号登录</span>
+      {message && <span style={{ color: 'red', marginTop: '10px' }}>{message}</span>}
     </div >
   )
 }
@@ -42,6 +43,8 @@ const AuthPage = () => {
   const [message, setMessage] = useState('');
   const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(false);
   const [lastLoginUser, setLastLoginUser] = useState(null);
+  const [modal, modalContextHolder] = Modal.useModal();
+  const [messageApi, contextHolder] = Message.useMessage();
 
   const socket = useSocket();
 
@@ -107,8 +110,26 @@ const AuthPage = () => {
       setUsername('');
       setPassword('');
       setConfirmPassword('');
-      window.electronAPI.showErrowMessage("注册成功，您的账号ID为: " + data.userId);
+      modal.success({
+        title: '注册成功',
+        content: `您的账号ID为: ${data.userId}`,
+        okText: '确定'
+      });
     };
+
+    const handleNotificationMessage = (data) => {
+        switch (data.status) {
+          case 'success':
+            messageApi.success(data.message);
+            break;
+          case 'error':
+            messageApi.error(data.message);
+            break;
+          case 'info':
+            messageApi.info(data.message);
+            break;
+        }
+      };
 
 
     const handleErrorMessage = (message) => {
@@ -119,11 +140,13 @@ const AuthPage = () => {
 
     socket.on('error', handleErrorMessage);
     socket.on('user-registered', handleRegisterSuccess);
+    socket.on('notification', handleNotificationMessage);
 
 
     return () => {
       socket.off('error', handleErrorMessage);
       socket.off('user-registered', handleRegisterSuccess);
+      socket.off('notification', handleNotificationMessage);
     }
   }, [socket]);
 
@@ -158,6 +181,8 @@ const AuthPage = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f0f2f5' }}>
+      {modalContextHolder}
+      {contextHolder}
       {(socket && lastLoginUser && showAttemptAutoLogin)
         ?
         <LastLoginUser

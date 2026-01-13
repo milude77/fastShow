@@ -809,10 +809,6 @@ ipcMain.on('open-settings-window', () => {
     createSettingsWindow();
 });
 
-ipcMain.on('show-error-window', (event, error) => {
-    createErrorWindow(error);
-});
-
 // --- User Credentials IPC Handlers ---
 ipcMain.on('save-user-credentials-list', (event, credentials) => {
     userCredentialsManager.saveUserCredentials(credentials);

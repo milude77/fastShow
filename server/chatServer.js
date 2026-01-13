@@ -133,7 +133,7 @@ const authenticateToken = (req, res, next) => {
 async function getFriendsList(socket) {
     const senderInfo = onlineUsers.get(socket.id);
     if (!senderInfo) {
-        socket.emit('error', { message: '未登录或会话无效' });
+        socket.emit('notification', { status: 'error', message: '未登录或会话无效' });
         return;
     }
 
@@ -157,7 +157,7 @@ async function getFriendsList(socket) {
         return friendsWithStatus;
     } catch (error) {
         console.error('Error fetching friends:', error);
-        socket.emit('error', { message: '获取好友列表失败' });
+        socket.emit('notification', { status: 'error', message: '获取好友列表失败' });
     }
 }
 
@@ -165,7 +165,7 @@ async function getFriendsList(socket) {
 async function getGroupsList(socket) {
     const senderInfo = onlineUsers.get(socket.id);
     if (!senderInfo) {
-        socket.emit('error', { message: '未登录或会话无效' });
+        socket.emit('notification', { status: 'error', message: '未登录或会话无效' });
         return;
     }
     const baseGroups = await db('group_members as gm')
@@ -309,7 +309,7 @@ io.on('connection', (socket) => {
         const { username, password } = data;
 
         if (!username || !password) {
-            socket.emit('error', { message: '用户名和密码是必需的' });
+            socket.emit('notification', { status: 'error',message: '用户名和密码是必需的' });
             return;
         }
 
@@ -329,7 +329,7 @@ io.on('connection', (socket) => {
 
         } catch (error) {
             console.error('注册用户失败:', error);
-            socket.emit('error', { message: '注册失败，请稍后再试' });
+            socket.emit('notification', { status: 'error', message: '注册失败，请稍后再试' });
         }
     });
 
@@ -338,20 +338,20 @@ io.on('connection', (socket) => {
         const { userId, password } = data;
 
         if (!userId || !password) {
-            socket.emit('error', { message: '用户ID和密码是必需的' });
+            socket.emit('notification', { status: 'error', message: '用户ID和密码是必需的' });
             return;
         }
 
         try {
             const user = await db('users').where({ id: userId }).first(); // 根据ID查找用户
             if (!user) {
-                socket.emit('error', { message: '用户ID或密码不正确' });
+                socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
                 return;
             }
 
             const isPasswordValid = await bcrypt.compare(password, user.password_hash);
             if (!isPasswordValid) {
-                socket.emit('error', { message: '用户ID或密码不正确' });
+                socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
                 return;
             }
 
@@ -365,7 +365,7 @@ io.on('connection', (socket) => {
 
         } catch (error) {
             console.error('登录失败:', error);
-            socket.emit('error', { message: '登录失败，请稍后再试' });
+            socket.emit('notification', { status: 'error', message: '登录失败，请稍后再试' });
         }
     });
 
@@ -373,7 +373,7 @@ io.on('connection', (socket) => {
         const token = data;
 
         if (!token) {
-            socket.emit('error', { message: '需要提供Token' });
+            socket.emit('notification', { status: 'error', message: '需要提供Token' });
             return;
         }
 
@@ -382,7 +382,7 @@ io.on('connection', (socket) => {
             const user = await db('users').where({ id: decoded.userId }).first();
 
             if (!user) {
-                socket.emit('error', { message: '无效的Token' });
+                socket.emit('notification', { status: 'error', message: '无效的Token' });
                 return;
             }
 
@@ -395,9 +395,9 @@ io.on('connection', (socket) => {
 
         } catch (error) {
             if (error.name === 'TokenExpiredError') {
-                socket.emit('error', { message: 'Token已过期，请重新登录' });
+                socket.emit('notification', { status: 'error', message: 'Token已过期，请重新登录' });
             } else {
-                socket.emit('error', { message: '登录失败，请稍后再试' });
+                socket.emit('notification', { status: 'error', message: '登录失败，请稍后再试' });
             }
         }
     });
@@ -407,7 +407,7 @@ io.on('connection', (socket) => {
 
         const user = await db('users').where({ id: userId }).first(); // 根据ID查找用户
         if (!user) {
-            socket.emit('error', { message: '用户ID或密码不正确' });
+            socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
             return;
         }
         const formattedId = String(user.id).padStart(6, '0');
@@ -424,17 +424,17 @@ io.on('connection', (socket) => {
         const senderInfo = onlineUsers.get(socket.id);
 
         if (!senderInfo) {
-            socket.emit('error', { message: '发送者信息不存在' });
+            socket.emit('notification', { status: 'error', message: '发送者信息不存在' });
             return;
         }
         if (!receiverId) {
-            socket.emit('error', { message: '接收者ID是必需的' });
+            socket.emit('notification', { status: 'error', message: '接收者ID是必需的' });
             return;
         }
 
         const receiverUser = await db('users').where({ id: receiverId }).first(); // 根据ID查找接收者
         if (!receiverUser) {
-            socket.emit('error', { message: `用户ID ${receiverId} 不存在` });
+            socket.emit('notification', { status: 'error', message: `用户ID ${receiverId} 不存在` });
             return;
         }
         const sendMessageId = message.id
@@ -485,17 +485,17 @@ io.on('connection', (socket) => {
         const sendMessageId = message.id
 
         if (!senderInfo) {
-            socket.emit('error', { message: '发送者信息不存在' });
+            socket.emit('notification', { status: 'error', message: '发送者信息不存在' });
             return;
         }
         if (!groupId) {
-            socket.emit('error', { message: '群组ID是必需的' });
+            socket.emit('notification', { status: 'error', message: '群组ID是必需的' });
             return;
         }
 
         const group = await db('groups').where({ id: groupId }).first();
         if (!group) {
-            socket.emit('error', { message: `群组ID ${groupId} 不存在` });
+            socket.emit('notification', { status: 'error', message: `群组ID ${groupId} 不存在` });
             return;
         }
 
@@ -807,7 +807,7 @@ io.on('connection', (socket) => {
             });
         } catch (error) {
             console.error('Error creating group:', error);
-            socket.emit('error', { message: '创建群组失败' });
+            socket.emit('notification', { status: 'error', message: '创建群组失败' });
         }
     });
 
@@ -1189,6 +1189,8 @@ app.get('/api/getGroupMember/:groupId/', authenticateToken, async (req, res) => 
             'm.user_name as userName',
             'm.role as role'
         );
+
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // 缓存1小时
 
     res.json(groupMembers);
 });

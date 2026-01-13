@@ -41,10 +41,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteContactMessageHistory: (contact) => ipcRenderer.invoke('delete-contact-message-history', { contact }),
   leaveGroup: (groupId, currentUserID) => ipcRenderer.invoke('leave-group', { groupId, currentUserID }),
 
-  showErrowMessage: (message) => ipcRenderer.send('show-error-window', message),
-  receiveErrorMessage: (callback) => ipcRenderer.on('error-message', (event, message) => callback(message)),
-  removeErrorListeners: () => ipcRenderer.removeAllListeners('error-message'),
-
   loginSuccess: ({ userId, token }) => ipcRenderer.send('login-success', { userId, token}),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
