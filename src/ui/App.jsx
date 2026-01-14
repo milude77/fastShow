@@ -7,17 +7,17 @@ import './css/dark-mode.css';
 import AppHeaderBar from './components/appHeaderBar';
 import ContactList from './components/Contact/contactList';
 import MessageList from './components/Message/messageList';
-import ContactInformation from './components/contactInformation';
-import FriendsRequestManagement from './components/friendsRequesetManagement';
-import InviteFriendsJoinGroup from './components/inviteFriends';
-import ToolBar from './components/toolBar';
+import ContactInformation from './components/addressBook/contactInformation';
+import FriendsRequestManagement from './components/custoModal/friendsRequesetManagement';
+import InviteFriendsJoinGroup from './components/custoModal/inviteFriends';
+import ToolBar from './components/toolBar/toolBar.jsx';
 import AuthPage from './AuthPage';
-import AddressBook from './components/addressBook';
+import AddressBook from './components/addressBook/addressBook.jsx';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import titleImage from './assets/title.png';
-import CustomModal from './components/CustomModal';
-import CreateGoupsApp from './CreateGoupsApp';
+import CustomModal from './components/custoModal/customModal.jsx';
+import CreateGoupsApp from './components/custoModal/CreateGoupsApp';
 
 const SearchBar = ({ currentUser, onCreateGroup }) => {
 
@@ -96,8 +96,24 @@ function App() {
   }, [setCurrentUser]);
 
   const toggleDarkMode = () => {
+    window.electronAPI.toggleTheme(darkMode === true ? 'light' : 'dark');
     setDarkMode(!darkMode);
   };
+
+  useEffect(() => {
+    const fetchTheme = async () => {
+      const theme = await window.electronAPI.getCurTheme();
+      if (theme === 'dark' && currentUser) {
+        setDarkMode(true);
+        document.body.classList.add('dark-mode');
+      } else {
+        setDarkMode(false);
+        document.body.classList.remove('dark-mode');
+      }
+    };
+
+    fetchTheme();
+  }, [currentUser]);
 
   useEffect(() => {
     if (currentUser) {
@@ -179,7 +195,7 @@ function App() {
     }
 
 
-    if (msg.type == 'private') {
+    if (selectedContact == contactId && msg.type == 'private') {
       setMessages(prev => {
         const contactMessages = prev[contactId] || [];
 
@@ -199,7 +215,8 @@ function App() {
         };
       })
     }
-    else {
+    else if( selectedContact == contactId && msg.type == 'group')
+      {
       setGroupMessages(prev => {
         const contactMessages = prev[msg.receiverId] || [];
 
@@ -327,6 +344,7 @@ function App() {
         setMessages(prev => ({ ...prev, [contact.id]: localHistory }));
       }
     }
+    window.electronAPI.clearUnreadMessageCount(contact.id, contact.type == 'group');
   }, [currentUser]);
 
   const handleAddressBookSelectContact = useCallback((contact) => {

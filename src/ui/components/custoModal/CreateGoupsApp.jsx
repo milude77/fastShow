@@ -2,7 +2,7 @@ import { React, useEffect, useState } from 'react';
 import { Alert, Button, message } from 'antd';
 import './css/createGoupsApp.css';
 import { Checkbox, Input, Select } from 'antd/lib/index.js';
-import { useSocket } from './hooks/useSocket';
+import { useSocket } from '../../hooks/useSocket';
 
 const CreateGoupsApp = ({ onClose }) => {
 

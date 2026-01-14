@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import '../css/toolBar.css';
+import './css/toolBar.css';
 import { Button, Badge, Space } from 'antd';
+import Avatar from '../avatar.jsx';
 
 import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import axios from 'axios';
-import AvatarUploader from './AvatarUploader';
-import apiClient from '../utils/api.js';
+import AvatarUploader from './AvatarUploader.jsx';
+import apiClient from '../../utils/api.js';
+
 
 const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
     const [avatarSrc, setAvatarSrc] = useState('');
@@ -26,23 +28,34 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
         }
     };
 
+
+
     useEffect(() => {
         updateAvatarSrc();
     }, [currentUser]);
 
-    useEffect(() => {
-        const handleNewInvite = () => {
-            setHasNewInvite(true);
-        };
+    const handleNewInvite = () => {
+        setHasNewInvite(true);
+    };
 
-        const handleNewMessage = () => {
-            setNewMessageCount((newMessageCount) => newMessageCount + 1);
-        };
+    const handleNewMessage = () => {
+        setNewMessageCount((newMessageCount) => newMessageCount + 1);
+    };
+
+    const handleClearUnreadMessageCount = async () => {
+        const allCount = await window.electronAPI.getAllUnreadMessageCount();
+        setNewMessageCount(allCount);
+    };
+
+    useEffect(() => {
+
         window.electronAPI.ipcRenderer.on('receive-new-invite', handleNewInvite);
-        window.electronAPI.ipcRenderer.on('receive-new-message', handleNewMessage);
+        window.electronAPI.ipcRenderer.on('revived-new-chat-message', handleNewMessage);
+        window.electronAPI.ipcRenderer.on('unread-message-count-cleared', handleClearUnreadMessageCount);
         return () => {
             window.electronAPI.ipcRenderer.removeListener('receive-new-invite', handleNewInvite);
-            window.electronAPI.ipcRenderer.removeListener('receive-new-message', handleNewMessage);
+            window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', handleNewMessage);
+            window.electronAPI.ipcRenderer.removeListener('unread-message-count-cleared', handleClearUnreadMessageCount);
         };
     }, []);
 
@@ -76,7 +89,12 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
 
     return (
         <div className='tool-bar'>
-            <img className='user-avatar' onClick={() => setIsUploaderOpen(true)} src={avatarSrc} alt="User Avatar" />
+            <Avatar
+                size={35}
+                className='user-avatar'
+                onClick={() => setIsUploaderOpen(true)}
+                src={avatarSrc}
+                alt="User Avatar" />
             {isUploaderOpen && (
                 <AvatarUploader
                     onAvatarUpload={handleAvatarUpload}

@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
 import knex from 'knex';
 import fs from 'fs';
-import fetch from 'node-fetch';
 import apiClient from './api.js';
 import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
@@ -18,8 +17,11 @@ import {
     settingsManager,
     appConfigManager,
     storageManager,
-    dbMigrationManager
+    dbMigrationManager,
+    themeManager,
+    unreadMessageManager
 } from './store.js';
+import { console } from 'inspector';
 
 
 // ESM-compliant __dirname
@@ -679,6 +681,7 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
             }
             socket.on('contacts-list', handleContactsList);
         }
+        socket.on('disconnect-message-send-comple', () => event.sender.send('disconnect-message-send-comple'))
         // 创建托盘 - 同样需要更新托盘图标路径
         createTray(mainWindow);
         socket.emit('initial-data-success', { userId: userId });
@@ -700,15 +703,17 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
 })
 
 
-ipcMain.on('new-chat-message', (event, { contactId, msg }) => {
-    // Safety check to prevent writing undefined data
+ipcMain.on('new-chat-message', async (event, { contactId, msg }) => {
+    const [messageId, isGroup ] = [msg.id, msg.type === 'group' ]
     if (!msg) {
         console.error('Received chat-message with undefined msg object.');
         return;
     }
 
-    writeChatHistory(contactId, msg);
-    event.sender.send('receive-new-message', contactId);
+    await writeChatHistory(contactId, msg);
+    socket.emit('confirm-message-received', { messageId, isGroup });
+    unreadMessageManager.incrementUnreadMessageCount(currentUserId, contactId, isGroup)
+    event.sender.send('revived-new-chat-message', { contactId, isGroup });
 });
 
 function getNewMessageId() {
@@ -800,6 +805,14 @@ ipcMain.handle('get-app-version', () => {
 ipcMain.handle('get-server-url', () => {
     return SOCKET_SERVER_URL;
 });
+
+ipcMain.handle('get-cur-theme', () => {
+    return themeManager.getTheme();
+})
+
+ipcMain.on('toggle-theme', (event, theme) => {
+    themeManager.setTheme(theme);
+})
 
 ipcMain.on('open-search-window', (event, { userId, selectInformation }) => {
     createSearchWindow(userId, selectInformation);
@@ -1425,6 +1438,20 @@ ipcMain.handle('get-last-message', async (event, { contactId, isGroup }) => {
     };
 })
 
+ipcMain.handle('get-unread-message-count', async ( { contactId, isGroup } ) => {
+     return unreadMessageManager.getUnreadMessageCount(currentUserId, contactId, isGroup);
+});
+
+ipcMain.on('clear-unread-message-count', async (event, { contactId, isGroup }) => {
+    unreadMessageManager.clearUnreadMessageCount(currentUserId, contactId, isGroup);
+    console.log('clear-unread-message-count', { contactId, isGroup })
+    event.sender.send('unread-message-count-cleared');
+})
+
+ipcMain.handle('get-all-unread-message-count', async () => {
+    return unreadMessageManager.getAllUnreadMessageCount(currentUserId);
+
+});
 
 ipcMain.handle('read-file', async (event, filePath) => {
     try {

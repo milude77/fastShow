@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useCallback } from 'react'
 import { Badge } from 'antd';
-import { useEffect, useState, useRef } from 'react'
-import './css/contactItem.css'
+import { UserOutlined, TeamOutlined } from '@ant-design/icons';
+import { useEffect, useState } from 'react';
+import Avatar from '../avatar.jsx';
+import './css/contactItem.css';
 
 
 export default function ContactItem({ contact, selectedContact, handleSelectContact, serverUrl }) {
@@ -11,30 +13,38 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
 
     //节流函数
     const throttle = (fn, delay) => {
-        let timer = null
-        return function (...args) {
-            if (!timer) {
-                fn.apply(this, args)
-                timer = setTimeout(() => {
-                    timer = null;
-                }, delay);
+        let timer = null;
+        let inProgress = false;
+
+        return async function (...args) {
+            if (timer || inProgress) return;
+
+            inProgress = true;
+            try {
+                await fn.apply(this, args);
+            } finally {
+                inProgress = false;
             }
+
+            timer = setTimeout(() => {
+                timer = null;
+            }, delay);
         }
     }
+    async function handleSelectCurContact(contact) {
+        handleSelectContact(contact);
+        setNewMessageCount(0);
+        await window.electronAPI.clearUnreadMessageCount(contact.id, contact.type === 'group');
+    }
 
-    function getLastMessage(contactId) {
+    async function getLastMessage(contactId) {
         const isGroup = contact.type === 'group';
-        window.electronAPI.getLastMessage(contactId, isGroup).then((message) => {
-            setLastMessage(message);
-        })
+        const message = await window.electronAPI.getLastMessage(contactId, isGroup);
+        setLastMessage(message);
+        return message;
     }
 
-    const trollerGetLastMessageRef = useRef(null);
-
-    if (!trollerGetLastMessageRef.current) {
-        trollerGetLastMessageRef.current = throttle(getLastMessage, 1000);
-    }
-
+    const trollerGetLastMessage = throttle(getLastMessage, 300)
     const formatTime = (timestamp) => {
         if (!timestamp) return '';
         const date = new Date(timestamp);
@@ -45,40 +55,51 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
         getLastMessage(contact.id);
     }, [])
 
+    const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
+        if (contactId === contact.id && isGroup === (contact.type === 'group')) {
+            setNewMessageCount((newMessageCount) => newMessageCount + 1);
+            trollerGetLastMessage(contactId);
+        }
+    }, [contact.id, contact.type, trollerGetLastMessage]);
+
 
 
     useEffect(() => {
-        const handleNewMessage = (event, contactId) => {
-            if (contactId === contact.id) {
-                setNewMessageCount((count) => count + 1);
-                trollerGetLastMessageRef.current(contactId);
-            }
-        };
-        window.electronAPI.ipcRenderer.on('receive-new-message', handleNewMessage);
+
+        window.electronAPI.ipcRenderer.on('revived-new-chat-message', handleNewMessage);
         return () => {
-            window.electronAPI.ipcRenderer.removeListener('receive-new-message', handleNewMessage);
+            window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', handleNewMessage);
         };
-    }, [contact]);
+    }, [handleNewMessage]);
+
 
     return (
-        <div key={contact.id} className={`contact-item ${contact.id === selectedContact?.id ? 'selected' : ''}`} onClick={() => handleSelectContact(contact)} >
-            <img className='contact-avatar' src={`${serverUrl}/api/avatar/${contact.id}/${contact.type == 'friend' ? 'user' : 'group'}?t=${new Date().getTime()}`} alt='avatar' />
+        <div key={contact.id} className={`contact-item ${contact.id === selectedContact?.id ? 'selected' : ''}`} onClick={() => handleSelectCurContact(contact)} >
+            <Avatar
+                className='contact-avatar'
+                size={48}
+                icon={contact.type === 'group' ? <TeamOutlined /> : <UserOutlined />}
+                src={`${serverUrl}/api/avatar/${contact.id}/${contact.type == 'friend' ? 'user' : 'group'}?t=${new Date().getTime()}`}
+                alt='avatar'
+            />
             <div className="contact-info-grid">
                 <span className="contact-username">{contact.username}</span>
                 <span className="contact-message">{lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : ''}</span>
                 <span className="contact-timestamp">{formatTime(lastMessage?.timestamp)}</span>
-                <Badge
-                    size="small"
-                    className="message-badge"
-                    count={newMessageCount}
-                    style={{
-                        position: 'absolute',
-                        bottom: '5px',
-                        right: '5px',
-                        backgroundColor: '#ff4d4f',
-                        color: 'white'
-                    }}
-                />
+                {newMessageCount > 0 && (
+                    <Badge
+                        size="small"
+                        className="message-badge"
+                        count={newMessageCount}
+                        style={{
+                            position: 'absolute',
+                            bottom: '5px',
+                            right: '5px',
+                            backgroundColor: '#ff4d4f',
+                            color: 'white'
+                        }}
+                    />
+                )}
             </div>
         </div>
     )

@@ -249,7 +249,6 @@ async function handleSendDisconnectMessage(socket, user) {
             fileSize: msg.file_size,
             status: 'success'
         });
-        await db('group_message_read_status').where({ group_message_id: msg.message_id }).where({ user_id: user.userId }).update({ status: 'delivered' });
     }
 
     // 发送私聊消息
@@ -268,8 +267,9 @@ async function handleSendDisconnectMessage(socket, user) {
             fileSize: msg.file_size,
             status: 'success'
         });
-        await db('messages').where({ message_id: msg.message_id }).update({ status: 'delivered' });
     }
+
+    socket.emit('disconnect-message-send-comple')
 }
 
 async function handleGetFriendRequests(socket) {
@@ -415,6 +415,16 @@ io.on('connection', (socket) => {
         handleGetFriendRequests(socket);
     });
 
+    socket.on('confirm-message-received', async({ messageId, isGroup }) => {
+        const user = onlineUsers.get(socket.id);
+        
+        if (isGroup) {
+            await db('group_message_read_status').where({ group_message_id: messageId }).andWhere({ user_id: user.userId }).update({ status: 'delivered' });
+        } else {
+            await db('messages').where({ message_id: messageId }).update({ status: 'delivered' });
+        }
+    });
+
 
     // 处理私聊消息
     socket.on('send-private-message', async (message) => {
@@ -455,7 +465,7 @@ io.on('connection', (socket) => {
         await db('messages').insert(newMessage);
 
         const savedMessage = {
-            id: sendMessageId,
+            message_id: sendMessageId,
             username: senderInfo.username,
             content: newMessage.content,
             timestamp: newMessage.timestamp,
@@ -469,7 +479,6 @@ io.on('connection', (socket) => {
         if (onlineUsersIds.has(receiverId)) {
             const targetSocketId = onlineUsersIds.get(receiverId).socketId;
             io.to(targetSocketId).emit('new-message', savedMessage);
-            await db('messages').where({ message_id: sendMessageId }).update({ status: 'delivered' });
         } else {
             // 接收方离线，消息状态保持 'sent' (待投递)
             console.log(`用户 ${receiverUser.username} 离线，消息将等待上线后投递`);
@@ -646,8 +655,6 @@ io.on('connection', (socket) => {
 
         const sortedIds = [senderInfo.userId, friendId].sort();
         const friendshipId = `${sortedIds[0]}_${sortedIds[1]}_friends`;
-
-        console.log(`删除好友: ${friendshipId}`);
 
         try {
             await db('friendships')

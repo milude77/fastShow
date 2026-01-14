@@ -1,5 +1,6 @@
 import React from 'react';
 import './css/groupMember.css';
+import Avatar from '../avatar.jsx';
 
 
 const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
@@ -9,7 +10,10 @@ const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
             {members.map((member, index) => {
                 return (
                     <div className="group-member" key={index}>
-                        <img style={{ height: '20px', width: '20px', borderRadius: 'var(--border-radius)' }} src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`} alt={member.userName} />
+                        <Avatar
+                            size={20}
+                            src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`}
+                            alt={member.userName} />
                         <div className="group-member-name">{member.userName}</div>
                     </div>
                 )

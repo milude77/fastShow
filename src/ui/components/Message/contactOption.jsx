@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { message, Modal } from 'antd';
 import './css/contactOption.css'
+import Avatar from '../avatar.jsx';
 
 
 const ContactOption = ({ contact, currentUser, openContactOptions, deleteContactMessageHistory, deleteContact, onClose, inviteFriendsJoinGroup, groupMemberList }) => {
@@ -47,10 +48,10 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             centered: true,
             maskClosable: false,
             title: (
-            <>
-                确认删除好友 {contact.username}？
-                <span style={{ color: 'red' }}>(将清空所有历史消息！)</span>
-            </>
+                <>
+                    确认删除好友 {contact.username}？
+                    <span style={{ color: 'red' }}>(将清空所有历史消息！)</span>
+                </>
             ),
             onOk() {
                 deleteContact(contact.id);
@@ -96,7 +97,10 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             {modalContextHolder}
             {contact.type === 'group' &&
                 <div className="contact-option-header" >
-                    <img style={{ width: '50px', height: '50px', borderRadius: '50%' }} src={`${serverUrl}/api/avatar/${contact.id}/group`} alt="群聊头像" />
+                    <Avatar
+                        size={50}
+                        src={`${serverUrl}/api/avatar/${contact.id}/group`}
+                        alt="群聊头像" />
                     <div style={{ display: 'flex', flexDirection: 'column' }} >
                         <strong>{contact.username}</strong>
                         <h4>id:{contact.id}</h4>
@@ -109,7 +113,10 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
                     {groupMemberList.slice(0, Math.min(groupMemberList.length, 14)).map((member, index) => {
                         return (
                             <div className="group-member" key={index}>
-                                <img src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`} alt={member.userName} />
+                                <Avatar
+                                    size={40}
+                                    src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`}
+                                    alt={member.userName} />
                                 <span className="group-member-name">{member.userName}</span>
                             </div>
                         )

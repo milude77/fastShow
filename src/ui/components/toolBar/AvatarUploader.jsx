@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
-import '../css/AvatarUploader.css';
+import './css/AvatarUploader.css';
 
 const createImage = (url) =>
   new Promise((resolve, reject) => {

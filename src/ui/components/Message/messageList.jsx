@@ -76,8 +76,9 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         if (sizeInGb < 1) return sizeInMb.toFixed(2) + ' MB';
         return sizeInGb.toFixed(2) + ' GB';
     };
-    const messagesEndRef = useRef(null);
+
     const messageContainerRef = useRef(null);
+    const lastMessageRef = useRef(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [modal, modalContextHolder] = Modal.useModal();
 
@@ -124,8 +125,16 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
 
     const lastMessageTimestamp = useRef(messages?.[-1]?.timestamp)
+
     const scrollToBottom = (behavior = "auto") => {
-        messagesEndRef.current?.scrollIntoView({ behavior });
+        if (lastMessageRef.current) {
+            lastMessageRef.current.scrollIntoView({ 
+                behavior: behavior,
+                block: 'end'  // 确保元素滚动到容器底部
+            });
+        } else if (messageContainerRef.current) {
+            messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+        }
     };
 
     useEffect(() => {
@@ -160,12 +169,12 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
     const handleSendMessage = (message) => {
         onSendMessage(message);
-        scrollToBottom();
+        scrollToBottom("smooth");
     }
 
     const handleSendGroupMessage = (message) => {
         onSendGroupMessage(message);
-        scrollToBottom();
+        scrollToBottom("smooth");
     }
 
     // 判断是否显示时间戳
@@ -370,6 +379,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                                     handleDownloadFile={handleDownloadFile}
                                     convertFileSize={convertFileSize}
                                     isGroup={contact.type === 'group'}
+                                    ref={index === messages.length - 1 ? lastMessageRef : null}
                                 />
                             ))}
                         </ul >
@@ -398,7 +408,6 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                                 />
                             )}
                         </div>
-                        <div ref={messagesEndRef} />
                     </div >
                     <div className='message-send-box' style={{ height: 210 }} >
                         {/* 移除了 <div className="resize-handle" onMouseDown={onResizeMouseDown} /> */}

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Dropdown, Menu } from 'antd';
 import { DashOutlined } from '@ant-design/icons';
-import '../css/contactInformation.css';
+import './css/contactInformation.css';
 import { Modal } from 'antd';
 
 const ContactInformation = ({ contactInformation, toSendMessage, deleteContact }) => {

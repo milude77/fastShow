@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
   resendMessage: (messageId) => ipcRenderer.invoke('resend-message', { messageId }),
   getLastMessage: (contactId, isGroup) => ipcRenderer.invoke('get-last-message', { contactId, isGroup }),
+  getUnreadMessageCount: (contactId, isGroup) => ipcRenderer.invoke('get-unread-message-count', { contactId, isGroup }),
+  clearUnreadMessageCount: (contactId, isGroup) => ipcRenderer.send('clear-unread-message-count', { contactId, isGroup }),
+  getAllUnreadMessageCount: () => ipcRenderer.invoke('get-all-unread-message-count'),
   // 触发文件选择对话框，并返回文件路径
   selectFile: () => ipcRenderer.invoke('select-file'),
   // 使用新的MinIO上传流程
@@ -63,7 +66,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
   toggleAlwaysOnTop: () => ipcRenderer.send('toggle-always-on-top'),
   getInitialIsPinned: () => ipcRenderer.invoke('get-initial-always-on-top'),
-
+  getCurTheme: () => ipcRenderer.invoke('get-cur-theme'),
+  toggleTheme: (theme) => ipcRenderer.send('toggle-theme', theme),
 
   ipcRenderer: {
     on: (channel, listener) => {

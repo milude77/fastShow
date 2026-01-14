@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { Button } from 'antd';
 import { Modal, message as Message } from 'antd';
+import './css/authPage.css'
 
 const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
 
@@ -180,7 +181,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#f0f2f5' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
       {modalContextHolder}
       {contextHolder}
       {(socket && lastLoginUser && showAttemptAutoLogin)

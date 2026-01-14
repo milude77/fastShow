@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useSocket } from '../hooks/useSocket';
+import React, { useEffect, useState } from 'react';
+import { useSocket } from '../../hooks/useSocket';
 import { message } from 'antd';
-import '../css/friendsRequesetManagement.css';
+import './css/friendsRequesetManagement.css';
 
 const FriendsRequestManagement = () => {
 

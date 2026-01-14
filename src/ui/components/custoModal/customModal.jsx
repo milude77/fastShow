@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import './../css/CustomModal.css';
+import './css/CustomModal.css';
 
 const CustomModal = ({ isOpen, children }) => {
   if (!isOpen) {

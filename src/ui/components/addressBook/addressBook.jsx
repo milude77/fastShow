@@ -1,7 +1,7 @@
 import {React, useEffect, useState } from 'react';
 import { Collapse } from 'antd';
 import { UserOutlined, TeamOutlined, CaretRightOutlined, UsergroupAddOutlined } from '@ant-design/icons';
-import '../css/addressBook.css';
+import './css/addressBook.css';
 
 const { Panel } = Collapse;
 

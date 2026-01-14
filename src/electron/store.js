@@ -1,4 +1,4 @@
-
+import { all } from 'axios';
 import Store from 'electron-store';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,7 +22,7 @@ const schema = {
     default: {
       autoLogin: true,
       showNotifications: true,
-      theme: 'light', 
+      theme: 'light',
       fontSize: 14,
       maxChatHistory: 1000,
       uploadLimitMB: 50,
@@ -155,6 +155,48 @@ export const appConfigManager = {
   }
 };
 
+export const unreadMessageManager = {
+  getUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    return store.get(key) || 0;
+  },
+
+  getAllUnreadMessageCount: function (userId) {  // 使用 function
+    const key = `unreadMessageCount.${userId}.count`;
+    const userUnreadCounts = store.get(key);
+    return userUnreadCounts || 0;
+  },
+
+  setUnreadMessageCount: function (userId, contactId, count, isGroup) {  // 使用 function
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    store.set(key, count);
+  },
+
+  incrementUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    const allKey = `unreadMessageCount.${userId}.count`;
+    const currentCount = store.get(key) || 0;
+    const allCount = store.get(allKey) || 0;
+    store.set(key, currentCount + 1);
+    store.set(allKey, allCount + 1);
+  },
+
+  clearUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    const count = store.get(key) || 0;
+    const allCount = this.getAllUnreadMessageCount(userId);  // ✅ 现在可以使用 this
+    const allKey = `unreadMessageCount.${userId}.count`;
+
+    store.set(key, 0);
+    store.set(allKey, Math.max(0, allCount - count));  // 防止负数
+  },
+
+  clearAllUserUnreadMessages: function (userId) {  // 使用 function
+    const key = `unreadMessageCount.${userId}.count`;
+    store.delete(key);
+  }
+};
+
 // 数据库迁移版本管理
 export const dbMigrationManager = {
   getMigrationVersion: (userId) => {
@@ -198,6 +240,16 @@ export const storageManager = {
   // 获取 store 文件路径
   getPath: () => {
     return store.path;
+  }
+};
+
+export const themeManager = {
+  getTheme: () => {
+    return store.get('settings.theme');
+  },
+
+  setTheme: (theme) => {
+    store.set('settings.theme', theme);
   }
 };
 
