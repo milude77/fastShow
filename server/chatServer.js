@@ -726,7 +726,7 @@ io.on('connection', (socket) => {
                 created_at: timestamp,
                 updated_at: timestamp,
                 role: 'member'
-            });
+            }).onConflict(['group_id', 'user_id']).ignore();;
 
             const groupMembers = await db('group_invitations')
                 .where({ 'group_invitations.id': requesterId })

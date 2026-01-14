@@ -72,6 +72,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [selectFeatures, setSelectFeatures] = useState('message');
   const [selectedContact, setSelectedContact] = useState(null);
+  const selectedContactRef = useRef(selectedContact);
   const [selectedContactInformation, setSelectedContactInformation] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [messages, setMessages] = useState({});
@@ -87,6 +88,10 @@ function App() {
   const [messageApi, contextHolder] = message.useMessage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalConment, setModalConment] = useState('');
+
+  useEffect(() => {
+    selectedContactRef.current = selectedContact;
+  }, [selectedContact]);
 
   const handleAvatarUpdate = useCallback(() => {
     setCurrentUser(prevUser => ({
@@ -194,8 +199,11 @@ function App() {
       catch (e) { console.error("保存消息失败:", e) };
     }
 
+    const currentSelectedContact = selectedContactRef.current;
 
-    if (selectedContact == contactId && msg.type == 'private') {
+
+    if (currentSelectedContact.id == contactId && msg.type == 'private') {
+
       setMessages(prev => {
         const contactMessages = prev[contactId] || [];
 
@@ -215,8 +223,7 @@ function App() {
         };
       })
     }
-    else if( selectedContact == contactId && msg.type == 'group')
-      {
+    else if (currentSelectedContact.id == contactId && msg.type == 'group') {
       setGroupMessages(prev => {
         const contactMessages = prev[msg.receiverId] || [];
 
@@ -236,7 +243,7 @@ function App() {
         };
       });
     };
-  }, [currentUser]);
+  }, [selectedContact]);
 
   const handleSendMessageStatus = useCallback(({ senderInfo, sendMessageId, receiverId, isGroup }) => {
     // 收到服务端成功回执，清除超时计时器
