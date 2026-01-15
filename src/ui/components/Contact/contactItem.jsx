@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useRef } from 'react'
 import { Badge } from 'antd';
 import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
@@ -10,6 +10,7 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
 
     const [lastMessage, setLastMessage] = useState({});
     const [newMessageCount, setNewMessageCount] = useState(0);
+    const newMessageCountRef = useRef(newMessageCount);
 
     //节流函数
     const throttle = (fn, delay) => {
@@ -52,12 +53,16 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
     };
 
     useEffect(() => {
+        newMessageCountRef.current = newMessageCount;
+    }, [newMessageCount]);
+
+    useEffect(() => {
         getLastMessage(contact.id);
     }, [])
 
     const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
-            setNewMessageCount((newMessageCount) => newMessageCount + 1);
+            setNewMessageCount(newMessageCountRef.current + 1);
             trollerGetLastMessage(contactId);
         }
     }, [contact.id, contact.type, trollerGetLastMessage]);

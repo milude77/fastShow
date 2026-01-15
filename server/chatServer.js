@@ -309,7 +309,7 @@ io.on('connection', (socket) => {
         const { username, password } = data;
 
         if (!username || !password) {
-            socket.emit('notification', { status: 'error',message: '用户名和密码是必需的' });
+            socket.emit('notification', { status: 'error', message: '用户名和密码是必需的' });
             return;
         }
 
@@ -355,13 +355,25 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            // 检查用户是否已登录
+            if (onlineUsersIds.has(userId)) {
+                const targetSocketId = onlineUsersIds.get(userId).socketId;
+                const targetSocket = io.sockets.sockets.get(targetSocketId);
+                if (targetSocket) {
+                    targetSocket.emit('strong-logout-warning', { message: '在其他设备登录,已强制下线' });
+                }
+
+                // 清理用户数据
+                onlineUsers.delete(targetSocketId);
+                onlineUsersIds.delete(userId);
+            }
+
             // 登录成功
             const formattedId = String(user.id).padStart(6, '0');
             const token = jwt.sign({ userId: formattedId, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
             onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
             onlineUsersIds.set(formattedId, { socketId: socket.id, username: user.username })
             socket.emit('login-success', { userId: formattedId, username: user.username, token });
-
 
         } catch (error) {
             console.error('登录失败:', error);
@@ -384,6 +396,20 @@ io.on('connection', (socket) => {
             if (!user) {
                 socket.emit('notification', { status: 'error', message: '无效的Token' });
                 return;
+            }
+
+            const userId = decoded.userId;
+
+            // 检查用户是否已登录
+            if (onlineUsersIds.has(userId)) {
+                const targetSocketId = onlineUsersIds.get(userId).socketId;
+                const targetSocket = io.sockets.sockets.get(targetSocketId);
+                if (targetSocket) {
+                    targetSocket.emit('strong-logout-warning', { message: '在其他设备登录,已强制下线' });
+                }
+                // 清理用户数据
+                onlineUsers.delete(targetSocketId);
+                onlineUsersIds.delete(userId);
             }
 
             const formattedId = String(user.id).padStart(6, '0');
@@ -415,9 +441,9 @@ io.on('connection', (socket) => {
         handleGetFriendRequests(socket);
     });
 
-    socket.on('confirm-message-received', async({ messageId, isGroup }) => {
+    socket.on('confirm-message-received', async ({ messageId, isGroup }) => {
         const user = onlineUsers.get(socket.id);
-        
+
         if (isGroup) {
             await db('group_message_read_status').where({ group_message_id: messageId }).andWhere({ user_id: user.userId }).update({ status: 'delivered' });
         } else {
@@ -679,15 +705,13 @@ io.on('connection', (socket) => {
                 .update({ status: 'accepted' });
 
             if (updated > 0) {
-                // 获取好友信息，明确指定是 friendships 表的 id
                 const friendInformation = await db('friendships')
                     .where({ 'friendships.id': requesterId })
                     .join('users', 'friendships.user_id', 'users.id')
-                    .select('users.id', 'users.username');
+                    .select('users.id', 'users.username')
+                    .first();
 
-                // 通知对方请求已被接受
-                const targetSocketId = Array.from(onlineUsers.entries())
-                    .find(([, uInfo]) => uInfo.userId === requesterId)?.[0];
+                const targetSocketId = onlineUsersIds.get(friendInformation.id)?.socketId;
                 if (targetSocketId) {
                     io.to(targetSocketId).emit('friend-request-accepted', {
                         id: senderInfo.userId,
@@ -696,7 +720,7 @@ io.on('connection', (socket) => {
                         isOnline: true
                     });
                 }
-                socket.emit('friend-request-accepted', Object.assign(friendInformation[0], { type: 'friend', isOnline: targetSocketId }));
+                socket.emit('friend-request-accepted', Object.assign(friendInformation, { type: 'friend', isOnline: targetSocketId }));
             }
         } catch (error) {
             console.error('Error accepting friend request:', error);

@@ -106,7 +106,7 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
                     <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} type="link" title='消息' icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
                 </Badge>
                 <Badge size="small" dot={hasNewInvite} >
-                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => setSelectFeatures('contact')}></Button>
+                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => {setHasNewInvite(false);setSelectFeatures('contact')}}></Button>
                 </Badge>
             </div>
             <div className='change-theme-bar'>

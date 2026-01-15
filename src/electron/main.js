@@ -108,7 +108,6 @@ function connectSocket() {
     });
 
     socket.on('disconnect', () => {
-        console.log('Socket disconnected from server in main process');
         clearInterval(heartbeatInterval);
         clearTimeout(heartbeatTimeout);
 
@@ -121,6 +120,7 @@ function connectSocket() {
         BrowserWindow.getAllWindows().forEach(win => {
             win.webContents.send('socket-event', { event: 'reconnecting' });
         });
+
     });
 
     // Generic listener to forward all server events to renderer processes
@@ -704,7 +704,7 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
 
 
 ipcMain.on('new-chat-message', async (event, { contactId, msg }) => {
-    const [messageId, isGroup ] = [msg.id, msg.type === 'group' ]
+    const [messageId, isGroup] = [msg.id, msg.type === 'group']
     if (!msg) {
         console.error('Received chat-message with undefined msg object.');
         return;
@@ -1438,13 +1438,12 @@ ipcMain.handle('get-last-message', async (event, { contactId, isGroup }) => {
     };
 })
 
-ipcMain.handle('get-unread-message-count', async ( { contactId, isGroup } ) => {
-     return unreadMessageManager.getUnreadMessageCount(currentUserId, contactId, isGroup);
+ipcMain.handle('get-unread-message-count', async ({ contactId, isGroup }) => {
+    return unreadMessageManager.getUnreadMessageCount(currentUserId, contactId, isGroup);
 });
 
 ipcMain.on('clear-unread-message-count', async (event, { contactId, isGroup }) => {
     unreadMessageManager.clearUnreadMessageCount(currentUserId, contactId, isGroup);
-    console.log('clear-unread-message-count', { contactId, isGroup })
     event.sender.send('unread-message-count-cleared');
 })
 
@@ -1488,9 +1487,20 @@ ipcMain.handle('get-invite-information-list', async () => {
     return inviteInformationList;
 });
 
-ipcMain.on('logout', () => {
-    app.relaunch();
-    app.exit();
+ipcMain.on('strong-logout-waring', async (event, message) => {
+
+    // 销毁托盘图标
+    if (tray) {
+        tray.destroy();
+        tray = null;
+    }
+
+    // 断开当前连接
+    if (socket) {
+        socket.disconnect();
+    }
+
+    event.sender.send('strong-logout-waring', message);
 });
 
 

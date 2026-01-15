@@ -219,6 +219,7 @@ function App() {
             fileName: msg.fileName,
             fileUrl: msg.fileUrl,
             fileSize: msg.fileSize,
+            sender_id: contactId
           }]
         };
       })
@@ -239,6 +240,7 @@ function App() {
             fileName: msg.fileName,
             fileUrl: msg.fileUrl,
             fileSize: msg.fileSize,
+            sender_id: msg.senderId
           }]
         };
       });
@@ -303,6 +305,12 @@ function App() {
     }
   }, []);
 
+  const handleStrongLogoutWarning = useCallback(async (data) => {
+    const message = data.message;
+    setCurrentUser(null);
+    await window.electronAPI.strongLogoutWaring(message);
+  }, [setCurrentUser]);
+
   useEffect(() => {
     if (!socket) return;
 
@@ -319,6 +327,7 @@ function App() {
     socket.on('new-friend-request', handleNewFriendRequests);
     socket.on('group-invite', handleNewGroupInvite);
     socket.on('notification', handleNotificationMessage);
+    socket.on('strong-logout-warning', handleStrongLogoutWarning);
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
@@ -335,6 +344,7 @@ function App() {
       socket.off('new-friend-request', handleNewFriendRequests);
       socket.off('group-invite', handleNewGroupInvite);
       socket.off('notification', handleNotificationMessage);
+      socket.off('strong-logout-warning', handleStrongLogoutWarning);
     };
   }, [socket]);
 
