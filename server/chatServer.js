@@ -92,8 +92,30 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: (origin, callback) => {
+            // Electron 应用的常见源
+            const electronOrigins = [
+                'file://',
+                'app://', 
+                'asar://',
+                'null'   
+            ];
+
+            // 是否为 Electron 应用的源
+            const isElectronOrigin = !origin ||
+                electronOrigins.some(electronOrigin =>
+                    origin.startsWith(electronOrigin) ||
+                    origin === 'null');
+
+            if (isElectronOrigin) {
+                callback(null, true);  // 允许连接
+            } else {
+                console.log(`CORS blocked: ${origin} is not an allowed origin`);
+                callback(new Error('Origin not allowed by CORS'));
+            }
+        },
+        methods: ["GET", "POST"],
+        credentials: true
     },
 });
 

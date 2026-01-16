@@ -311,6 +311,21 @@ function App() {
     await window.electronAPI.strongLogoutWaring(message);
   }, [setCurrentUser]);
 
+  const handleChatHistoryDeleted = useCallback((event, { contactId, isGroup }) => {
+    if (isGroup){
+      setGroupMessages(prev => ({...prev, [contactId]: [] }));
+    }
+    else{
+      setMessages(prev => ({...prev, [contactId]: [] }));
+    }
+  },[])
+
+  useEffect(() =>{
+    window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
+
+    window.electronAPI.ipcRenderer.removeListener('message-history-deleted', handleChatHistoryDeleted);
+  },[])
+
   useEffect(() => {
     if (!socket) return;
 

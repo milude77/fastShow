@@ -1233,11 +1233,13 @@ ipcMain.handle('delete-contact-message-history', async (event, { contact }) => {
         return { success: false, error: '数据库未连接' };
     }
     const contactId = contact.id;
+    const isGroup = contact.type == 'group'
 
-    if (contact.type == 'group') {
+    if (isGroup) {
         const deleted = await db('group_messages')
-            .where('group_id', contactId)
+            .where('receiver_id', contactId)
             .del();
+        event.sender.send('message-history-deleted', { contactId, isGroup });
         return { success: true, deleted };
     }
     else {
@@ -1245,6 +1247,7 @@ ipcMain.handle('delete-contact-message-history', async (event, { contact }) => {
             .where('receiver_id', contactId)
             .orWhere('sender_id', contactId)
             .del();
+        event.sender.send('message-history-deleted', { contactId, isGroup });
         return { success: true, deleted };
     }
 });
@@ -1501,6 +1504,11 @@ ipcMain.on('strong-logout-waring', async (event, message) => {
     }
 
     event.sender.send('strong-logout-waring', message);
+});
+
+ipcMain.on('logout', async (event) => { 
+    app.relaunch();
+    app.exit();
 });
 
 
