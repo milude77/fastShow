@@ -3,10 +3,13 @@
 '闪聊' 是一个功能丰富的桌面聊天应用程序，旨在提供流畅、安全的实时通讯体验。它基于强大的 Electron 框架构建，结合了 React 的现代化用户界面和 Node.js 的高效后端服务，支持私聊、群聊、文件传输等多种功能。
 
 ## 应用截图
-(./docs/showImg_1.png)
-(./docs/showImg_2.png)
-(./docs/showImg_3.png)
-(./docs/showImg_4.png)
+![应用截图1](./docs/showImg_1.png)
+
+![应用截图2](./docs/showImg_2.png)
+
+![应用截图3](./docs/showImg_3.png)
+
+![应用截图4](./docs/showImg_4.png)
 
 ## 主要特性
 
