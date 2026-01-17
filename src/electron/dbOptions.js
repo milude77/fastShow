@@ -119,7 +119,7 @@ export async function migrateUserDb(db, userId, dbPath) {
     const curuentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 6;
+    const targetVer = 7;
     // 若版本已满足，直接返回
     if (curuentDbVersion >= targetVer) {
       return;
@@ -269,7 +269,7 @@ export async function migrateUserDb(db, userId, dbPath) {
             return { name, full, mtime: stat.mtimeMs };
           })
           .sort((a, b) => b.mtime - a.mtime);
-        const keep = 3;
+        const keep = 0;
         for (let i = keep; i < files.length; i++) {
           try { fs.unlinkSync(files[i].full); } catch { /* 忽略清理失败 */ }
         }
