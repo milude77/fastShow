@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return null;
     }
   },
+  getFileInfo: (filePath) => ipcRenderer.invoke('get-file-info', filePath),
   downloadFile: (messageId, fileUrl, fileName, isGroup) => ipcRenderer.invoke('download-file', { messageId, fileUrl, fileName, isGroup }),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),

@@ -67,13 +67,21 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
         }
     }, [contact.id, contact.type, trollerGetLastMessage]);
 
+    const handleSendNewMessage = useCallback((event, { contactId, isGroup }) => {
+        if (contactId === contact.id && isGroup === (contact.type === 'group')) {
+            trollerGetLastMessage(contactId);
+        }
+    },[contact.id, contact.type, trollerGetLastMessage])
+
 
 
     useEffect(() => {
 
         window.electronAPI.ipcRenderer.on('revived-new-chat-message', handleNewMessage);
+        window.electronAPI.ipcRenderer.on('send-new-meaage', handleSendNewMessage);
         return () => {
             window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', handleNewMessage);
+            window.electronAPI.ipcRenderer.removeListener('send-new-meaage', handleSendNewMessage);
         };
     }, [handleNewMessage]);
 

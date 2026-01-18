@@ -13,10 +13,22 @@ import apiClient from '../../utils/api.js';
 const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
     const [modal, modalContextHolder] = Modal.useModal();
 
+    const MAX_FILE_SIZE = 200 * 1024 * 1024;
+
     const handleFileSelect = async () => {
         const filePath = await window.electronAPI.selectFile();
         if (filePath) {
             const fileName = filePath.split(/[\\/]/).pop();
+            const fileInfo = await window.electronAPI.getFileInfo(filePath);
+            if (fileInfo.size > MAX_FILE_SIZE) {
+                modal.error({
+                    zIndex: 2000,
+                    centered: true,
+                    title: '文件过大',
+                    content: `暂不支持上传超过 200MB 的文件`,
+                });
+                return;
+            }
             modal.confirm({
                 zIndex: 2000,
                 centered: true,
@@ -128,7 +140,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
     const scrollToBottom = (behavior = "auto") => {
         if (lastMessageRef.current) {
-            lastMessageRef.current.scrollIntoView({ 
+            lastMessageRef.current.scrollIntoView({
                 behavior: behavior,
                 block: 'end'  // 确保元素滚动到容器底部
             });
@@ -189,6 +201,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     // 由于js限制，拖拽文件无法在渲染层中获取路径，所以拖拽上传无法保存本地路径
     const handleDrop = (event) => {
         event.preventDefault();
+        const MAX_FILE_SIZE = 200 * 1024 * 1024;
         const items = event.dataTransfer.items;
         if (items && items.length > 0) {
             const entry = items[0].webkitGetAsEntry && items[0].webkitGetAsEntry();
@@ -205,6 +218,16 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
         const files = event.dataTransfer.files;
         if (files.length > 0) {
+            const file = files[0];
+            if (file.size > MAX_FILE_SIZE) {
+                modal.error({
+                    zIndex: 2000,
+                    centered: true,
+                    title: '文件过大',
+                    content: `暂不支持上传超过 200MB 的文件`,
+                });
+                return;
+            }
             const filePaths = window.electronAPI.getDropFilePath(Array.from(files));
             if (filePaths && filePaths.length > 0) {
                 const filePath = filePaths[0];

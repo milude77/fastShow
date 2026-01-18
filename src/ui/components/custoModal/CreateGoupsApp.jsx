@@ -80,7 +80,7 @@ const CreateGoupsApp = ({ onClose }) => {
                         onClick={() => {
                             socket.emit('create-group', { checkedContacts });
                         }}
-                        style={{ marginTop: 12 }}
+                        style={{ marginTop: 12, color:'var(--text-color)' }}
                     >
                         创建
                     </Button>

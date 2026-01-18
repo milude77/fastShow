@@ -480,37 +480,6 @@ app.on('before-quit', () => {
     app.quitting = true;
 });
 
-function createErrorWindow(error) {
-    const parentWindow = BrowserWindow.getFocusedWindow() || mainWindow;
-    const parentBounds = parentWindow.getBounds();
-    const width = 500;
-    const height = 200;
-
-    const x = Math.round(parentBounds.x + (parentBounds.width - width) / 2);
-    const y = Math.round(parentBounds.y + (parentBounds.height - height) / 2);
-
-    const errorWindow = new BrowserWindow({
-        width: width,
-        height: height,
-        x,
-        y,
-        parent: parentWindow,
-        modal: true,
-        webPreferences: {
-            preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
-            devTools: isDev
-        }
-    });
-    const searchUrl = isDev
-        ? `http://localhost:5234/errorMessage.html`
-        : `file://${path.join(app.getAppPath(), "dist", "errorMessage.html")}`;
-
-    errorWindow.loadURL(searchUrl).catch(err => console.error('Failed to load error URL:', err));
-    errorWindow.webContents.on('did-finish-load', () => {
-        errorWindow.webContents.send('error-message', error);
-    });
-    errorWindow.setMenu(null);
-}
 
 app.whenReady().then(async () => {
     // --- Socket.IO Connection ---
@@ -735,6 +704,7 @@ ipcMain.on('send-private-message', async (event, { receiverId, message, messageI
 
     await writeChatHistory(receiverId, fullMessage);
     socket.emit('send-private-message', fullMessage);
+    event.sender.send('send-new-meaage', { contactId: receiverId, isGroup: false });
 });
 
 ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) => {
@@ -747,8 +717,7 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
     };
     await writeChatHistory(groupId, fullMessage);
     socket.emit('send-group-message', fullMessage);
-
-    return messageId;
+    event.sender.send('send-new-meaage', { contactId: groupId, isGroup: true });
 });
 
 
@@ -1465,6 +1434,23 @@ ipcMain.handle('read-file', async (event, filePath) => {
     }
 });
 
+ipcMain.handle('get-file-info', async (event, filePath) => {
+    try {
+        if (!filePath) {
+            throw new Error('文件路径不能为空');
+        }
+
+        const stats = await fs.promises.stat(filePath);
+
+        return {
+            size: stats.size,
+        };
+    } catch (error) {
+        console.error('Error getting file info:', error);
+        throw error;
+    }
+});
+
 ipcMain.handle('leave-group', async (event, { groupId, currentUserID }) => {
     try {
         if (!db) {
@@ -1506,7 +1492,7 @@ ipcMain.on('strong-logout-waring', async (event, message) => {
     event.sender.send('strong-logout-waring', message);
 });
 
-ipcMain.on('logout', async (event) => { 
+ipcMain.on('logout', async (event) => {
     app.relaunch();
     app.exit();
 });
