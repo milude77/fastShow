@@ -93,13 +93,6 @@ function App() {
     selectedContactRef.current = selectedContact;
   }, [selectedContact]);
 
-  const handleAvatarUpdate = useCallback(() => {
-    setCurrentUser(prevUser => ({
-      ...prevUser,
-      avatarVersion: Date.now()
-    }));
-  }, [setCurrentUser]);
-
   const toggleDarkMode = () => {
     window.electronAPI.toggleTheme(darkMode === true ? 'light' : 'dark');
     setDarkMode(!darkMode);
@@ -757,7 +750,6 @@ function App() {
           <div className='app-features-bar'>
             <ToolBar
               currentUser={currentUser}
-              onAvatarUpdate={handleAvatarUpdate}
               selectFeatures={selectFeatures}
               setSelectFeatures={setSelectFeatures}
               isDarkMode={darkMode}

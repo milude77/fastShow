@@ -29,7 +29,7 @@ export default function FileItem({ msg, handleResendFile, handleOpenFileLocation
         }
     };
 
-    const handleFileDownloadProgress = (event, { messageId, progress, loaded, total }) => { 
+    const handleFileDownloadProgress = (event, { messageId, progress }) => { 
         if (messageId === msg.id) {
             setDownloadProgress(progress);
         }

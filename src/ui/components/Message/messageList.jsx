@@ -8,6 +8,8 @@ import GroupMember from "./groupMember";
 import MessageInput from "./messageInput";
 import MessageItem from "./messageItem";
 import apiClient from '../../utils/api.js';
+import { useUserAvatar } from '../../hooks/useAvatar.js';
+
 
 
 const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
@@ -93,6 +95,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     const lastMessageRef = useRef(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [modal, modalContextHolder] = Modal.useModal();
+    const { getAvatarUrl } = useUserAvatar(currentUser?.userId);
 
     const [groupMemberList, setGroupMemberList] = useState([]);
     const [groupMemberListOpen, setGroupMemberListOpen] = useState(true)
@@ -111,7 +114,6 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
             setGroupMemberList(response.data);
         }
     }
-
 
 
     const handleScroll = async () => {
@@ -135,9 +137,6 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         }
     };
 
-
-    const lastMessageTimestamp = useRef(messages?.[-1]?.timestamp)
-
     const scrollToBottom = (behavior = "auto") => {
         if (lastMessageRef.current) {
             lastMessageRef.current.scrollIntoView({
@@ -149,11 +148,6 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         }
     };
 
-    useEffect(() => {
-        handleServerUrlChange();
-        scrollToBottom();
-    }, []);
-
     const getGroupMemberList = async () => {
         const url = await window.electronAPI.getServerUrl();
         if (contact.type === 'group') {
@@ -163,16 +157,11 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     }
 
     useEffect(() => {
+        handleServerUrlChange();
+        scrollToBottom();
         getGroupMemberList();
-    }, [contact]);
+    }, []);
 
-    useEffect(() => {
-        const newLastMessageTimestamp = messages?.[messages.length - 1]?.timestamp;
-        if (newLastMessageTimestamp && newLastMessageTimestamp !== lastMessageTimestamp.current) {
-            scrollToBottom()
-        }
-        lastMessageTimestamp.current = newLastMessageTimestamp;
-    }, [messages]);
 
     useEffect(() => {
         setOpenContactOptions(false)
@@ -190,13 +179,17 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     }
 
     // 判断是否显示时间戳
-    const shouldShowTimestamp = (currentTimestamp, previousTimestamp) => {
-        if (!previousTimestamp) {
+    const LastMessageTimestamp = useRef(null);
+    const shouldShowTimestamp = (currentTimestamp) => {
+        if (!LastMessageTimestamp.current) {
             return true;
         }
-        const fiveMinutes = 5 * 60 * 1000;
-        return new Date(currentTimestamp) - new Date(previousTimestamp) > fiveMinutes;
-    };
+        if (currentTimestamp - LastMessageTimestamp.current > 60 * 1000) {
+            LastMessageTimestamp.current = currentTimestamp;
+            return true;
+        }
+    }
+
     // 拖拽上传文件
     // 由于js限制，拖拽文件无法在渲染层中获取路径，所以拖拽上传无法保存本地路径
     const handleDrop = (event) => {
@@ -364,9 +357,6 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         }
     }
 
-
-
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
@@ -386,25 +376,27 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                         onDragOver={handleDragOver}>
                         {isLoadingMore && <div className="loading-spinner">Loading...</div>}
                         <ul className='message-list'>
-                            {messages && messages.map((msg, index) => (
-                                <MessageItem
-                                    key={msg.id || `${msg.timestamp}-${index}`}
-                                    msg={msg}
-                                    index={index}
-                                    messages={messages}
-                                    shouldShowTimestamp={shouldShowTimestamp}
-                                    serverUrl={serverUrl}
-                                    currentUser={currentUser}
-                                    contact={contact}
-                                    handleResendMessage={handleResendMessage}
-                                    handleResendFile={handleResendFile}
-                                    handleOpenFileLocation={handleOpenFileLocation}
-                                    handleDownloadFile={handleDownloadFile}
-                                    convertFileSize={convertFileSize}
-                                    isGroup={contact.type === 'group'}
-                                    ref={index === messages.length - 1 ? lastMessageRef : null}
-                                />
-                            ))}
+                            {messages && messages.map((msg, index) => {
+                                const isShowTimestamp = shouldShowTimestamp(msg.timestamp)
+                                const AvatarSrc = getAvatarUrl(msg.sender_id);
+                                return (
+                                    <MessageItem
+                                        key={msg.id || `${msg.timestamp}-${index}`}
+                                        msg={msg}
+                                        index={index}
+                                        showTimestamp={isShowTimestamp}
+                                        userAvatarSrc={AvatarSrc}
+                                        contact={contact}
+                                        handleResendMessage={handleResendMessage}
+                                        handleResendFile={handleResendFile}
+                                        handleOpenFileLocation={handleOpenFileLocation}
+                                        handleDownloadFile={handleDownloadFile}
+                                        convertFileSize={convertFileSize}
+                                        isGroup={contact.type === 'group'}
+                                        ref={index === messages.length - 1 ? lastMessageRef : null}
+                                    />
+                                )
+                            })}
                         </ul >
                         <div className="group-member-toggle-btn"
 

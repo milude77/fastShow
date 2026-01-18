@@ -1,13 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import './css/AvatarUploader.css';
+import { Input } from 'antd';
+import Avatar from '../avatar.jsx'
+import { useUserAvatar } from '../../hooks/useAvatar.js';
 
 const createImage = (url) =>
   new Promise((resolve, reject) => {
     const image = new Image();
     image.addEventListener('load', () => resolve(image));
     image.addEventListener('error', (error) => reject(error));
-    image.setAttribute('crossOrigin', 'anonymous'); 
+    image.setAttribute('crossOrigin', 'anonymous');
     image.src = url;
   });
 
@@ -47,11 +50,13 @@ async function getCroppedImg(imageSrc, pixelCrop) {
 }
 
 
-const AvatarUploader = ({ onAvatarUpload, onClose }) => {
+const AvatarUploader = ({ currentUser, onAvatarUpload, onClose }) => {
   const [imgSrc, setImgSrc] = useState('');
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const { avatarSrc } = useUserAvatar(currentUser?.userId);
+
 
   const onSelectFile = (e) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -81,15 +86,32 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const userName = e.target.elements.userName.value;
+    onAvatarUpload(imgSrc, userName);
+  };
+
+
   if (!imgSrc) {
     return (
       <div className="avatar-uploader-modal">
         <div className="modal-content">
-          <h2>上传头像</h2>
+          <Avatar size={120}
+            src={avatarSrc}
+            alt=""
+          />
           <input type="file" accept="image/*" onChange={onSelectFile} />
-          <div className="modal-actions">
-            <button onClick={onClose}>取消</button>
-          </div>
+          <form onSubmit={handleSubmit}>
+            <div className='user-name' style={{ display: 'flex' }}>
+              <label htmlFor="file-upload">昵称</label>
+              <Input style={{ flex: '1' }} type="text" id="user-name" name="userName" />
+            </div>
+            <div className="modal-actions">
+              <button type='submit'>保存</button>
+              <button onClick={onClose}>取消</button>
+            </div>
+          </form>
         </div>
       </div>
     );

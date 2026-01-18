@@ -2,37 +2,18 @@ import React, { useState, useEffect } from 'react';
 import './css/toolBar.css';
 import { Button, Badge, Space } from 'antd';
 import Avatar from '../avatar.jsx';
-
+import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import AvatarUploader from './AvatarUploader.jsx';
 import apiClient from '../../utils/api.js';
 
 
-const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
-    const [avatarSrc, setAvatarSrc] = useState('');
+const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
+    const { avatarSrc, refreshAvatar } = useUserAvatar(currentUser?.userId);
     const [isUploaderOpen, setIsUploaderOpen] = useState(false);
     const [hasNewInvite, setHasNewInvite] = useState(false);
     const [newMessageCount, setNewMessageCount] = useState(0);
-
-    const updateAvatarSrc = async () => {
-        if (currentUser && currentUser.userId) {
-            try {
-                const serverUrl = await window.electronAPI.getServerUrl();
-                setAvatarSrc(`${serverUrl}/api/avatar/${currentUser.userId}/user?t=${new Date().getTime()}`);
-            } catch (error) {
-                console.error('Failed to get server URL:', error);
-            }
-        } else {
-            setAvatarSrc('');
-        }
-    };
-
-
-
-    useEffect(() => {
-        updateAvatarSrc();
-    }, [currentUser]);
 
     const handleNewInvite = () => {
         setHasNewInvite(true);
@@ -61,6 +42,11 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
 
     const handleAvatarUpload = async (blob) => {
         try {
+            const arrayBuffer = await blob.arrayBuffer();
+
+            // 先保存到本地
+            await window.electronAPI.saveAvatarLocally(arrayBuffer);
+
             const serverUrl = await window.electronAPI.getServerUrl();
             const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`);
             const { presignedUrl, objectName } = initiateResponse.data;
@@ -75,10 +61,7 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
                 objectName,
             });
 
-            await updateAvatarSrc();
-            if (onAvatarUpdate) {
-                onAvatarUpdate();
-            }
+            await refreshAvatar()
 
         } catch (error) {
             console.error('Error uploading avatar:', error);
@@ -97,6 +80,7 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
                 alt="User Avatar" />
             {isUploaderOpen && (
                 <AvatarUploader
+                    currentUser={currentUser}
                     onAvatarUpload={handleAvatarUpload}
                     onClose={() => setIsUploaderOpen(false)}
                 />
@@ -106,7 +90,7 @@ const ToolBar = React.memo(({ currentUser, onAvatarUpdate, selectFeatures, setSe
                     <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} type="link" title='消息' icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
                 </Badge>
                 <Badge size="small" dot={hasNewInvite} >
-                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => {setHasNewInvite(false);setSelectFeatures('contact')}}></Button>
+                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => { setHasNewInvite(false); setSelectFeatures('contact') }}></Button>
                 </Badge>
             </div>
             <div className='change-theme-bar'>

@@ -1,4 +1,3 @@
-import { all } from 'axios';
 import Store from 'electron-store';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,6 +8,10 @@ const __dirname = path.dirname(__filename);
 // 定义配置结构和默认值
 const schema = {
   userCredentials: {
+    type: 'object',
+    default: {}
+  },
+  userAssets: {
     type: 'object',
     default: {}
   },
@@ -98,6 +101,22 @@ export const userCredentialsManager = {
     delete userList[removeUserID];
     store.set('userCredentials', userList);
   }
+};
+
+export const userAssetsManager = {
+  // 获取用户资源列表
+  getUserAssets: (userId, key) => {
+    const assets = store.get('userAssets') || {};
+    assets[userId] = assets[userId] || {};
+    return assets[userId][key] || '';
+  },
+
+  setUserAssets: (userId, key, value) => {
+    const assets = store.get('userAssets') || {};
+    assets[userId] = assets[userId] || {};
+    assets[userId][key] = value;
+    store.set('userAssets',  assets);
+  },
 };
 
 // 应用设置管理

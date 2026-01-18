@@ -1,7 +1,5 @@
 // MessageItem.jsx
 import React, { forwardRef } from 'react';
-import { Button } from 'antd';
-import { LoadingOutlined, ExclamationCircleOutlined, FolderOpenOutlined, DownloadOutlined } from '@ant-design/icons';
 import FileItem from './FileItem';
 import TextItem from './TextItem';
 import Avatar from '../avatar.jsx';
@@ -9,10 +7,8 @@ import Avatar from '../avatar.jsx';
 const MessageItem = forwardRef(({
     msg,
     index,
-    messages,
-    shouldShowTimestamp,
-    serverUrl,
-    currentUser,
+    showTimestamp,
+    userAvatarSrc,
     contact,
     handleResendMessage,
     handleResendFile,
@@ -21,7 +17,6 @@ const MessageItem = forwardRef(({
     convertFileSize,
     isGroup
 }, ref) => {
-    const showTimestamp = shouldShowTimestamp(msg.timestamp, messages[index - 1]?.timestamp);
     const key = msg.id || `${msg.timestamp}-${index}`;
 
     return (
@@ -34,7 +29,7 @@ const MessageItem = forwardRef(({
                 <Avatar
                     size={35}
                     className="user-avatar"
-                    src={`${serverUrl}/api/avatar/${msg.sender_id}/user?t=${msg.sender_id === currentUser.userId ? currentUser.avatarVersion : ''}`}
+                    src={userAvatarSrc}
                     alt="user-avatar" />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '70%' }} >
                     <div style={{ fontSize: '10px', textAlign: msg.sender === 'user' ? 'right' : 'left' }}>{msg?.username}</div>

@@ -75,3 +75,7 @@
 .modal-actions button:last-of-type {
   background-color: #f1f1f1;
 }
+
+#user-name{
+  background-color: var(--tool-bar-bg-color); ;
+}

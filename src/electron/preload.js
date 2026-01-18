@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUnreadMessageCount: (contactId, isGroup) => ipcRenderer.invoke('get-unread-message-count', { contactId, isGroup }),
   clearUnreadMessageCount: (contactId, isGroup) => ipcRenderer.send('clear-unread-message-count', { contactId, isGroup }),
   getAllUnreadMessageCount: () => ipcRenderer.invoke('get-all-unread-message-count'),
+  getUserAvatarPath: () => ipcRenderer.invoke('get-user-avatar-path'),
+  saveAvatarLocally: (avatarArrayBuffer) => ipcRenderer.invoke('save-avatar-locally', avatarArrayBuffer),
   // 触发文件选择对话框，并返回文件路径
   selectFile: () => ipcRenderer.invoke('select-file'),
   // 使用新的MinIO上传流程

@@ -10,6 +10,7 @@ import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
+import { protocol } from 'electron';
 
 import {
     initializeDefaultSettings,
@@ -19,7 +20,8 @@ import {
     storageManager,
     dbMigrationManager,
     themeManager,
-    unreadMessageManager
+    unreadMessageManager,
+    userAssetsManager
 } from './store.js';
 import { console } from 'inspector';
 
@@ -475,6 +477,47 @@ function createMainWindow() {
         }
     });
 }
+
+async function downLoadUserAvatar() {
+    try {
+
+        if(userAssetsManager.getUserAssets(currentUserId, 'avatarPath')){
+            return 
+        }
+
+        const userDbPath = path.join(app.getPath('userData'), `${currentUserId}`, 'avatar');
+
+        // 确保目录存在
+        if (!fs.existsSync(userDbPath)) {
+            fs.mkdirSync(userDbPath, { recursive: true }); // 创建 avatar 目录
+        }
+
+        const avatarFilePath = path.join(userDbPath, 'avatar.jpg'); // 完整的文件路径
+
+        // 检查文件是否存在，而不是目录
+        if (fs.existsSync(avatarFilePath)) {
+            return avatarFilePath; // 返回文件路径
+        }
+
+        const avatarUrl = `${SOCKET_SERVER_URL}/api/avatar/${currentUserId}/user`;
+
+        // 发起请求获取头像
+        const response = await apiClient.get(avatarUrl, {
+            responseType: 'arraybuffer',
+            timeout: 10000
+        });
+
+        // 保存头像到本地文件
+        fs.writeFileSync(avatarFilePath, response.data);
+
+        userAssetsManager.setUserAssets(currentUserId, 'avatarPath', avatarFilePath)
+
+    } catch (error) {
+        console.error('下载头像失败:', error);
+        return null; // 返回 null 而不是错误对象
+    }
+}
+
 // 在应用退出前清理
 app.on('before-quit', () => {
     app.quitting = true;
@@ -482,6 +525,10 @@ app.on('before-quit', () => {
 
 
 app.whenReady().then(async () => {
+    protocol.registerFileProtocol('avatar', (request, callback) => {
+        const filePath = decodeURI(request.url.replace('avatar://', ''));
+        callback(filePath);
+    });
     // --- Socket.IO Connection ---
     connectSocket();
     // --- End Socket.IO Connection ---
@@ -655,9 +702,9 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
         createTray(mainWindow);
         socket.emit('initial-data-success', { userId: userId });
         socket.emit('get-contacts');
+
+        await downLoadUserAvatar();
     }
-
-
 
     catch (error) {
         console.error('Error in login-success handler:', error);
@@ -670,6 +717,40 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
         });
     }
 })
+
+ipcMain.handle('get-user-avatar-path', (event) => {
+    return userAssetsManager.getUserAssets(currentUserId, 'avatarPath')
+})
+
+
+ipcMain.handle('save-avatar-locally', async (event, avatarArrayBuffer) => {
+    try {
+        // 获取当前用户ID
+        const userId = currentUserId;
+        if (!userId) {
+            throw new Error('用户未登录');
+        }
+
+        // 创建头像目录
+        const userAvatarDir = path.join(app.getPath('userData'), `${userId}`, 'avatar');
+        if (!fs.existsSync(userAvatarDir)) {
+            fs.mkdirSync(userAvatarDir, { recursive: true });
+        }
+
+        // 将 ArrayBuffer 转换为 Buffer 并保存
+        const buffer = Buffer.from(avatarArrayBuffer);
+        const avatarPath = path.join(userAvatarDir, `avatar${Date.now()}.jpg`);
+        fs.writeFileSync(avatarPath, buffer);
+
+        // 更新用户资产管理器
+        userAssetsManager.setUserAssets(userId, 'avatarPath', avatarPath);
+
+        return { success: true, path: avatarPath };
+    } catch (error) {
+        console.error('保存头像到本地失败:', error);
+        return { success: false, error: error.message };
+    }
+});
 
 
 ipcMain.on('new-chat-message', async (event, { contactId, msg }) => {
