@@ -4,7 +4,8 @@ import './css/AvatarUploader.css';
 import { Input } from 'antd';
 import Avatar from '../avatar.jsx'
 import { useUserAvatar } from '../../hooks/useAvatar.js';
-
+import { useSocket } from '../../hooks/useSocket.js';
+import { useGlobalMessage } from '../../hooks/useGlobalMessage.js'
 const createImage = (url) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -56,6 +57,8 @@ const AvatarUploader = ({ currentUser, onAvatarUpload, onClose }) => {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const { avatarSrc } = useUserAvatar(currentUser?.userId);
+  const socket = useSocket();
+  const { messageApi } = useGlobalMessage();
 
 
   const onSelectFile = (e) => {
@@ -86,26 +89,50 @@ const AvatarUploader = ({ currentUser, onAvatarUpload, onClose }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmitInfo = async (e) => {
     e.preventDefault();
     const userName = e.target.elements.userName.value;
-    onAvatarUpload(imgSrc, userName);
-  };
+    socket.emit('update-user-info', { username: userName });
 
+    let curUserCredentials = await window.electronAPI.getCurrentUserCredentials()
+    curUserCredentials = Object.assign(curUserCredentials, { userName });
+    await window.electronAPI.saveCurrentUserCredentials(curUserCredentials);
+    await window.electronAPI.saveUserListCredentials(curUserCredentials)
+    messageApi.success('更新用户信息成功')
+    onClose()
+  };
 
   if (!imgSrc) {
     return (
       <div className="avatar-uploader-modal">
         <div className="modal-content">
-          <Avatar size={120}
-            src={avatarSrc}
-            alt=""
+          <label htmlFor="file-upload">
+            <Avatar className='file-upload' size={120} src={avatarSrc} alt="头像" />
+          </label>
+          <input
+            type="file"
+            id="file-upload"
+            accept="image/*"
+            onChange={onSelectFile}
+            style={{ display: 'none' }}
           />
-          <input type="file" accept="image/*" onChange={onSelectFile} />
-          <form onSubmit={handleSubmit}>
-            <div className='user-name' style={{ display: 'flex' }}>
-              <label htmlFor="file-upload">昵称</label>
-              <Input style={{ flex: '1' }} type="text" id="user-name" name="userName" />
+          <form onSubmit={handleSubmitInfo}>
+            <div className='user-id'>
+              <label className='info-lable'>
+                id:
+              </label>
+              <label>
+                {currentUser.userId}
+              </label>
+            </div>
+            <div className='user-name'>
+              <label className='info-lable' htmlFor="user-name">昵称:</label>
+              <Input
+                type="text"
+                id="user-name"
+                name="userName"
+                defaultValue={currentUser?.username || ''}
+              />
             </div>
             <div className="modal-actions">
               <button type='submit'>保存</button>

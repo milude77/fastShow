@@ -1,5 +1,5 @@
 // src/ui/hooks/useAvatar.js
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 
 export const useUserAvatar = (userId) => {
@@ -64,7 +64,7 @@ export const useUserAvatar = (userId) => {
     }, [userId]);
 
     // 计算头像URL的函数
-    const getAvatarUrl = (targetUserId) => {
+    const getAvatarUrl = useCallback((targetUserId) => {
         if (targetUserId === userId) {
             // 当前用户头像
             if (avatarSrc) {
@@ -81,7 +81,7 @@ export const useUserAvatar = (userId) => {
             // 其他用户头像
             return `${serverUrl}/api/avatar/${targetUserId}/user`;
         }
-    };
+    },[avatarSrc, loading, hasCheckedLocal, serverUrl, userId]);
 
     return {
         avatarSrc,

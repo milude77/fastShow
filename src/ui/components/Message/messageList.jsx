@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Modal, Card, Button, message } from 'antd';
+import { Modal, Card, Button } from 'antd';
 import './css/messageList.css';
 import { DownloadOutlined, FileOutlined, TeamOutlined } from '@ant-design/icons';
 import { WhatsAppOutlined, EllipsisOutlined } from '@ant-design/icons';
@@ -9,6 +9,7 @@ import MessageInput from "./messageInput";
 import MessageItem from "./messageItem";
 import apiClient from '../../utils/api.js';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
+import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
 
 
@@ -79,8 +80,8 @@ const MessageListHead = ({ contact, openContactOptions, memberLength }) => {
 
 
 
-const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage, deleteContact, inviteFriendsJoinGroup }) => {
-    const [messageApi, contextHolder] = message.useMessage();
+const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage, inviteFriendsJoinGroup }) => {
+    const { messageApi } = useGlobalMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
         if (sizeInBytes < 1024) return sizeInBytes + ' B';
@@ -95,7 +96,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     const lastMessageRef = useRef(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [modal, modalContextHolder] = Modal.useModal();
-    const { getAvatarUrl } = useUserAvatar(currentUser?.userId);
+    const { getAvatarUrl, refreshAvatar } = useUserAvatar(currentUser?.userId);
 
     const [groupMemberList, setGroupMemberList] = useState([]);
     const [groupMemberListOpen, setGroupMemberListOpen] = useState(true)
@@ -106,15 +107,6 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
     const [openContactOptions, setOpenContactOptions] = useState(false)
 
-    const handleServerUrlChange = async () => {
-        const url = await window.electronAPI.getServerUrl();
-        setServerUrl(url);
-        if (contact.type === 'group') {
-            const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
-            setGroupMemberList(response.data);
-        }
-    }
-
 
     const handleScroll = async () => {
         if (messageContainerRef.current.scrollTop < 1 && !isLoadingMore) {
@@ -124,16 +116,15 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
             setIsLoadingMore(true);
             await onLoadMore();
 
-            // 等待 DOM 更新完成后再调整滚动位置
-            setTimeout(() => {
-                // 保持原来距离顶部的位置
-                const newScrollHeight = messageContainerRef.current.scrollHeight;
-                const heightAdded = newScrollHeight - scrollHeightBeforeLoad;
 
-                // 调整滚动位置，保持原来的内容在视口中的位置
-                messageContainerRef.current.scrollTop = currentScrollTop + heightAdded;
-                setIsLoadingMore(false);
-            }, 0);
+            // 保持原来距离顶部的位置
+            const newScrollHeight = messageContainerRef.current.scrollHeight;
+            const heightAdded = newScrollHeight - scrollHeightBeforeLoad;
+
+            // 调整滚动位置，保持原来的内容在视口中的位置
+            messageContainerRef.current.scrollTop = currentScrollTop + heightAdded;
+            setIsLoadingMore(false);
+
         }
     };
 
@@ -150,6 +141,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
 
     const getGroupMemberList = async () => {
         const url = await window.electronAPI.getServerUrl();
+        setServerUrl(url);
         if (contact.type === 'group') {
             const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
             setGroupMemberList(response.data);
@@ -157,10 +149,23 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     }
 
     useEffect(() => {
-        handleServerUrlChange();
-        scrollToBottom();
+        const handleAvatarUpdate = () => {
+            // 重新渲染消息列表以获取最新的头像URL
+            refreshAvatar();
+        };
+
+        window.electronAPI.ipcRenderer.on('avatar-saved-successfully', handleAvatarUpdate);
+
+        return () => {
+            window.electronAPI.ipcRenderer.removeListener('avatar-saved-successfully', handleAvatarUpdate);
+        };
+    }, [refreshAvatar]);
+
+    useEffect(() => {
         getGroupMemberList();
-    }, []);
+        scrollToBottom();
+        LastMessageTimestamp.current = null;
+    }, [contact.id]);
 
 
     useEffect(() => {
@@ -182,12 +187,14 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     const LastMessageTimestamp = useRef(null);
     const shouldShowTimestamp = (currentTimestamp) => {
         if (!LastMessageTimestamp.current) {
-            return true;
-        }
-        if (currentTimestamp - LastMessageTimestamp.current > 60 * 1000) {
             LastMessageTimestamp.current = currentTimestamp;
             return true;
         }
+        else if (currentTimestamp - LastMessageTimestamp.current > 60 * 1000) {
+            LastMessageTimestamp.current = currentTimestamp;
+            return true;
+        }
+        return false;
     }
 
     // 拖拽上传文件
@@ -348,19 +355,9 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
         setOpenContactOptions(false);
     };
 
-    const handleDeleteContactMessageHistory = async (contact) => {
-        const res = await window.electronAPI.deleteContactMessageHistory(contact);
-        if (res.success) {
-            messageApi.success('历史消息记录已清空');
-        } else {
-            messageApi.error('清空历史消息记录失败: ' + res.error);
-        }
-    }
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
-            {contextHolder}
             <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} memberLength={groupMemberList?.length || 0} />
             <div style={{ display: 'flex', flex: '1' }}>
                 <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>
@@ -435,7 +432,7 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                 {contact.type === 'group' && groupMemberListOpen && (
                     <GroupMember members={groupMemberList} serverUrl={serverUrl} currentUser={currentUser} />
                 )}
-                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} deleteContactMessageHistory={handleDeleteContactMessageHistory} deleteContact={deleteContact} onClose={handleCloseContactOptions} inviteFriendsJoinGroup={inviteFriendsJoinGroup} groupMemberList={groupMemberList} />
+                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} onClose={handleCloseContactOptions} inviteFriendsJoinGroup={inviteFriendsJoinGroup} groupMemberList={groupMemberList} />
             </div>
         </div>
     )

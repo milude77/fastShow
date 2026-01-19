@@ -46,6 +46,7 @@ const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, is
 
             // 先保存到本地
             await window.electronAPI.saveAvatarLocally(arrayBuffer);
+            await refreshAvatar()
 
             const serverUrl = await window.electronAPI.getServerUrl();
             const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`);
@@ -60,8 +61,6 @@ const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, is
             await apiClient.post(`${serverUrl}/api/avatar/complete`, {
                 objectName,
             });
-
-            await refreshAvatar()
 
         } catch (error) {
             console.error('Error uploading avatar:', error);

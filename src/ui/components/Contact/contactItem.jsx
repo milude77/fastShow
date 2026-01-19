@@ -71,7 +71,7 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
             trollerGetLastMessage(contactId);
         }
-    },[contact.id, contact.type, trollerGetLastMessage])
+    }, [contact.id, contact.type, trollerGetLastMessage])
 
 
 
@@ -85,9 +85,17 @@ export default function ContactItem({ contact, selectedContact, handleSelectCont
         };
     }, [handleNewMessage]);
 
+    const changeSelectedContact = (contact) => {
+        if (contact.id === selectedContact?.id) {
+            return;
+        } else {
+            handleSelectCurContact(contact)
+        }
+    }
+
 
     return (
-        <div key={contact.id} className={`contact-item ${contact.id === selectedContact?.id ? 'selected' : ''}`} onClick={() => handleSelectCurContact(contact)} >
+        <div key={contact.id} className={`contact-item ${contact.id === selectedContact?.id ? 'selected' : ''}`} onClick={() =>changeSelectedContact(contact)} >
             <Avatar
                 className='contact-avatar'
                 size={48}

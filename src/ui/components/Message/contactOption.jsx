@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { message, Modal } from 'antd';
+import { Modal } from 'antd';
 import './css/contactOption.css'
 import Avatar from '../avatar.jsx';
 
 
-const ContactOption = ({ contact, currentUser, openContactOptions, deleteContactMessageHistory, deleteContact, onClose, inviteFriendsJoinGroup, groupMemberList }) => {
+const ContactOption = ({ contact, currentUser, openContactOptions, onClose, inviteFriendsJoinGroup, groupMemberList }) => {
     const optionRef = useRef(null);
     const [modal, modalContextHolder] = Modal.useModal();
     const [serverUrl, setServerUrl] = useState('');
@@ -32,14 +32,16 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
         };
     }, [openContactOptions, onClose]);
 
-    const leaveGroup = (contact) => {
-        window.electronAPI.leaveGroup(contact.id, currentUser.userId).then(() => {
-            message.success('退出群聊成功！');
-            onClose();
-        }).catch((error) => {
-            message.error('退出群聊失败！');
-            console.error(error);
-        });
+    const leaveGroup = async (contact) => {
+        await window.electronAPI.leaveGroup(contact.id, currentUser.userId)
+    }
+
+    const deleteContactFun = async (contactId) => {
+        await window.electronAPI.deleteContact(contactId);
+    }
+
+    const deleteContactMessageHistoryFun = async(contact) => {
+        await window.electronAPI.deleteContactMessageHistory(contact)
     }
 
     const handleDeleteContact = () => {
@@ -54,7 +56,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
                 </>
             ),
             onOk() {
-                deleteContact(contact.id);
+                deleteContactFun(contact.id);
             }
         });
     };
@@ -66,7 +68,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             maskClosable: false,
             title: `确认清空 "${contact.username}" 的历史聊天记录？`,
             onOk() {
-                deleteContactMessageHistory(contact);
+                deleteContactMessageHistoryFun(contact);
             }
         });
     };
@@ -78,7 +80,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, deleteContact
             maskClosable: false,
             title: (
                 <>
-                    确认退出群聊 {contact.username}？
+                    确认退出群聊 {contact.username}?
                     <span style={{ color: 'red' }}>(将清空所有历史消息！)</span>
                 </>
             ),

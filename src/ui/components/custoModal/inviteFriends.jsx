@@ -1,15 +1,16 @@
 import { React, useEffect, useState } from 'react';
-import { Alert, Button, message } from 'antd';
+import { Alert, Button } from 'antd';
 import './css/createGoupsApp.css';
 import { Checkbox, Input, Select } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
+import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
 const InviteFriendsJoinGroup = ({ groupId, groupName , member, onClose }) => {
 
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
     const socket = useSocket();
-    const [messageApi, contextHolder] = message.useMessage();
+    const { messageApi } = useGlobalMessage();
     const [serverUrl, setServerUrl] = useState('');
 
 
@@ -45,7 +46,6 @@ const InviteFriendsJoinGroup = ({ groupId, groupName , member, onClose }) => {
 
     return (
         <div className='create-groups-app-container'>
-            {contextHolder}
             <div className='friends-list'>
                 <span className='create-group-title'>邀请好友加入群聊</span>
                 {contacts && contacts.map((contact, index) => (
