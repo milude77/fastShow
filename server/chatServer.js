@@ -938,6 +938,12 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('update-user-info', async (payload) => {
+        const userId = onlineUsers.get(socket.id).userId;
+        const nowDate = new Date();
+        await db('users').where({ id: userId }).update(Object.assign(payload, { updated_at: nowDate }));
+})
+
 
     // 心跳检测
     socket.on('heartbeat', (payload) => {
@@ -999,6 +1005,7 @@ app.get('/api/download/:fileId/:isGroup', authenticateToken, async (req, res) =>
         try {
             dataStream = await minioClient.getObject(bucketName, fileMessage.file_path);
         } catch (error) {
+            console.error('文件不存在或已被清理:', error);
             return res.status(404).json({ error: '文件不存在或已被清理' });
         }
 

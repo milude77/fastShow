@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { Button } from 'antd';
-import { Modal, message as Message } from 'antd';
+import { Modal } from 'antd';
 import './css/authPage.css'
 import Avatar from './components/avatar.jsx';
 import { useUserAvatar } from './hooks/useAvatar.js';
+import { useGlobalMessage } from './hooks/useGlobalMessage';
 
 
 const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
@@ -43,7 +44,7 @@ const AuthPage = () => {
   const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(false);
   const [lastLoginUser, setLastLoginUser] = useState(null);
   const [modal, modalContextHolder] = Modal.useModal();
-  const [messageApi, contextHolder] = Message.useMessage();
+  const { messageApi } = useGlobalMessage();
 
   const socket = useSocket();
 
@@ -193,7 +194,6 @@ const AuthPage = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
       {modalContextHolder}
-      {contextHolder}
       {(socket && lastLoginUser && showAttemptAutoLogin)
         ?
         <LastLoginUser

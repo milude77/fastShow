@@ -16,8 +16,6 @@ import {
     initializeDefaultSettings,
     userCredentialsManager,
     settingsManager,
-    appConfigManager,
-    storageManager,
     dbMigrationManager,
     themeManager,
     unreadMessageManager,
@@ -718,7 +716,7 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
     }
 })
 
-ipcMain.handle('get-user-avatar-path', (event) => {
+ipcMain.handle('get-user-avatar-path', () => {
     return userAssetsManager.getUserAssets(currentUserId, 'avatarPath')
 })
 
@@ -744,6 +742,11 @@ ipcMain.handle('save-avatar-locally', async (event, avatarArrayBuffer) => {
 
         // 更新用户资产管理器
         userAssetsManager.setUserAssets(userId, 'avatarPath', avatarPath);
+
+        const normalizedPath = avatarPath.replace(/\\/g, '/');
+        const avatarUrl = `avatar:///${encodeURI(normalizedPath)}`;
+
+        event.sender.send('avatar-saved-successfully', avatarUrl);
 
         return { success: true, path: avatarPath };
     } catch (error) {
@@ -1270,6 +1273,7 @@ ipcMain.handle('delete-contact', async (event, { contactId }) => {
         const deleted = await db('friends')
             .where('id', contactId)
             .update({ isFriend: false });
+        event.sender.send('contact-deleted', { contactId });
         return { success: true, deleted };
 
     } catch (error) {
@@ -1573,7 +1577,7 @@ ipcMain.on('strong-logout-waring', async (event, message) => {
     event.sender.send('strong-logout-waring', message);
 });
 
-ipcMain.on('logout', async (event) => {
+ipcMain.on('logout', async () => {
     app.relaunch();
     app.exit();
 });
