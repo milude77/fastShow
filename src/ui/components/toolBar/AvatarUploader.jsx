@@ -105,7 +105,7 @@ const AvatarUploader = ({ currentUser, onAvatarUpload, onClose }) => {
   if (!imgSrc) {
     return (
       <div className="avatar-uploader-modal">
-        <div className="modal-content">
+        <div className="avatar-modal-content">
           <label htmlFor="file-upload">
             <Avatar className='file-upload' size={120} src={avatarSrc} alt="头像" />
           </label>

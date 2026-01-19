@@ -81,13 +81,13 @@ function App() {
   const [drafts, setDrafts] = useState({});
   const [groupDrafts, setGroupDrafts] = useState({});
   const [contacts, setContacts] = useState([]);
-  const { messageApi, contextHolder }= useGlobalMessage();
+  const { messageApi, contextHolder } = useGlobalMessage();
 
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
   const pendingTimersRef = useRef(new Map());
   const pendingGroupTimersRef = useRef(new Map());
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalConment, setModalConment] = useState('');
 
@@ -307,17 +307,17 @@ function App() {
   }, [setCurrentUser]);
 
   const handleChatHistoryDeleted = useCallback((event, { contactId, isGroup }) => {
-    if (isGroup){
-      setGroupMessages(prev => ({...prev, [contactId]: [] }));
+    if (isGroup) {
+      setGroupMessages(prev => ({ ...prev, [contactId]: [] }));
       messageApi.success('群聊消息已清除');
     }
-    else{
-      setMessages(prev => ({...prev, [contactId]: [] }));
+    else {
+      setMessages(prev => ({ ...prev, [contactId]: [] }));
       messageApi.success('历史消息已清除');
     }
-  },[messageApi])
+  }, [messageApi])
 
-  useEffect(() =>{
+  useEffect(() => {
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
 
@@ -326,7 +326,7 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('message-history-deleted', handleChatHistoryDeleted);
     }
 
-    },[])
+  }, [])
 
   useEffect(() => {
     if (!socket) return;
@@ -367,11 +367,11 @@ function App() {
 
 
   const handleMessageListSelectContact = useCallback(async (contact) => {
-    
-    if (selectedContact && selectedContact.type == 'group'){
+
+    if (selectedContact && selectedContact.type == 'group') {
       setGroupMessages(prev => ({ ...prev, [selectedContact.id]: [] }))
     }
-    else if (selectedContact){
+    else if (selectedContact) {
       setMessages(prev => ({ ...prev, [selectedContact.id]: [] }))
     }
     setSelectedContact(contact);

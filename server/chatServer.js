@@ -57,15 +57,29 @@ minioClient.bucketExists(bucketName, (err, exists) => {
 const uploadPolicy = {
     Version: '2012-10-17',
     Statement: [
+        // 用户头像目录公开读取
         {
             Effect: 'Allow',
             Principal: '*',
             Action: [
-                's3:GetObject',
+                's3:GetObject'
+            ],
+            Resource: [
+                `arn:aws:s3:::${bucketName}/user-*/*`,
+                `arn:aws:s3:::${bucketName}/group-*/*`,
+                `arn:aws:s3:::${bucketName}/public-resources/*`
+            ]
+        },
+        // 上传权限仅限认证用户
+        {
+            Effect: 'Allow',
+            Principal: '*', // 也可以限制为特定用户
+            Action: [
                 's3:PutObject'
             ],
             Resource: [
-                `arn:aws:s3:::${bucketName}/*`
+                `arn:aws:s3:::${bucketName}/user-*/*`,
+                `arn:aws:s3:::${bucketName}/group-*/*`
             ]
         },
         {
@@ -81,6 +95,7 @@ const uploadPolicy = {
         }
     ]
 };
+
 
 
 await minioClient.setBucketPolicy(bucketName, JSON.stringify(uploadPolicy));
@@ -1176,70 +1191,46 @@ app.post('/api/avatar/complete', authenticateToken, async (req, res) => {
 });
 
 
-// 头像下载接口 - 通过userId直接获取头像
 app.get('/api/avatar/:userId/:userType', async (req, res) => {
     const { userId, userType } = req.params;
-
+    
     try {
         if (!userId || typeof userId !== 'string' || !/^[0-9]+$/.test(userId)) {
             return res.status(400).json({ error: '无效的用户ID格式' });
         }
 
-        // 尝试不同的文件扩展名来查找头像文件
-        const extension = '.jpg';
-        let foundObject = null;
-
-        if (userType == 'user') {
-            const user = await db('users').where({ id: userId }).first();
-            if (!user) {
-                return res.status(404).json({ error: '用户不存在' });
-            }
-
-            try {
-                const objectName = `user-${userId}/avatar${extension}`;
-                await minioClient.statObject(bucketName, objectName);
-                foundObject = objectName;
-            } catch {
-                const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.jpg');
-                res.setHeader('Content-Type', 'image/jpg');
-                res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
-                return defaultAvatar.pipe(res);
-            }
-        }
-        else {
-            const group = await db('groups').where({ id: userId }).first();
-            if (!group) {
-                return res.status(404).json({ error: '群组不存在' });
-            }
-
-            try {
-                const objectName = `group-${userId}/avatar${extension}`;
-                await minioClient.statObject(bucketName, objectName);
-                foundObject = objectName;
-            } catch {
-                const defaultAvatar = await minioClient.getObject(bucketName, 'public-resources/default_avatar.jpg');
-                res.setHeader('Content-Type', 'image/jpg');
-                res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存1天
-                return defaultAvatar.pipe(res);
-            }
+        let objectName;
+        if (userType === 'user') {
+            objectName = `user-${userId}/avatar.jpg`;
+        } else {
+            objectName = `group-${userId}/avatar.jpg`;
         }
 
-        // 从MinIO获取头像文件流
-        const dataStream = await minioClient.getObject(bucketName, foundObject);
+        // 检查文件是否存在
+        await minioClient.statObject(bucketName, objectName);
 
-        // 设置适当的缓存头
+        // 生成预签名URL（有效期24小时）
+        const presignedUrl = await minioClient.presignedGetObject(
+            bucketName, 
+            objectName, 
+            24 * 60 * 60
+        );
+
         res.setHeader('Cache-Control', 'public, max-age=3600'); // 缓存1小时
-        res.setHeader('Content-Type', 'image/jpg'); // 默认为jpeg
 
-        dataStream.pipe(res);
+        res.redirect(presignedUrl);
     } catch (error) {
-        console.error('头像下载失败:', error);
-        res.status(500).json({ error: '头像下载失败' });
+        // 返回默认头像的预签名URL
+        const defaultAvatarUrl = await minioClient.presignedGetObject(
+            bucketName, 
+            'public-resources/default_avatar.jpg', 
+            24 * 60 * 60
+        );
+        res.json({ url: defaultAvatarUrl });
     }
 });
 
-
-app.get('/api/getGroupMember/:groupId/', authenticateToken, async (req, res) => {
+app.get('/api/getGroupMember/:groupId', authenticateToken, async (req, res) => {
     const { groupId } = req.params;
 
     const groupMembers = await db('group_members as m')
