@@ -11,6 +11,7 @@ import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
 import { protocol } from 'electron';
+import CryptoJS from 'crypto-js';
 
 import {
     initializeDefaultSettings,
@@ -19,20 +20,119 @@ import {
     dbMigrationManager,
     themeManager,
     unreadMessageManager,
-    userAssetsManager
+    userAssetsManager,
+    userMessageDraftManager
 } from './store.js';
-import { console } from 'inspector';
 
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const isDev = process.env.NODE_ENV === "development"
-
 // --- Socket.IO Main Process Setup ---
 const configPath = path.join(__dirname, '..', '..', 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+const ENCRYPTION_KEY = config.ENCRYPTION_KEY;
+const ENCRYPTION_IV = config.ENCRYPTION_IV;
+
+function aesEncrypt(text) {
+    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
+    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
+    const encrypted = CryptoJS.AES.encrypt(text, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+    });
+    return encrypted.toString();
+}
+
+function aesDecrypt(encryptedText) {
+    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
+    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
+    const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+    });
+    return decrypted.toString(CryptoJS.enc.Utf8);
+}
+
+function isEncryptedMessage(message) {
+    return typeof message === 'string' && message.startsWith('ENC$');
+}
+
+function decryptMessage(message) {
+    if (isEncryptedMessage(message)) {
+        const encryptedContent = message.substring(4);
+        try {
+            return JSON.parse(aesDecrypt(encryptedContent));
+        } catch (e) {
+            console.error('解密失败:', e);
+            return null;
+        }
+    }
+    return message;
+}
+
+function encryptMessage(message) {
+    const jsonString = JSON.stringify(message);
+    const encrypted = aesEncrypt(jsonString);
+    return `ENC$${encrypted}`;
+}
+
+function wrapSocket(socket) {
+    const originalEmit = socket.emit;
+    socket.emit = function (event, data) {
+        // 客户端只对敏感事件进行加密
+        const sensitiveEvents = ['register-user', 'login-user', 'send-private-message', 'send-group-message'];
+
+        if (sensitiveEvents.includes(event) && data && typeof data === 'object') {
+            const encryptedData = encryptMessage(data);
+            return originalEmit.call(this, event, encryptedData);
+        }
+
+        return originalEmit.apply(this, arguments);
+    };
+
+    const originalOn = socket.on;
+    socket.on = function (event, handler) {
+        // 对接收的事件数据进行解密
+        const sensitiveEvents = ['user-registered', 'login-success', 'new-message'];
+        console.log(`listing event: ${event}`);
+        if (sensitiveEvents.includes(event)) {
+
+            return originalOn.call(this, event, (data) => {
+                let decryptedData = data;
+
+                // 如果数据是加密格式，进行解密
+                if (typeof data === 'string' && data.startsWith('ENC$')) {
+                    try {
+                        decryptedData = decryptMessage(data);
+
+                        if (decryptedData === null) {
+                            console.error('解密失败，数据为null');
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('解密事件数据失败:', e);
+                        console.error('原始数据:', data);
+                        return;
+                    }
+                }
+
+                handler(decryptedData);
+            });
+        }
+
+        return originalOn.apply(this, arguments);
+    };
+
+    return socket;
+}
+
+const isDev = process.env.NODE_ENV === "development"
+
+
 const SOCKET_SERVER_URL = (isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL) || 'http://localhost:3001';
 let socket;
 let heartbeatInterval;
@@ -62,6 +162,8 @@ function connectSocket() {
     socket = io(SOCKET_SERVER_URL, {
         reconnection: false,
     });
+
+    socket = wrapSocket(socket);
 
     // Add a listener for connection errors
     socket.on('connect_error', (err) => {
@@ -123,11 +225,37 @@ function connectSocket() {
 
     });
 
-    // Generic listener to forward all server events to renderer processes
     socket.onAny((event, ...args) => {
-        BrowserWindow.getAllWindows().forEach(win => {
-            win.webContents.send('socket-event', { event, args });
-        });
+        // 对于需要解密的事件，先解密再发送
+        const sensitiveEvents = ['new-message', 'notification', 'user-registered', 'login-success', 'add-friends-msg'];
+
+        if (sensitiveEvents.includes(event) && args.length > 0) {
+            let processedArgs = [...args];
+
+            // 检查第一个参数是否为加密数据
+            if (typeof args[0] === 'string' && args[0].startsWith('ENC$')) {
+                try {
+                    const decryptedData = decryptMessage(args[0]);
+                    if (decryptedData !== null) {
+                        processedArgs[0] = decryptedData;
+                    }
+                } catch (e) {
+                    console.error(`解密 ${event} 事件数据失败:`, e);
+                }
+            }
+
+            BrowserWindow.getAllWindows().forEach(win => {
+                win.webContents.send('socket-event', {
+                    event,
+                    args: processedArgs  // 发送可能已解密的参数
+                });
+            });
+        } else {
+            // 非敏感事件直接发送
+            BrowserWindow.getAllWindows().forEach(win => {
+                win.webContents.send('socket-event', { event, args });
+            });
+        }
     });
 }
 // --- End Socket.IO Setup ---
@@ -479,8 +607,8 @@ function createMainWindow() {
 async function downLoadUserAvatar() {
     try {
 
-        if(userAssetsManager.getUserAssets(currentUserId, 'avatarPath')){
-            return 
+        if (userAssetsManager.getUserAssets(currentUserId, 'avatarPath')) {
+            return
         }
 
         const userDbPath = path.join(app.getPath('userData'), `${currentUserId}`, 'avatar');
@@ -698,7 +826,8 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
         socket.on('disconnect-message-send-comple', () => event.sender.send('disconnect-message-send-comple'))
         // 创建托盘 - 同样需要更新托盘图标路径
         createTray(mainWindow);
-        socket.emit('initial-data-success', { userId: userId });
+        console.log('发送信号:', userId);
+        socket.emit('initial-data-success', { userId });
         socket.emit('get-contacts');
 
         await downLoadUserAvatar();
@@ -1508,6 +1637,14 @@ ipcMain.handle('get-all-unread-message-count', async () => {
     return unreadMessageManager.getAllUnreadMessageCount(currentUserId);
 
 });
+
+ipcMain.on('save-message-draft', async (event, { contactId, isGroup, draft }) => { 
+    userMessageDraftManager.saveUserMessageDraft(currentUserId, contactId ,draft, isGroup)
+})
+
+ipcMain.handle('get-message-draft', async (event, { contactId, isGroup }) => { 
+    return userMessageDraftManager.getUserMessageDraft(currentUserId, contactId, isGroup)
+})
 
 ipcMain.handle('read-file', async (event, filePath) => {
     try {

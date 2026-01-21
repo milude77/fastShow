@@ -23,6 +23,7 @@
     "axios": "^1.13.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
     "electron-store": "^10.1.0",
     "electron-updater": "^6.6.2",
     "express": "^5.1.0",

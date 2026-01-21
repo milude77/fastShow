@@ -39,6 +39,10 @@
     color: #666;
 }
 
+.contact-info-grid .contact-message.draft{
+    color: rgb(224, 234, 87);
+}
+
 .contact-info-grid .message-badge {
     grid-column: 2;
     grid-row: 2;

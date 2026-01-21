@@ -1,9 +1,9 @@
 // MessageItem.jsx
 import React, { forwardRef, useEffect, useState } from 'react';
-import FileItem from './FileItem';
-import TextItem from './TextItem';
+import FileItem from './FileItem.jsx';
+import TextItem from './TextItem.jsx';
 import Avatar from '../avatar.jsx';
-import { formatTime } from '../../utils/timeFormatter';
+import { formatTime } from '../../utils/timeFormatter.js';
 
 const MessageItem = forwardRef(({
     msg,

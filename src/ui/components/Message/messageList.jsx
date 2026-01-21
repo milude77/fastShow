@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { use, useEffect, useRef, useState } from "react";
 import { Modal, Card, Button } from 'antd';
 import './css/messageList.css';
 import { DownloadOutlined, FileOutlined, TeamOutlined } from '@ant-design/icons';
@@ -6,7 +6,7 @@ import { WhatsAppOutlined, EllipsisOutlined } from '@ant-design/icons';
 import ContactOption from "./contactOption";
 import GroupMember from "./groupMember";
 import MessageInput from "./messageInput";
-import MessageItem from "./messageItem";
+import MessageItem from "./messageItem.jsx";
 import apiClient from '../../utils/api.js';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
@@ -80,7 +80,7 @@ const MessageListHead = ({ contact, openContactOptions, memberLength }) => {
 
 
 
-const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage, inviteFriendsJoinGroup }) => {
+const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage }) => {
     const { messageApi } = useGlobalMessage();
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
@@ -164,8 +164,12 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
     useEffect(() => {
         getGroupMemberList();
         scrollToBottom();
+    }, [contact]);
+
+
+    useEffect(() => {
         LastMessageTimestamp.current = null;
-    }, [contact.id]);
+    }, [messages]);
 
 
     useEffect(() => {
@@ -424,15 +428,17 @@ const MessageList = ({ contact, currentUser, messages, draft, onDraftChange, onS
                     <div className='message-send-box' style={{ height: 210 }} >
                         {/* 移除了 <div className="resize-handle" onMouseDown={onResizeMouseDown} /> */}
                         <InputToolBar contact={contact} onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
-                        <MessageInput contactID={contact?.id} contactType={contact?.type} savedDraft={draft}
-                            onDraftChange={onDraftChange} onSendMessage={handleSendMessage}
+                        <MessageInput 
+                            contactID={contact?.id} 
+                            contactType={contact?.type}  
+                            onSendMessage={handleSendMessage}
                             onSendGroupMessage={handleSendGroupMessage} />
                     </div>
                 </div>
                 {contact.type === 'group' && groupMemberListOpen && (
                     <GroupMember members={groupMemberList} serverUrl={serverUrl} currentUser={currentUser} />
                 )}
-                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} onClose={handleCloseContactOptions} inviteFriendsJoinGroup={inviteFriendsJoinGroup} groupMemberList={groupMemberList} />
+                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} onClose={handleCloseContactOptions} groupMemberList={groupMemberList} />
             </div>
         </div>
     )

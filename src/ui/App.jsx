@@ -16,14 +16,14 @@ import AddressBook from './components/addressBook/addressBook.jsx';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import { useGlobalMessage } from './hooks/useGlobalMessage';
+import { useGlobalModal } from './hooks/useModalManager';
+
 import titleImage from './assets/title.png';
 import CustomModal from './components/custoModal/customModal.jsx';
-import CreateGoupsApp from './components/custoModal/CreateGoupsApp';
 
 const SearchBar = ({ currentUser, onCreateGroup }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
-
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && searchTerm.trim()) {
@@ -78,8 +78,6 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [messages, setMessages] = useState({});
   const [groupMessages, setGroupMessages] = useState({});
-  const [drafts, setDrafts] = useState({});
-  const [groupDrafts, setGroupDrafts] = useState({});
   const [contacts, setContacts] = useState([]);
   const { messageApi, contextHolder } = useGlobalMessage();
 
@@ -87,9 +85,8 @@ function App() {
   const socket = useSocket();
   const pendingTimersRef = useRef(new Map());
   const pendingGroupTimersRef = useRef(new Map());
+  const { openModal } = useGlobalModal(); 
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalConment, setModalConment] = useState('');
 
   useEffect(() => {
     selectedContactRef.current = selectedContact;
@@ -129,12 +126,13 @@ function App() {
     }
   }, [darkMode]);
 
-  const handleLoginSuccess = useCallback((user) => {
-    window.electronAPI.loginSuccess({ userId: user.userId, token: user.token ?? user.newToken });
-    window.electronAPI.saveCurrentUserCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
-    window.electronAPI.saveUserListCredentials({ userId: user.userId, userName: user.username, token: user.token ?? user.newToken });
-    localStorage.setItem('token', user.token ?? user.newToken);
-    setCurrentUser(user);
+  const handleLoginSuccess = useCallback((data) => {
+    const { userId, username, token } = data;
+    window.electronAPI.loginSuccess({ userId, token });
+    window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token });
+    window.electronAPI.saveUserListCredentials({ userId, userName: username, token });
+    localStorage.setItem('token', token);
+    setCurrentUser({ userId, username, token });
   }, [setCurrentUser]);
 
   const handleFriendsList = useCallback((friendsWithGroups) => {
@@ -286,19 +284,6 @@ function App() {
     window.electronAPI.saveInviteinformationList(data)
   }, []);
 
-  const handleNotificationMessage = useCallback((data) => {
-    switch (data.status) {
-      case 'success':
-        messageApi.success(data.message);
-        break;
-      case 'error':
-        messageApi.error(data.message);
-        break;
-      case 'info':
-        messageApi.info(data.message);
-        break;
-    }
-  }, [messageApi]);
 
   const handleStrongLogoutWarning = useCallback(async (data) => {
     const message = data.message;
@@ -317,6 +302,20 @@ function App() {
     }
   }, [messageApi])
 
+  const handleNotificationMessage = useCallback((data) => {
+    switch (data.status) {
+      case 'success':
+        messageApi.success(data.message);
+        break;
+      case 'error':
+        messageApi.error(data.message);
+        break;
+      case 'info':
+        messageApi.info(data.message);
+        break;
+    }
+  }, [messageApi]);
+
   useEffect(() => {
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
@@ -330,7 +329,6 @@ function App() {
 
   useEffect(() => {
     if (!socket) return;
-
     socket.on('login-success', handleLoginSuccess);
     socket.on('new-message', handleNewMessage);
     socket.on('contacts-list', handleFriendsList);
@@ -363,7 +361,7 @@ function App() {
       socket.off('notification', handleNotificationMessage);
       socket.off('strong-logout-warning', handleStrongLogoutWarning);
     };
-  }, [socket]);
+  }, [socket, messageApi]);
 
 
   const handleMessageListSelectContact = useCallback(async (contact) => {
@@ -425,7 +423,6 @@ function App() {
     }, 10000);
 
     pendingTimersRef.current.set(messageId, timer);
-    setDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
 
     await window.electronAPI.sendPrivateMessage({
       receiverId: selectedContact.id,
@@ -476,7 +473,6 @@ function App() {
         pendingGroupTimersRef.current.delete(messageId);
       }, 10000);
       pendingGroupTimersRef.current.set(messageId, timer);
-      setGroupDrafts(prev => ({ ...prev, [selectedContact.id]: '' }));
 
       await window.electronAPI.sendGroupMessage({
         groupId: selectedContact.id,
@@ -511,15 +507,6 @@ function App() {
     }
   }, [])
 
-
-  const handleDraftChange = useCallback((contactId, contactType, text) => {
-    if (contactType == "friend") {
-      setDrafts(prev => ({ ...prev, [contactId]: text }));
-    }
-    else {
-      setGroupDrafts(prev => ({ ...prev, [contactId]: text }));
-    }
-  }, []);
 
   const messagesRef = useRef(messages);
 
@@ -674,6 +661,7 @@ function App() {
 
 
   const handleDeleteContact = useCallback((event, { contactId }) => {
+    messageApi.success('删除好友成功');
     setSelectedContactInformation(null)
     setSelectedContact(null)
     setContacts(prevContacts => {
@@ -701,6 +689,12 @@ function App() {
     }
   };
 
+  const handleCreateGroup = () => {
+    openModal('createGroup')
+  }
+
+
+
   const renderConnectionStatus = () => {
     if (connectionStatus === 'disconnected') {
       return <Alert message="已断开连接" type="error" showIcon />;
@@ -718,14 +712,11 @@ function App() {
           contact={selectedContact}
           currentUser={currentUser}
           messages={selectedContact.type == 'friend' ? messages[selectedContact.id] : groupMessages[selectedContact.id]}
-          draft={(selectedContact.type == 'friend' ? drafts[selectedContact.id] : groupDrafts[selectedContact.id]) || ''}
-          onDraftChange={handleDraftChange}
           onSendMessage={handleSendMessage}
           onSendGroupMessage={handleSendgroupMessage}
           onLoadMore={() => loadMoreMessages(selectedContact)}
           onUploadFile={handleUploadFile}
           onResendMessage={handleResendMessage}
-          inviteFriendsJoinGroup={() => { setIsModalOpen(true); setModalConment('inviteFriends') }}
         />
       );
     }
@@ -748,9 +739,12 @@ function App() {
     return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
   };
 
+
+
   if (!currentUser) {
     return (
       <div>
+        {contextHolder}
         <AppHeaderBar />
         <AuthPage />
       </div>);
@@ -772,7 +766,7 @@ function App() {
           </div>
           <div className='contact-list-container'>
             {renderConnectionStatus()}
-            <SearchBar currentUser={currentUser} onCreateGroup={() => { setIsModalOpen(true); setModalConment('createGroup') }} />
+            <SearchBar currentUser={currentUser} onCreateGroup={handleCreateGroup}  />
             <div className='contact-list'>
               {renderFeature()}
             </div>
@@ -785,22 +779,6 @@ function App() {
               {renderInformationFunctionBar()}
             </div>
           </div>
-
-          {/* 创建群聊模态框 */}
-          <CustomModal isOpen={isModalOpen} >
-            {
-              (() => {
-                switch (modalConment) {
-                  case 'createGroup':
-                    return <CreateGoupsApp onClose={() => setIsModalOpen(false)} />;
-                  case 'inviteFriends':
-                    return <InviteFriendsJoinGroup groupId={selectedContact.id} groupName={selectedContact.username} member={selectedContact.members || []} onClose={() => setIsModalOpen(false)} />;
-                  default:
-                    return null;
-                }
-              })()
-            }
-          </CustomModal  >
         </div>
       </div>
     </ConfigProvider>

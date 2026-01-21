@@ -2,12 +2,8 @@ import React, { useState, useEffect } from'react';
 import './css/messageInput.css'
 
 
-const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSendMessage, onSendGroupMessage }) => {
-    const [draft, setDraft] = useState(savedDraft || '');
-
-    useEffect(() => {
-        setDraft(savedDraft || '');
-    }, [savedDraft])
+const MessageInput = ({ contactID, contactType, onSendMessage, onSendGroupMessage }) => {
+    const [draft, setDraft] = useState('');
 
     const deDounce = (func, delay) => {
         let timeout;
@@ -19,12 +15,27 @@ const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSen
         }
     }
 
-    const handleDraftChange = (event) => {
-        setDraft(event.target.value);
-        deDounce(onDraftChange(contactID, contactType, event.target.value), 1000);
+    const saveDraft = deDounce(async(curDraft) => {
+        await window.electronAPI.saveMessageDraft(contactID, contactType == 'group', curDraft);
+    }, 1000);
+
+
+
+    const getSavedDraft = async() => {
+        const savedDraft = await window.electronAPI.getMessageDraft(contactID, contactType == 'group');
+        setDraft(savedDraft);
     };
 
-    const handleSendMessage = (message) => {
+    useEffect(() => {
+        getSavedDraft()
+    },[contactID, contactType])
+
+    const handleDraftChange = (event) => {
+        setDraft(event.target.value);
+        saveDraft(event.target.value);
+    };
+
+    const handleSendMessage = async(message) => {
         if (message.trim() !== '') {
             if (contactType === 'group') {
                 onSendGroupMessage(message);
@@ -32,6 +43,7 @@ const MessageInput = ({ contactID, contactType, savedDraft, onDraftChange, onSen
                 onSendMessage(message);
             }
             setDraft('');
+            await window.electronAPI.saveMessageDraft(contactID, contactType == 'group', '')
         }
     };
 

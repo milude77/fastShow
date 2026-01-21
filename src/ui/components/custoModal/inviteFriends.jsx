@@ -5,7 +5,7 @@ import { Checkbox, Input, Select } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
-const InviteFriendsJoinGroup = ({ groupId, groupName , member, onClose }) => {
+const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
 
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
@@ -20,10 +20,6 @@ const InviteFriendsJoinGroup = ({ groupId, groupName , member, onClose }) => {
             setServerUrl(url)
         });
         window.electronAPI.getFriendsList().then((friends) => {
-            if (member){
-                const memberIds = new Set(member.map(m => m.userId));
-                friends = friends.filter(f => !memberIds.has(f.id));
-            }
             setContacts(friends);
         });
     }, []);

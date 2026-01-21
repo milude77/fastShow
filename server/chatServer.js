@@ -12,6 +12,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import * as Minio from 'minio';
 import dotenv from 'dotenv';
+import CryptoJS from 'crypto-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +20,61 @@ const __dirname = path.dirname(__filename);
 dotenv.config({
     path: path.join(__dirname, 'config.env')
 });
+
+// --- AES加密相关 ---
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key-here'; // 至少32位密钥
+const ENCRYPTION_IV = process.env.ENCRYPTION_IV || 'your-16-char-iv-here12'; // 16位IV
+
+function aesEncrypt(text) {
+    // 确保密钥和IV长度正确
+    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
+    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
+    const encrypted = CryptoJS.AES.encrypt(text, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+    });
+    return encrypted.toString();
+}
+
+// AES解密函数
+function aesDecrypt(encryptedText) {
+    // 确保密钥和IV长度正确
+    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
+    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
+    const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
+        iv: iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
+    });
+    return decrypted.toString(CryptoJS.enc.Utf8);
+}
+
+// 检查是否为加密消息
+function isEncryptedMessage(message) {
+    return typeof message === 'string' && message.startsWith('ENC$');
+}
+
+// 解密消息
+function decryptMessage(message) {
+    if (isEncryptedMessage(message)) {
+        const encryptedContent = message.substring(4); // 移除 'ENC$' 前缀
+        try {
+            return JSON.parse(aesDecrypt(encryptedContent));
+        } catch (e) {
+            console.error('解密失败:', e);
+            return null;
+        }
+    }
+    return message;
+}
+
+// 加密消息
+function encryptMessage(message) {
+    const jsonString = JSON.stringify(message);
+    const encrypted = aesEncrypt(jsonString);
+    return `ENC$${encrypted}`;
+}
 
 // 根据环境变量选择配置，默认为 'development'
 const environment = process.env.NODE_ENV || 'development';
@@ -111,9 +167,9 @@ const io = new Server(server, {
             // Electron 应用的常见源
             const electronOrigins = [
                 'file://',
-                'app://', 
+                'app://',
                 'asar://',
-                'null'   
+                'null'
             ];
 
             // 是否为 Electron 应用的源
@@ -341,6 +397,52 @@ console.log('Socket.IO server initialized, waiting for connections...'); // 新�
 io.on('connection', (socket) => {
     console.log(`用户连接: ${socket.id}`);
 
+    const originalEmit = socket.emit;
+    socket.emit = function (event, data) {
+        // 对于敏感事件启用加密
+        const sensitiveEvents = [ 'user-registered', 'login-success', 'new-message' ];
+
+        if (sensitiveEvents.includes(event) && data && typeof data === 'object') {
+            const encryptedData = encryptMessage(data);
+            return originalEmit.call(this, event, encryptedData);
+        }
+
+        return originalEmit.apply(this, arguments);
+    };
+
+    // 包装socket.on以支持解密
+    const originalOn = socket.on;
+    socket.on = function (event, handler) {
+        const sensitiveEvents = ['register-user', 'login-user', 'send-private-message', 'send-group-message'];
+
+        if (sensitiveEvents.includes(event)) {
+            return originalOn.call(this, event, (data) => {
+                let decryptedData = data;
+
+                // 如果是加密的消息，先解密
+                if (typeof data === 'string' && data.startsWith('ENC$')) {
+                    try {
+                        decryptedData = decryptMessage(data);
+
+                        // 检查解密结果是否有效
+                        if (decryptedData === null) {
+                            console.error('解密失败，数据为null');
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('解密事件数据失败:', e);
+                        return;
+                    }
+                }
+
+                handler(decryptedData);
+            });
+        }
+
+        // 对于非敏感事件，直接使用原始处理器
+        return originalOn.apply(this, arguments);
+    };
+
     // 用户注册
     socket.on('register-user', async (data) => {
         const { username, password } = data;
@@ -454,9 +556,10 @@ io.on('connection', (socket) => {
             const newToken = jwt.sign({ userId: formattedId, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
             onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
             onlineUsersIds.set(formattedId, { socketId: socket.id, username: user.username })
-            socket.emit('login-success', { userId: formattedId, username: user.username, newToken });
+            socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken });
 
         } catch (error) {
+            console.error('登录失败:', error);
             if (error.name === 'TokenExpiredError') {
                 socket.emit('notification', { status: 'error', message: 'Token已过期，请重新登录' });
             } else {
@@ -466,16 +569,48 @@ io.on('connection', (socket) => {
     });
 
     socket.on('initial-data-success', async (data) => {
-        const { userId } = data;
-
-        const user = await db('users').where({ id: userId }).first(); // 根据ID查找用户
-        if (!user) {
-            socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
+        let userId;
+        // 检查 data 是否为对象以及是否包含 userId
+        if (data && typeof data === 'object' && 'userId' in data) {
+            userId = data.userId;
+        } else if (typeof data === 'string') {
+            // 如果数据是字符串（可能是加密的），尝试解密
+            try {
+                const decrypted = decryptMessage(data);
+                userId = decrypted.userId;
+            } catch (e) {
+                console.error('解析数据失败:', e);
+                socket.emit('notification', { status: 'error', message: '数据解析失败' });
+                return;
+            }
+        } else {
+            console.error('无法从数据中提取 userId:', data);
+            socket.emit('notification', { status: 'error', message: '数据格式错误' });
             return;
         }
-        const formattedId = String(user.id).padStart(6, '0');
-        handleSendDisconnectMessage(socket, { userId: formattedId, username: user.username });
-        handleGetFriendRequests(socket);
+
+        if (!userId) {
+            console.error('userId 为空或未定义:', userId);
+            socket.emit('notification', { status: 'error', message: '用户ID缺失' });
+            return;
+        }
+
+        try {
+            const user = await db('users').where({ id: userId }).first();
+            if (!user) {
+                console.error('找不到用户:', userId);
+                socket.emit('notification', { status: 'error', message: '用户不存在' });
+                return;
+            }
+
+            const formattedId = String(user.id).padStart(6, '0');
+            console.log('处理断开连接消息，用户ID:', formattedId);
+            await handleSendDisconnectMessage(socket, { userId: formattedId, username: user.username });
+            await handleGetFriendRequests(socket);
+        } catch (error) {
+            console.error('处理 initial-data-success 时出错:', error);
+            socket.emit('notification', { status: 'error', message: '处理请求时出错' });
+        }
     });
 
     socket.on('confirm-message-received', async ({ messageId, isGroup }) => {
@@ -957,7 +1092,7 @@ io.on('connection', (socket) => {
         const userId = onlineUsers.get(socket.id).userId;
         const nowDate = new Date();
         await db('users').where({ id: userId }).update(Object.assign(payload, { updated_at: nowDate }));
-})
+    })
 
 
     // 心跳检测
@@ -1193,7 +1328,7 @@ app.post('/api/avatar/complete', authenticateToken, async (req, res) => {
 
 app.get('/api/avatar/:userId/:userType', async (req, res) => {
     const { userId, userType } = req.params;
-    
+
     try {
         if (!userId || typeof userId !== 'string' || !/^[0-9]+$/.test(userId)) {
             return res.status(400).json({ error: '无效的用户ID格式' });
@@ -1211,8 +1346,8 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
 
         // 生成预签名URL（有效期24小时）
         const presignedUrl = await minioClient.presignedGetObject(
-            bucketName, 
-            objectName, 
+            bucketName,
+            objectName,
             24 * 60 * 60
         );
 
@@ -1222,11 +1357,11 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
     } catch (error) {
         // 返回默认头像的预签名URL
         const defaultAvatarUrl = await minioClient.presignedGetObject(
-            bucketName, 
-            'public-resources/default_avatar.jpg', 
+            bucketName,
+            'public-resources/default_avatar.jpg',
             24 * 60 * 60
         );
-        res.json({ url: defaultAvatarUrl });
+        res.redirect(defaultAvatarUrl);
     }
 });
 

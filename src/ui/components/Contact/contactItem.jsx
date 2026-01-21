@@ -8,6 +8,7 @@ import './css/contactItem.css';
 
 const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact, serverUrl }) => {
     const [lastMessage, setLastMessage] = useState({});
+    const [draft, setDraft] = useState('');
     const [newMessageCount, setNewMessageCount] = useState(0);
     const newMessageCountRef = useRef(newMessageCount);
 
@@ -38,14 +39,22 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
         await window.electronAPI.clearUnreadMessageCount(contact.id, contact.type === 'group');
     }, [handleSelectContact]);
 
-    const getLastMessage = useCallback(async (contactId) => {
+    const getDraft = useCallback(async (contactId) => {
         const isGroup = contact.type === 'group';
-        const message = await window.electronAPI.getLastMessage(contactId, isGroup);
-        setLastMessage(message);
-        return message;
+        const draft = await window.electronAPI.getMessageDraft(contactId, isGroup);
+        if (draft) {
+            setDraft(draft);
+        }
     }, [contact.type]);
 
-    const throttledGetLastMessage = useCallback(throttle(getLastMessage, 300), [getLastMessage]);
+    const getLastMessage = useCallback(async (contactId) => {
+        const isGroup = contact.type === 'group';
+
+        const message = await window.electronAPI.getLastMessage(contactId, isGroup);
+        setLastMessage(message);
+    }, [contact.type, contact.type]);
+
+    const throttledGetLastMessage = throttle(getLastMessage, 300)
 
     const formatTime = useCallback((timestamp) => {
         if (!timestamp) return '';
@@ -58,8 +67,12 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
     }, [newMessageCount]);
 
     useEffect(() => {
+        getDraft(contact.id);
+    }, [contact.id, getDraft, selectedContact]);
+
+    useEffect(() => {
         getLastMessage(contact.id);
-    }, [contact.id, getLastMessage]);
+    }, [contact.id, draft, getLastMessage]);
 
     const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
@@ -70,6 +83,11 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
 
     const handleSendNewMessage = useCallback((event, { contactId, isGroup }) => {
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
+            if (draft) {
+                setDraft('');
+                getLastMessage(contactId);
+                return ;
+            }
             throttledGetLastMessage(contactId);
         }
     }, [contact.id, contact.type, throttledGetLastMessage]);
@@ -106,8 +124,8 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
             />
             <div className="contact-info-grid">
                 <span className="contact-username">{contact.username}</span>
-                <span className="contact-message">
-                    {lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : ''}
+                <span className={`contact-message ${draft ? 'draft' : ''}`}>
+                    {draft ? `[草稿]${draft}` : (lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : '')}
                 </span>
                 <span className="contact-timestamp">{formatTime(lastMessage?.timestamp)}</span>
                 {newMessageCount > 0 && (

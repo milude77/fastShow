@@ -57,6 +57,19 @@ const schema = {
 // 创建 Store 实例
 const store = new Store({ schema });
 
+export const userMessageDraftManager = {
+  saveUserMessageDraft: (userId, contactId ,message, isGroup) => {
+    const key = `userMessageDrafts.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
+
+    store.set(key, message);
+  },
+  getUserMessageDraft: (userId, contactId, isGroup) => {
+    const key = `userMessageDrafts.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
+    const draft = store.get(key) || '';
+    return draft ;
+  }
+}
+
 // 用户凭证管理
 export const userCredentialsManager = {
   // 保存用户凭证列表
@@ -176,7 +189,7 @@ export const appConfigManager = {
 
 export const unreadMessageManager = {
   getUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
-    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
     return store.get(key) || 0;
   },
 
@@ -187,12 +200,12 @@ export const unreadMessageManager = {
   },
 
   setUnreadMessageCount: function (userId, contactId, count, isGroup) {  // 使用 function
-    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
     store.set(key, count);
   },
 
   incrementUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
-    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
     const allKey = `unreadMessageCount.${userId}.count`;
     const currentCount = store.get(key) || 0;
     const allCount = store.get(allKey) || 0;
@@ -201,7 +214,7 @@ export const unreadMessageManager = {
   },
 
   clearUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
-    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : ''}`;
+    const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
     const count = store.get(key) || 0;
     const allCount = this.getAllUnreadMessageCount(userId);  // ✅ 现在可以使用 this
     const allKey = `unreadMessageCount.${userId}.count`;

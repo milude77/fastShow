@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal } from 'antd';
 import './css/contactOption.css'
 import Avatar from '../avatar.jsx';
+import { useGlobalModal } from '../../hooks/useModalManager.js';
 
 
-const ContactOption = ({ contact, currentUser, openContactOptions, onClose, inviteFriendsJoinGroup, groupMemberList }) => {
+const ContactOption = ({ contact, currentUser, openContactOptions, onClose, groupMemberList }) => {
     const optionRef = useRef(null);
     const [modal, modalContextHolder] = Modal.useModal();
     const [serverUrl, setServerUrl] = useState('');
+    const { openModal } = useGlobalModal();
 
 
     useEffect(() => {
@@ -40,7 +42,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, invi
         await window.electronAPI.deleteContact(contactId);
     }
 
-    const deleteContactMessageHistoryFun = async(contact) => {
+    const deleteContactMessageHistoryFun = async (contact) => {
         await window.electronAPI.deleteContactMessageHistory(contact)
     }
 
@@ -90,9 +92,12 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, invi
         });
     };
 
-    const inviteFriends = () => {
-
-    }
+    const handleInviteFriendsClick = () => {
+        openModal('inviteFriends', {
+            groupId: contact.id,
+            groupName: contact.username,
+        });
+    };
 
     return (
         <div ref={optionRef} className={`contact-option ${openContactOptions ? 'visible' : ''}`} >
@@ -123,8 +128,20 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, invi
                             </div>
                         )
                     })}
-                    <div className="group-member" onClick={() => inviteFriends()} >
-                        <button onClick={inviteFriendsJoinGroup} style={{ width: '40px', height: '40px', borderRadius: '50%', color: 'var(--text-color)', backgroundColor: 'var(--contact-option-bg-color)', border: 'none', cursor: 'pointer' }}   >+</button>
+                    <div className="group-member" >
+                        <button
+                            onClick={handleInviteFriendsClick}
+                            style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                color: 'var(--text-color)',
+                                backgroundColor: 'var(--contact-option-bg-color)',
+                                border: 'none',
+                                cursor: 'pointer'
+                            }}>
+                            +
+                        </button>
                         <span>邀请</span>
                     </div>
                 </div>
