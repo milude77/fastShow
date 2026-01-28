@@ -1,7 +1,7 @@
-import React, { use, useEffect, useRef, useState } from "react";
-import { Modal, Card, Button } from 'antd';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Modal, Button } from 'antd';
 import './css/messageList.css';
-import { DownloadOutlined, FileOutlined, TeamOutlined } from '@ant-design/icons';
+import { FileOutlined, TeamOutlined } from '@ant-design/icons';
 import { WhatsAppOutlined, EllipsisOutlined } from '@ant-design/icons';
 import ContactOption from "./contactOption";
 import GroupMember from "./groupMember";
@@ -10,6 +10,7 @@ import MessageItem from "./messageItem.jsx";
 import apiClient from '../../utils/api.js';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
+import { formatTime } from '../../utils/timeFormatter.js';
 
 
 
@@ -80,8 +81,11 @@ const MessageListHead = ({ contact, openContactOptions, memberLength }) => {
 
 
 
-const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGroupMessage, onLoadMore, onUploadFile, onResendMessage }) => {
-    const { messageApi } = useGlobalMessage();
+const MessageList = ({ contact, messageListHook }) => {
+
+    const { messageApi, contextHolder } = useGlobalMessage();
+
+
     const convertFileSize = (sizeInKb) => {
         const sizeInBytes = sizeInKb;
         if (sizeInBytes < 1024) return sizeInBytes + ' B';
@@ -92,11 +96,15 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
         return sizeInGb.toFixed(2) + ' GB';
     };
 
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'))
+
     const messageContainerRef = useRef(null);
     const lastMessageRef = useRef(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [isFirstLoad, setIsFirstLoad] = useState(true);
     const [modal, modalContextHolder] = Modal.useModal();
     const { getAvatarUrl, refreshAvatar } = useUserAvatar(currentUser?.userId);
+    const [isMessageListTop, setIsMessageListTop] = useState(false)
 
     const [groupMemberList, setGroupMemberList] = useState([]);
     const [groupMemberListOpen, setGroupMemberListOpen] = useState(true)
@@ -106,47 +114,64 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
     const [serverUrl, setServerUrl] = useState('');
 
     const [openContactOptions, setOpenContactOptions] = useState(false)
+    const {
+        messages,
+        onLoadMore,
+        onUploadFile,
+        onSendMessage,
+        onSendGroupMessage,
+        onResendMessage,
+    } = messageListHook;
 
+    const currentDistanceFromBottom = useRef(0);
 
     const handleScroll = async () => {
-        if (messageContainerRef.current.scrollTop < 1 && !isLoadingMore) {
-            const currentScrollTop = messageContainerRef.current.scrollTop;
-            const scrollHeightBeforeLoad = messageContainerRef.current.scrollHeight;
+        if (messageContainerRef.current.scrollTop < 50 && !isLoadingMore && !isMessageListTop) {
+            currentDistanceFromBottom.current = messageContainerRef.current.scrollHeight - messageContainerRef.current.scrollTop - 50
 
             setIsLoadingMore(true);
-            await onLoadMore();
-
-
-            // 保持原来距离顶部的位置
-            const newScrollHeight = messageContainerRef.current.scrollHeight;
-            const heightAdded = newScrollHeight - scrollHeightBeforeLoad;
-
-            // 调整滚动位置，保持原来的内容在视口中的位置
-            messageContainerRef.current.scrollTop = currentScrollTop + heightAdded;
-            setIsLoadingMore(false);
-
+            const isTop =  await onLoadMore();
+            setIsMessageListTop(isTop);
         }
     };
 
-    const scrollToBottom = (behavior = "auto") => {
-        if (lastMessageRef.current) {
+    useEffect(() => {
+        if (isLoadingMore) {
+
+            messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight - currentDistanceFromBottom.current
+
+            setIsLoadingMore(false);
+        }
+    }, [messages]);
+
+    const firstScrollToBottom = useCallback((behavior = "auto") => {
+        if (lastMessageRef.current && isFirstLoad) {
             lastMessageRef.current.scrollIntoView({
                 behavior: behavior,
                 block: 'end'  // 确保元素滚动到容器底部
             });
-        } else if (messageContainerRef.current) {
-            messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+            setIsFirstLoad(false);
         }
-    };
+    }, [isFirstLoad]);
 
-    const getGroupMemberList = async () => {
+    const scrollToBottom = useCallback((behavior = "auto") => {
+        if (lastMessageRef.current && isFirstLoad) {
+            lastMessageRef.current.scrollIntoView({
+                behavior: behavior,
+                block: 'end'  // 确保元素滚动到容器底部
+            });
+            setIsFirstLoad(false);
+        }
+    }, [isFirstLoad]);
+
+    const getGroupMemberList = useCallback(async () => {
         const url = await window.electronAPI.getServerUrl();
         setServerUrl(url);
         if (contact.type === 'group') {
             const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
             setGroupMemberList(response.data);
         }
-    }
+    }, [contact]);
 
     useEffect(() => {
         const handleAvatarUpdate = () => {
@@ -163,38 +188,52 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
 
     useEffect(() => {
         getGroupMemberList();
-        scrollToBottom();
-    }, [contact]);
-
-
-    useEffect(() => {
-        LastMessageTimestamp.current = null;
-    }, [messages]);
-
-
-    useEffect(() => {
+        setIsFirstLoad(true);
+        setIsMessageListTop(false)
         setOpenContactOptions(false)
-    }, [contact]);
+    }, [contact, getGroupMemberList]);
 
+
+    useEffect(() => {
+        firstScrollToBottom();
+    }, [messages, contact, firstScrollToBottom]);
 
     const handleSendMessage = (message) => {
         onSendMessage(message);
-        scrollToBottom("smooth");
     }
 
     const handleSendGroupMessage = (message) => {
         onSendGroupMessage(message);
-        scrollToBottom("smooth");
     }
+
+    const handleSendNewMessage = (event, { contactId, isGroup }) => {
+        if (contactId === contact.id && isGroup === (contact.type === 'group')) {
+            scrollToBottom("smooth");
+        }
+    }
+
+    useEffect(() => {
+        window.electronAPI.ipcRenderer.on('send-new-meaage', handleSendNewMessage);
+
+        return () => {
+            window.electronAPI.ipcRenderer.removeListener('send-new-meaage', handleSendNewMessage);
+        }
+    })
+
+
 
     // 判断是否显示时间戳
     const LastMessageTimestamp = useRef(null);
+
+    useEffect(() => {
+        LastMessageTimestamp.current = null;
+    }, [messages, contact, isMessageListTop]);
     const shouldShowTimestamp = (currentTimestamp) => {
         if (!LastMessageTimestamp.current) {
             LastMessageTimestamp.current = currentTimestamp;
             return true;
         }
-        else if (currentTimestamp - LastMessageTimestamp.current > 60 * 1000) {
+        else if (currentTimestamp - LastMessageTimestamp.current > 60 * 5000) {
             LastMessageTimestamp.current = currentTimestamp;
             return true;
         }
@@ -294,7 +333,7 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
     };
 
     //重新发送消息
-    const handleResendMessage = async (contact, msg) => {
+    const handleResendMessage = useCallback(async (contact, msg) => {
         const isGroup = contact.type === 'group'
         const res = await window.electronAPI.resendMessage(msg.id, isGroup)
         if (res.success) {
@@ -303,7 +342,7 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
         } else {
             messageApi.error('消息重新发送失败: ' + res.error);
         }
-    }
+    }, [onResendMessage, messageApi, scrollToBottom]);
 
 
     //重发文件
@@ -362,6 +401,7 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
+            {contextHolder}
             <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} memberLength={groupMemberList?.length || 0} />
             <div style={{ display: 'flex', flex: '1' }}>
                 <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>
@@ -375,27 +415,28 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
                         onScroll={handleScroll}
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}>
-                        {isLoadingMore && <div className="loading-spinner">Loading...</div>}
                         <ul className='message-list'>
                             {messages && messages.map((msg, index) => {
-                                const isShowTimestamp = shouldShowTimestamp(msg.timestamp)
+                                const isShowTimestamp = shouldShowTimestamp(msg.timestamp);
                                 const AvatarSrc = getAvatarUrl(msg.sender_id);
                                 return (
-                                    <MessageItem
-                                        key={msg.id || `${msg.timestamp}-${index}`}
-                                        msg={msg}
-                                        index={index}
-                                        showTimestamp={isShowTimestamp}
-                                        userAvatarSrc={AvatarSrc}
-                                        contact={contact}
-                                        handleResendMessage={handleResendMessage}
-                                        handleResendFile={handleResendFile}
-                                        handleOpenFileLocation={handleOpenFileLocation}
-                                        handleDownloadFile={handleDownloadFile}
-                                        convertFileSize={convertFileSize}
-                                        isGroup={contact.type === 'group'}
-                                        ref={index === messages.length - 1 ? lastMessageRef : null}
-                                    />
+                                    <>
+                                        {isShowTimestamp && <span className="message-timestamp">{formatTime(msg.timestamp)}</span>}
+                                        <MessageItem
+                                            key={msg.id}
+                                            msg={msg}
+                                            index={index}
+                                            userAvatarSrc={AvatarSrc}
+                                            contact={contact}
+                                            handleResendMessage={handleResendMessage}
+                                            handleResendFile={handleResendFile}
+                                            handleOpenFileLocation={handleOpenFileLocation}
+                                            handleDownloadFile={handleDownloadFile}
+                                            convertFileSize={convertFileSize}
+                                            isGroup={contact.type === 'group'}
+                                            ref={index === messages.length - 1 ? lastMessageRef : null}
+                                        />
+                                    </>
                                 )
                             })}
                         </ul >
@@ -428,9 +469,9 @@ const MessageList = ({ contact, currentUser, messages, onSendMessage, onSendGrou
                     <div className='message-send-box' style={{ height: 210 }} >
                         {/* 移除了 <div className="resize-handle" onMouseDown={onResizeMouseDown} /> */}
                         <InputToolBar contact={contact} onUploadFile={onUploadFile} scrollToBottom={scrollToBottom} />
-                        <MessageInput 
-                            contactID={contact?.id} 
-                            contactType={contact?.type}  
+                        <MessageInput
+                            contactID={contact?.id}
+                            contactType={contact?.type}
                             onSendMessage={handleSendMessage}
                             onSendGroupMessage={handleSendGroupMessage} />
                     </div>

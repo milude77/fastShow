@@ -3,12 +3,11 @@ import React, { forwardRef, useEffect, useState } from 'react';
 import FileItem from './FileItem.jsx';
 import TextItem from './TextItem.jsx';
 import Avatar from '../avatar.jsx';
-import { formatTime } from '../../utils/timeFormatter.js';
+
 
 const MessageItem = forwardRef(({
     msg,
     index,
-    showTimestamp,
     userAvatarSrc,
     contact,
     handleResendMessage,
@@ -41,7 +40,6 @@ const MessageItem = forwardRef(({
 
     return (
         <React.Fragment key={key}>
-            {showTimestamp && <span className="message-timestamp">{formatTime(msg.timestamp)}</span>}
             <li
                 className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}
                 ref={ref}

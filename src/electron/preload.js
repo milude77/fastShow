@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendPrivateMessage: ( { receiverId, message, messageId } ) => ipcRenderer.send('send-private-message', { receiverId, message, messageId }),
   sendGroupMessage: ( { groupId, message, messageId } ) => ipcRenderer.send('send-group-message', { groupId, message, messageId }),
   sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
-  resendMessage: (messageId) => ipcRenderer.invoke('resend-message', { messageId }),
+  resendMessage: (messageId, isGroup) => ipcRenderer.invoke('resend-message', { messageId, isGroup }),
   getLastMessage: (contactId, isGroup) => ipcRenderer.invoke('get-last-message', { contactId, isGroup }),
   getUnreadMessageCount: (contactId, isGroup) => ipcRenderer.invoke('get-unread-message-count', { contactId, isGroup }),
   clearUnreadMessageCount: (contactId, isGroup) => ipcRenderer.send('clear-unread-message-count', { contactId, isGroup }),
@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveAvatarLocally: (avatarArrayBuffer) => ipcRenderer.invoke('save-avatar-locally', avatarArrayBuffer),
   getMessageDraft: (contactId, isGroup) => ipcRenderer.invoke('get-message-draft', { contactId, isGroup }),
   saveMessageDraft: (contactId, isGroup, draft) => ipcRenderer.send('save-message-draft', { contactId, isGroup, draft }),
+  clearMessageDraft: (contactId, isGroup) => ipcRenderer.send('clear-message-draft', { contactId, isGroup }),
   // 触发文件选择对话框，并返回文件路径
   selectFile: () => ipcRenderer.invoke('select-file'),
   // 使用新的MinIO上传流程

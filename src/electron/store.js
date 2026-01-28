@@ -67,6 +67,10 @@ export const userMessageDraftManager = {
     const key = `userMessageDrafts.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
     const draft = store.get(key) || '';
     return draft ;
+  },
+  clearUserMessageDraft: (userId, contactId, isGroup) => {
+    const key = `userMessageDrafts.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
+    store.delete(key);
   }
 }
 

@@ -17,8 +17,13 @@ const MessageInput = ({ contactID, contactType, onSendMessage, onSendGroupMessag
 
     const saveDraft = deDounce(async(curDraft) => {
         await window.electronAPI.saveMessageDraft(contactID, contactType == 'group', curDraft);
-    }, 1000);
+        console.log('save draft')
+    }, 100);
 
+    const clearDraft = deDounce(async() => {
+        await window.electronAPI.clearMessageDraft(contactID, contactType == 'group')
+        console.log('clear draft')
+    }, 200);
 
 
     const getSavedDraft = async() => {
@@ -35,7 +40,7 @@ const MessageInput = ({ contactID, contactType, onSendMessage, onSendGroupMessag
         saveDraft(event.target.value);
     };
 
-    const handleSendMessage = async(message) => {
+    const handleSendMessage = (message) => {
         if (message.trim() !== '') {
             if (contactType === 'group') {
                 onSendGroupMessage(message);
@@ -43,7 +48,7 @@ const MessageInput = ({ contactID, contactType, onSendMessage, onSendGroupMessag
                 onSendMessage(message);
             }
             setDraft('');
-            await window.electronAPI.saveMessageDraft(contactID, contactType == 'group', '')
+            clearDraft()
         }
     };
 

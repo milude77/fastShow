@@ -1332,12 +1332,12 @@ ipcMain.handle('resend-message', async (event, { messageId, isGroup }) => {
         }
         let deleted
         if (isGroup) {
-            deleted = await db('messages')
+            deleted = await db('group_messages')
                 .where('id', String(messageId))
                 .del();
         }
         else {
-            deleted = await db('group_messages')
+            deleted = await db('messages')
                 .where('id', String(messageId))
                 .del();
         }
@@ -1644,6 +1644,10 @@ ipcMain.on('save-message-draft', async (event, { contactId, isGroup, draft }) =>
 
 ipcMain.handle('get-message-draft', async (event, { contactId, isGroup }) => { 
     return userMessageDraftManager.getUserMessageDraft(currentUserId, contactId, isGroup)
+})
+
+ipcMain.on('clear-message-draft', async (event, { contactId, isGroup }) => { 
+    userMessageDraftManager.clearUserMessageDraft(currentUserId, contactId, isGroup)
 })
 
 ipcMain.handle('read-file', async (event, filePath) => {
