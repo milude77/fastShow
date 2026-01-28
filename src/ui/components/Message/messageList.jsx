@@ -479,7 +479,7 @@ const MessageList = ({ contact, messageListHook }) => {
                 {contact.type === 'group' && groupMemberListOpen && (
                     <GroupMember members={groupMemberList} serverUrl={serverUrl} currentUser={currentUser} />
                 )}
-                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} onClose={handleCloseContactOptions} groupMemberList={groupMemberList} />
+                <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} onClose={handleCloseContactOptions} groupMemberList={groupMemberList} messageApi={messageApi} />
             </div>
         </div>
     )

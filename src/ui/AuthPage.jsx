@@ -6,6 +6,7 @@ import './css/authPage.css'
 import Avatar from './components/avatar.jsx';
 import { useUserAvatar } from './hooks/useAvatar.js';
 import { useGlobalMessage } from './hooks/useGlobalMessage';
+import { FaGithub } from 'react-icons/fa';
 
 
 const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
@@ -39,6 +40,7 @@ const AuthPage = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(false);
@@ -110,6 +112,7 @@ const AuthPage = () => {
       setMessage('');
       setUsername('');
       setPassword('');
+      setEmail('');
       setConfirmPassword('');
       modal.success({
         title: '注册成功',
@@ -148,6 +151,11 @@ const AuthPage = () => {
     if (socket == null) {
       setMessage('错误: 无法连接服务器');
     }
+
+    if (isRegistering && email.trim() === '' ){
+      setMessage('请输入有效的邮箱地址');
+    }
+
     if (username.trim() === '' || password.trim() === '') {
       setMessage('用户名和密码不能为空。');
       return;
@@ -161,7 +169,7 @@ const AuthPage = () => {
     const credentials = { userId: username, password };
 
     if (isRegistering) {
-      socket.emit('register-user', { username, password });
+      socket.emit('register-user', { username, password, email });
     } else {
       socket.emit('login-user', credentials);
     }
@@ -184,10 +192,16 @@ const AuthPage = () => {
       });
     }
 
+    const handleOauthSuccess = (event, token) => {
+      socket.emit('login-with-token', token);
+    }
+
     window.electronAPI.ipcRenderer.on('strong-logout-waring', handleStrongLogoutWaring)
+    window.electronAPI.ipcRenderer.on('oauth-success', handleOauthSuccess)
 
     return () => {
       window.electronAPI.ipcRenderer.removeListener('strong-logout-waring', handleStrongLogoutWaring)
+      window.electronAPI.ipcRenderer.removeListener('oauth-success', handleOauthSuccess)
     }
   }, []);
 
@@ -208,22 +222,33 @@ const AuthPage = () => {
           </h2>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {isRegistering ? (
-              <input
-                type="text"
-                maxLength={20}
-                placeholder="用户名"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
-              />
+              <>
+                <input
+                  type="text"
+                  placeholder="邮箱"
+                  value={email}
+                  maxLength={30}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className='input-box'
+                />
+                <input
+                  type="text"
+                  maxLength={20}
+                  placeholder="用户名"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                  className='input-box'
+                />
+              </>
             ) : (
               <input
                 type="text"
-                placeholder="用户ID (例如: 000001)"
+                placeholder="用户id / 邮箱"
                 value={username}
                 maxLength={20}
                 onChange={(e) => setUsername(e.target.value)}
-                style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                className='input-box'
               />
             )}
             <input
@@ -232,19 +257,26 @@ const AuthPage = () => {
               maxLength={20}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+              className='input-box'
             />
             {isRegistering && (<input type="password"
               placeholder="确认密码"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+              className='input-box'
             />)}
             <button
+              className='login-btn'
               type="submit"
-              style={{ padding: '10px', borderRadius: '4px', border: 'none', backgroundColor: '#007bff', color: 'white', fontSize: '16px', cursor: 'pointer' }}
+
             >
-              {isRegistering ? '注册' : '登录'}
+              登录
+            </button>
+            <button className='login-btn git-btn' type="button" onClick={() => { window.electronAPI.githubOAuth() }}>
+              <span>
+                <FaGithub size={20} />
+                使用GitHub登录/注册
+              </span>
             </button>
           </form>
           <p style={{ textAlign: 'center', marginTop: '20px', color: '#666' }}>

@@ -1638,15 +1638,15 @@ ipcMain.handle('get-all-unread-message-count', async () => {
 
 });
 
-ipcMain.on('save-message-draft', async (event, { contactId, isGroup, draft }) => { 
-    userMessageDraftManager.saveUserMessageDraft(currentUserId, contactId ,draft, isGroup)
+ipcMain.on('save-message-draft', async (event, { contactId, isGroup, draft }) => {
+    userMessageDraftManager.saveUserMessageDraft(currentUserId, contactId, draft, isGroup)
 })
 
-ipcMain.handle('get-message-draft', async (event, { contactId, isGroup }) => { 
+ipcMain.handle('get-message-draft', async (event, { contactId, isGroup }) => {
     return userMessageDraftManager.getUserMessageDraft(currentUserId, contactId, isGroup)
 })
 
-ipcMain.on('clear-message-draft', async (event, { contactId, isGroup }) => { 
+ipcMain.on('clear-message-draft', async (event, { contactId, isGroup }) => {
     userMessageDraftManager.clearUserMessageDraft(currentUserId, contactId, isGroup)
 })
 
@@ -1702,6 +1702,21 @@ ipcMain.handle('get-invite-information-list', async () => {
     return inviteInformationList;
 });
 
+ipcMain.handle('github-oauth', async () => {
+    const clientId = 'Ov23li2ktKhYQk4XKysD';
+    const redirectUri = encodeURIComponent(
+        'http://localhost:3001/api/auth/github/callback'
+    );
+
+    const authUrl =
+        `https://github.com/login/oauth/authorize` +
+        `?client_id=${clientId}` +
+        `&redirect_uri=${redirectUri}` +
+        `&scope=user:email`;
+
+    shell.openExternal(authUrl);
+});
+
 ipcMain.on('strong-logout-waring', async (event, message) => {
 
     // 销毁托盘图标
@@ -1739,6 +1754,39 @@ ipcMain.on('reset-migration-version', async (event, { userId, version }) => {
 });
 // --- End IPC handler to reset migration version ---
 
+
+app.on('second-instance', (event, argv) => {
+    // argv 里包含 fastshow://login?token=xxx
+    const url = argv.find(arg => arg.startsWith('fastshow://'));
+    if (url) {
+        const token = new URL(url).searchParams.get('token');
+
+        // 把 token 发给“已有窗口”
+        mainWindow.webContents.send('oauth-success', token);
+    }
+
+    // 关键：聚焦旧窗口
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+    }
+});
+
 app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit()
 })
+
+const PROTOCOL = 'fastshow';
+
+if (process.defaultApp) {
+    console.log('Running in development mode');
+    // 开发环境
+    app.setAsDefaultProtocolClient(
+        PROTOCOL,
+        process.execPath,
+        [process.argv[1]]
+    );
+} else {
+    // 打包后
+    app.setAsDefaultProtocolClient(PROTOCOL);
+}

@@ -5,7 +5,7 @@ import Avatar from '../avatar.jsx';
 import { useGlobalModal } from '../../hooks/useModalManager.js';
 
 
-const ContactOption = ({ contact, currentUser, openContactOptions, onClose, groupMemberList }) => {
+const ContactOption = ({ contact, currentUser, openContactOptions, onClose, groupMemberList, messageApi }) => {
     const optionRef = useRef(null);
     const [modal, modalContextHolder] = Modal.useModal();
     const [serverUrl, setServerUrl] = useState('');
@@ -44,6 +44,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
 
     const deleteContactMessageHistoryFun = async (contact) => {
         await window.electronAPI.deleteContactMessageHistory(contact)
+        messageApi.success('消息已清除');
     }
 
     const handleDeleteContact = () => {

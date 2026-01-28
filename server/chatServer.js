@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import * as Minio from 'minio';
 import dotenv from 'dotenv';
 import CryptoJS from 'crypto-js';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,9 +22,17 @@ dotenv.config({
     path: path.join(__dirname, 'config.env')
 });
 
+const githubConfig = {
+    clientId: process.env.GITHUB_CLIENT_ID,
+    clientSecret: process.env.GITHUB_CLIENT_SECRET,
+    callbackUrl: 'http://localhost:3001/api/auth/github/callback'
+};
+
+
 // --- AES加密相关 ---
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key-here'; // 至少32位密钥
 const ENCRYPTION_IV = process.env.ENCRYPTION_IV || 'your-16-char-iv-here12'; // 16位IV
+const JSON_WEB_TOKEN_SECRET = process.env.JWT || 'your_secret_key'; // 用于签名 JWT
 
 function aesEncrypt(text) {
     // 确保密钥和IV长度正确
@@ -208,7 +217,7 @@ const authenticateToken = (req, res, next) => {
         return res.status(401).json({ error: '未提供访问令牌' });
     }
 
-    jwt.verify(token, 'your_secret_key', (err, user) => {
+    jwt.verify(token, JSON_WEB_TOKEN_SECRET, (err, user) => {
         if (err) {
             console.error('JWT验证失败:', err);
             if (err.name === 'TokenExpiredError') {
@@ -400,7 +409,7 @@ io.on('connection', (socket) => {
     const originalEmit = socket.emit;
     socket.emit = function (event, data) {
         // 对于敏感事件启用加密
-        const sensitiveEvents = [ 'user-registered', 'login-success', 'new-message' ];
+        const sensitiveEvents = ['user-registered', 'login-success', 'new-message'];
 
         if (sensitiveEvents.includes(event) && data && typeof data === 'object') {
             const encryptedData = encryptMessage(data);
@@ -445,27 +454,43 @@ io.on('connection', (socket) => {
 
     // 用户注册
     socket.on('register-user', async (data) => {
-        const { username, password } = data;
+        const { username, password, email } = data;
 
         if (!username || !password) {
             socket.emit('notification', { status: 'error', message: '用户名和密码是必需的' });
             return;
         }
 
+        const emailIsExists = await db('users').where('email', email).first();
+        if (emailIsExists) {
+            socket.emit('notification', { status: 'error', message: '注册邮箱已存在' });
+            return;
+        }
+
         try {
             const hashedPassword = await bcrypt.hash(password, 10); // 哈希密码
+            let formattedId;
 
-            // 获取当前最大ID，并生成新ID
-            const maxIdResult = await db('users').max('id as maxId').first();
-            const nextId = (+maxIdResult.maxId || 0) + 1;
-            const formattedId = String(nextId).padStart(6, '0');
+            await db.transaction(async (trx) => {
+                // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
+                const maxIdResult = await trx('users')
+                    .max('id as maxId')
+                    .first()
+                    .forUpdate();
 
-            // 插入用户，并指定ID
-            await db('users').insert({ id: formattedId, username, password_hash: hashedPassword });
+                const nextId = (+maxIdResult.maxId || 0) + 1;
+                formattedId = String(nextId).padStart(6, '0')
+
+                // 插入新用户
+                await trx('users').insert({
+                    id: formattedId,
+                    username,
+                    password_hash: hashedPassword,
+                    email
+                });
+            });
 
             socket.emit('user-registered', { userId: formattedId, username });
-
-
         } catch (error) {
             console.error('注册用户失败:', error);
             socket.emit('notification', { status: 'error', message: '注册失败，请稍后再试' });
@@ -481,14 +506,25 @@ io.on('connection', (socket) => {
             return;
         }
 
+        let user;
+
         try {
-            const user = await db('users').where({ id: userId }).first(); // 根据ID查找用户
+            const result = await db('users').where({ id: userId }).first(); // 根据ID查找用户
+            if (!result) {
+                user = await db('users').where({ email: userId }).first(); // 根据邮箱查找用户
+            } else {
+                user = result;
+            }
+
             if (!user) {
                 socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
                 return;
             }
 
-            const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+            const isPasswordValid = await bcrypt.compare(password, user.password_hash ?? '');
+
+
             if (!isPasswordValid) {
                 socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
                 return;
@@ -509,7 +545,7 @@ io.on('connection', (socket) => {
 
             // 登录成功
             const formattedId = String(user.id).padStart(6, '0');
-            const token = jwt.sign({ userId: formattedId, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
+            const token = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
             onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
             onlineUsersIds.set(formattedId, { socketId: socket.id, username: user.username })
             socket.emit('login-success', { userId: formattedId, username: user.username, token });
@@ -529,7 +565,7 @@ io.on('connection', (socket) => {
         }
 
         try {
-            const decoded = jwt.verify(token, 'your_secret_key');
+            const decoded = jwt.verify(token, JSON_WEB_TOKEN_SECRET);
             const user = await db('users').where({ id: decoded.userId }).first();
 
             if (!user) {
@@ -553,7 +589,7 @@ io.on('connection', (socket) => {
 
             const formattedId = String(user.id).padStart(6, '0');
 
-            const newToken = jwt.sign({ userId: formattedId, username: user.username }, 'your_secret_key', { expiresIn: '2d' });
+            const newToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
             onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
             onlineUsersIds.set(formattedId, { socketId: socket.id, username: user.username })
             socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken });
@@ -1380,6 +1416,100 @@ app.get('/api/getGroupMember/:groupId', authenticateToken, async (req, res) => {
 
     res.json(groupMembers);
 });
+
+async function githubCallback(req, res) {
+    const { code } = req.query;
+
+    if (!code) {
+        return res.status(400).send('Missing code');
+    }
+
+    try {
+        /* 1. 用 code 换 access_token */
+        const tokenRes = await axios.post(
+            'https://github.com/login/oauth/access_token',
+            {
+                client_id: githubConfig.clientId,
+                client_secret: githubConfig.clientSecret,
+                code
+            },
+            { headers: { Accept: 'application/json' } }
+        );
+
+        const accessToken = tokenRes.data.access_token;
+
+        /* 2. 获取 GitHub 用户信息 */
+        const userRes = await axios.get(
+            'https://api.github.com/user',
+            {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            }
+        );
+
+        const githubUser = userRes.data;
+
+        /* 3. 获取邮箱（可能需要） */
+        let email = githubUser.email;
+        if (!email) {
+            const emailRes = await axios.get(
+                'https://api.github.com/user/emails',
+                {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                }
+            );
+            email = emailRes.data.find(e => e.primary)?.email;
+        }
+
+        /* 4. 查找 / 创建用户 */
+        let user = await db('users').where({ github_id: githubUser.id }).first();
+        let username = githubUser.login;
+        let githubId = githubUser.id;
+        let formattedId;
+
+        if (!user) {
+            await db.transaction(async (trx) => {
+                // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
+                const maxIdResult = await trx('users')
+                    .max('id as maxId')
+                    .first()
+                    .forUpdate(); // 锁定查询结果
+
+                const nextId = (+maxIdResult.maxId || 0) + 1;
+                formattedId = nextId.toString().padStart(6, '0');
+
+                // 插入新用户
+                await trx('users').insert({
+                    id: formattedId,
+                    username,
+                    email,
+                    github_id: githubId
+                });
+            });
+
+            user = {
+                id: formattedId,
+                username,
+            }
+        }
+
+        /* 5. 生成 JWT */
+        const token = jwt.sign(
+            { userId: user.id, username: user.username },
+            JSON_WEB_TOKEN_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        /* 6. 重定向回前端 */
+        res.redirect(`fastshow://login?token=${token}`);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('GitHub Auth Failed');
+    }
+}
+
+app.get('/api/auth/github/callback', githubCallback);
+
 
 // 启动服务器
 const PORT = process.env.PORT || 3001;

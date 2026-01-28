@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteContactMessageHistory: (contact) => ipcRenderer.invoke('delete-contact-message-history', { contact }),
   leaveGroup: (groupId, currentUserID) => ipcRenderer.invoke('leave-group', { groupId, currentUserID }),
 
+
+  //用户数据配置相关
   loginSuccess: ({ userId, token }) => ipcRenderer.send('login-success', { userId, token}),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
@@ -65,6 +67,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteUser: (removeUserId) => ipcRenderer.send('delete-saved-user', removeUserId),
   strongLogoutWaring: (message) => ipcRenderer.send('strong-logout-waring', message),
   logout: () => ipcRenderer.send('logout'),
+
+  //github配置相关
+  githubOAuth: () => ipcRenderer.invoke('github-oauth'),
 
   // --- Window Controls ---
   minimizeWindow: () => ipcRenderer.send('minimize-window'),

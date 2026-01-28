@@ -1,12 +1,10 @@
 import { useState, useRef, useCallback } from "react";
-import { useGlobalMessage } from './useGlobalMessage';
 
 export function useMessageList(curSelectedContact) {
     const contactRef = useRef(curSelectedContact);
     contactRef.current = curSelectedContact;
     const [messages, setMessages] = useState([]);
     const pendingTimersRef = useRef(new Map());
-    const { messageApi } = useGlobalMessage();
 
     // 移除内部的 selectedContact 状态
 
@@ -74,11 +72,10 @@ export function useMessageList(curSelectedContact) {
     }, [])
 
     const handleChatHistoryDeleted = useCallback((event, { contactId, isGroup }) => {
-        if (contactId === contactRef.current.id && isGroup && contactRef.current.type === 'group') {
+        if (contactId === contactRef.current.id && isGroup == (contactRef.current.type === 'group')) {
             setMessages([]);
-            messageApi.success('消息已清除');
         }
-    }, [messageApi])
+    }, [])
 
     const handleMessageListSelectContact = useCallback(async (contact) => {
         const currentUser = JSON.parse(localStorage.getItem('currentUser'));
