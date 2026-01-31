@@ -4,11 +4,16 @@ import AppHeaderBar from './components/appHeaderBar';
 import { message } from 'antd';
 import selectImg from './assets/select.png';
 import { Button } from 'antd/es/radio';
+import { useUserAvatar } from './hooks/useAvatar.js';
+import Avatar from './components/avatar.jsx';
 
 const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) => {
   const socket = useSocket();
   const [messageApi, contextHolder] = message.useMessage();
-  const [serverUrl, setServerUrl] = useState('');
+
+  const currentUser = JSON.parse(localStorage.getItem('currentUser'))
+
+  const { getAvatarUrl } = useUserAvatar(currentUser?.userId);
 
   const handleAddFriendCall = (message) => {
     if (message.success) {
@@ -19,11 +24,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
     }
   }
 
-  useEffect(() => {
-    window.electronAPI.getServerUrl().then((url) => {
-      setServerUrl(url);
-    });
-  }, [])
+
 
 
   useEffect(() => {
@@ -63,12 +64,21 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
           搜索
         </button>
       </form>
-      <div style={{ flex: '1', marginTop: '10px', width: '100%', height: '100%', minHeight: '400px' }}>
+      <div style={{
+        flex: '1',
+        marginTop: '10px',
+        width: '100%',
+        overflowY: 'auto', // 添加垂直滚动条
+        maxHeight: '70vh'
+      }}>
         {searchResults.length > 0 ?
           (searchResults.map(user => (
             <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <img style={{ width:'40px', height:'40px' }} src={`${serverUrl}/api/avatar/${user.id}/user`} alt='avatar' className='friend-avatar' />
+                <Avatar
+                  src={getAvatarUrl(user.id)}
+                  size={40}
+                />
                 <span>{user.username} ({user.id})</span>
               </div>
               <Button onClick={() => handleAddFriend(user.id)}>添加好友</Button>

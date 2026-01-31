@@ -1,7 +1,9 @@
-import {React, useEffect, useState } from 'react';
+import { React } from 'react';
 import { Collapse } from 'antd';
 import { UserOutlined, TeamOutlined, CaretRightOutlined, UsergroupAddOutlined } from '@ant-design/icons';
 import './css/addressBook.css';
+import Avatar from '../avatar.jsx';
+import { useUserAvatar } from '../../hooks/useAvatar.js';
 
 const { Panel } = Collapse;
 
@@ -11,16 +13,9 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
     onSelectContact(contactId);
   };
 
-  const [serverUrl, setServerUrl] = useState('');
+  const currentUser = JSON.parse(localStorage.getItem('currentUser'))
 
-  const handleServerUrlChange = async () => {
-    const url = await window.electronAPI.getServerUrl();
-    setServerUrl(url);
-  }
-
-  useEffect(() => {
-    handleServerUrlChange();
-  }, []);
+  const { getAvatarUrl } = useUserAvatar(currentUser?.userId);
 
   const friendsList = contacts.filter(contact => contact.type == "friend");
   const groupList = contacts.filter(contact => contact.type == "group")
@@ -50,7 +45,10 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
           {friendsList && friendsList.length > 0 ? (
             friendsList.map((contact) => (
               <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact.id) }}>
-                <img className="contact-avatar" src={`${serverUrl}/api/avatar/${contact.id}/${contact.type == 'friend' ? 'user' : 'group'}`} alt={contact.username} />
+                <Avatar
+                  src={getAvatarUrl(contact.id)}
+                  size={40}
+                />
                 <span className='contact-username' >{contact.username}</span>
               </div>
             ))

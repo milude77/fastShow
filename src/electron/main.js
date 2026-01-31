@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
-import autoUpdater from 'electron-updater';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
@@ -11,7 +10,9 @@ import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
 import { protocol } from 'electron';
-import CryptoJS from 'crypto-js';
+import { decryptMessage, wrapSocket } from './aseOptions.js'
+
+import { v4 as uuidv4 } from 'uuid';
 
 import {
     initializeDefaultSettings,
@@ -29,108 +30,13 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // --- Socket.IO Main Process Setup ---
+
+
 const configPath = path.join(__dirname, '..', '..', 'config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-const ENCRYPTION_KEY = config.ENCRYPTION_KEY;
-const ENCRYPTION_IV = config.ENCRYPTION_IV;
 
-function aesEncrypt(text) {
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
-    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
-    const encrypted = CryptoJS.AES.encrypt(text, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-    });
-    return encrypted.toString();
-}
-
-function aesDecrypt(encryptedText) {
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
-    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
-    const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-    });
-    return decrypted.toString(CryptoJS.enc.Utf8);
-}
-
-function isEncryptedMessage(message) {
-    return typeof message === 'string' && message.startsWith('ENC$');
-}
-
-function decryptMessage(message) {
-    if (isEncryptedMessage(message)) {
-        const encryptedContent = message.substring(4);
-        try {
-            return JSON.parse(aesDecrypt(encryptedContent));
-        } catch (e) {
-            console.error('解密失败:', e);
-            return null;
-        }
-    }
-    return message;
-}
-
-function encryptMessage(message) {
-    const jsonString = JSON.stringify(message);
-    const encrypted = aesEncrypt(jsonString);
-    return `ENC$${encrypted}`;
-}
-
-function wrapSocket(socket) {
-    const originalEmit = socket.emit;
-    socket.emit = function (event, data) {
-        // 客户端只对敏感事件进行加密
-        const sensitiveEvents = ['register-user', 'login-user', 'send-private-message', 'send-group-message'];
-
-        if (sensitiveEvents.includes(event) && data && typeof data === 'object') {
-            const encryptedData = encryptMessage(data);
-            return originalEmit.call(this, event, encryptedData);
-        }
-
-        return originalEmit.apply(this, arguments);
-    };
-
-    const originalOn = socket.on;
-    socket.on = function (event, handler) {
-        // 对接收的事件数据进行解密
-        const sensitiveEvents = ['user-registered', 'login-success', 'new-message'];
-        console.log(`listing event: ${event}`);
-        if (sensitiveEvents.includes(event)) {
-
-            return originalOn.call(this, event, (data) => {
-                let decryptedData = data;
-
-                // 如果数据是加密格式，进行解密
-                if (typeof data === 'string' && data.startsWith('ENC$')) {
-                    try {
-                        decryptedData = decryptMessage(data);
-
-                        if (decryptedData === null) {
-                            console.error('解密失败，数据为null');
-                            return;
-                        }
-                    } catch (e) {
-                        console.error('解密事件数据失败:', e);
-                        console.error('原始数据:', data);
-                        return;
-                    }
-                }
-
-                handler(decryptedData);
-            });
-        }
-
-        return originalOn.apply(this, arguments);
-    };
-
-    return socket;
-}
-
-const isDev = process.env.NODE_ENV === "development"
+const isDev = config.NODE_ENV === "development"
 
 
 const SOCKET_SERVER_URL = (isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL) || 'http://localhost:3001';
@@ -662,8 +568,11 @@ app.whenReady().then(async () => {
     initializeDefaultSettings();
 
     createMainWindow()
-    autoUpdater.checkForUpdatesAndNotify();
 
+    loginMap.set(loginId, {
+        windowId: mainWindow.id,
+        status: 'pending'
+    });
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
     })
@@ -1161,7 +1070,7 @@ ipcMain.handle('download-file', async (event, { messageId, fileUrl, fileName, is
         // 构建完整 URL
         let fullUrl = fileUrl;
         if (!fileUrl.startsWith('http')) {
-            fullUrl = `${SOCKET_SERVER_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}/${String(isGroup)}`;
+            fullUrl = `${SOCKET_SERVER_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
         }
 
         // 下载路径
@@ -1702,8 +1611,14 @@ ipcMain.handle('get-invite-information-list', async () => {
     return inviteInformationList;
 });
 
+const loginId = uuidv4();
+const loginMap = new Map();
+
+
+const CLINEID = config.CLINEID;
+
 ipcMain.handle('github-oauth', async () => {
-    const clientId = 'Ov23li2ktKhYQk4XKysD';
+    const clientId = CLINEID;
     const redirectUri = encodeURIComponent(
         'http://localhost:3001/api/auth/github/callback'
     );
@@ -1712,7 +1627,8 @@ ipcMain.handle('github-oauth', async () => {
         `https://github.com/login/oauth/authorize` +
         `?client_id=${clientId}` +
         `&redirect_uri=${redirectUri}` +
-        `&scope=user:email`;
+        `&scope=user:email` +
+        `&state=${loginId}`;
 
     shell.openExternal(authUrl);
 });
@@ -1755,38 +1671,53 @@ ipcMain.on('reset-migration-version', async (event, { userId, version }) => {
 // --- End IPC handler to reset migration version ---
 
 
-app.on('second-instance', (event, argv) => {
-    // argv 里包含 fastshow://login?token=xxx
+function handleProtocol(argv) {
     const url = argv.find(arg => arg.startsWith('fastshow://'));
-    if (url) {
-        const token = new URL(url).searchParams.get('token');
-
-        // 把 token 发给“已有窗口”
-        mainWindow.webContents.send('oauth-success', token);
-    }
 
     // 关键：聚焦旧窗口
     if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
     }
+    if (!url) return;
+
+    const parsed = new URL(url);
+    const loginId = parsed.searchParams.get('loginId');
+    const token = parsed.searchParams.get('token');
+
+    if (!loginId || !token) return;
+
+    const info = loginMap.get(loginId);
+    if (!info) {
+        console.warn('loginId not found:', loginId);
+        return;
+    }
+
+    const win = BrowserWindow.fromId(info.windowId);
+    if (!win) return;
+
+    win.webContents.send('oauth-success', { token });
+    loginMap.delete(loginId);
+}
+
+app.on('second-instance', (event, argv) => {
+    handleProtocol(argv);
+
+    if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+    }
+
 });
+
+
 
 app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit()
 })
 
+
 const PROTOCOL = 'fastshow';
 
-if (process.defaultApp) {
-    console.log('Running in development mode');
-    // 开发环境
-    app.setAsDefaultProtocolClient(
-        PROTOCOL,
-        process.execPath,
-        [process.argv[1]]
-    );
-} else {
-    // 打包后
-    app.setAsDefaultProtocolClient(PROTOCOL);
-}
+
+app.setAsDefaultProtocolClient(PROTOCOL);

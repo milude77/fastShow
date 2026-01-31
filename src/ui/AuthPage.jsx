@@ -192,7 +192,7 @@ const AuthPage = () => {
       });
     }
 
-    const handleOauthSuccess = (event, token) => {
+    const handleOauthSuccess = (event, { token }) => {
       socket.emit('login-with-token', token);
     }
 

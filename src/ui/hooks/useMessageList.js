@@ -33,7 +33,7 @@ export function useMessageList(curSelectedContact) {
             catch (e) { console.error("保存消息失败:", e) };
         }
 
-        if (contactRef.current.id == contactId && msg.type == contactRef.current.type) {
+        if (contactRef.current.id == contactId && msg.type == (contactRef.current.type === 'group' ? 'group' : 'private')) {
             setMessages(prev => {
                 const newMessage = {
                     id: messageId,
@@ -45,7 +45,7 @@ export function useMessageList(curSelectedContact) {
                     fileName: msg.fileName,
                     fileUrl: msg.fileUrl,
                     fileSize: msg.fileSize,
-                    sender_id: contactId
+                    sender_id: msg.senderId
                 };
 
                 // 返回新数组，不是包装在对象中的数组

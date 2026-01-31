@@ -52,6 +52,7 @@
 
 .address-book-no-data {
   padding-left: 24px;
+  color: var(--text-color) ;
 }
 
 .online-indicator {
@@ -60,9 +61,4 @@
 
 .offline-indicator {
   color: gray;
-}
-
-.contact-avatar{
-  width: 40px;
-  height: 40px;
 }

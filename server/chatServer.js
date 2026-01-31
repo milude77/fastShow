@@ -7,13 +7,22 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import knex from 'knex';
 import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import * as Minio from 'minio';
 import dotenv from 'dotenv';
-import CryptoJS from 'crypto-js';
 import axios from 'axios';
+
+import { decryptMessage, encryptMessage } from './aseOptions.js';
+import { registerUser, userLogin, userLoginWithToken } from './userOptions.js';
+import {
+    getOnlineUser,
+    getAllOnlineUsers,
+    getAllOnlineUserIds,
+    getOnlineUserId,
+    removeOnlineUserId,
+    removeOnlineUser
+} from './redisClient.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,66 +37,15 @@ const githubConfig = {
     callbackUrl: 'http://localhost:3001/api/auth/github/callback'
 };
 
-
-// --- AES加密相关 ---
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'your-32-character-secret-key-here'; // 至少32位密钥
-const ENCRYPTION_IV = process.env.ENCRYPTION_IV || 'your-16-char-iv-here12'; // 16位IV
 const JSON_WEB_TOKEN_SECRET = process.env.JWT || 'your_secret_key'; // 用于签名 JWT
 
-function aesEncrypt(text) {
-    // 确保密钥和IV长度正确
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
-    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
-    const encrypted = CryptoJS.AES.encrypt(text, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-    });
-    return encrypted.toString();
-}
 
-// AES解密函数
-function aesDecrypt(encryptedText) {
-    // 确保密钥和IV长度正确
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY.padEnd(32, ' '));
-    const iv = CryptoJS.enc.Utf8.parse(ENCRYPTION_IV.padEnd(16, ' '));
-    const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-    });
-    return decrypted.toString(CryptoJS.enc.Utf8);
-}
 
-// 检查是否为加密消息
-function isEncryptedMessage(message) {
-    return typeof message === 'string' && message.startsWith('ENC$');
-}
 
-// 解密消息
-function decryptMessage(message) {
-    if (isEncryptedMessage(message)) {
-        const encryptedContent = message.substring(4); // 移除 'ENC$' 前缀
-        try {
-            return JSON.parse(aesDecrypt(encryptedContent));
-        } catch (e) {
-            console.error('解密失败:', e);
-            return null;
-        }
-    }
-    return message;
-}
-
-// 加密消息
-function encryptMessage(message) {
-    const jsonString = JSON.stringify(message);
-    const encrypted = aesEncrypt(jsonString);
-    return `ENC$${encrypted}`;
-}
 
 // 根据环境变量选择配置，默认为 'development'
 const environment = process.env.NODE_ENV || 'development';
-const db = knex(knexConfig[environment]);
+export const db = knex(knexConfig[environment]);
 
 
 // --- MinIO 配置 ---
@@ -119,58 +77,12 @@ minioClient.bucketExists(bucketName, (err, exists) => {
     }
 });
 
-const uploadPolicy = {
-    Version: '2012-10-17',
-    Statement: [
-        // 用户头像目录公开读取
-        {
-            Effect: 'Allow',
-            Principal: '*',
-            Action: [
-                's3:GetObject'
-            ],
-            Resource: [
-                `arn:aws:s3:::${bucketName}/user-*/*`,
-                `arn:aws:s3:::${bucketName}/group-*/*`,
-                `arn:aws:s3:::${bucketName}/public-resources/*`
-            ]
-        },
-        // 上传权限仅限认证用户
-        {
-            Effect: 'Allow',
-            Principal: '*', // 也可以限制为特定用户
-            Action: [
-                's3:PutObject'
-            ],
-            Resource: [
-                `arn:aws:s3:::${bucketName}/user-*/*`,
-                `arn:aws:s3:::${bucketName}/group-*/*`
-            ]
-        },
-        {
-            Effect: 'Allow',
-            Principal: '*',
-            Action: [
-                's3:GetBucketLocation',
-                's3:ListBucket'
-            ],
-            Resource: [
-                `arn:aws:s3:::${bucketName}`
-            ]
-        }
-    ]
-};
-
-
-
-await minioClient.setBucketPolicy(bucketName, JSON.stringify(uploadPolicy));
-
 
 // --- MinIO 配置结束 ---
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server, {
+export const io = new Server(server, {
     cors: {
         origin: (origin, callback) => {
             // Electron 应用的常见源
@@ -203,10 +115,6 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increase the limit to 50mb or adjust as needed
 
-// 存储在线用户和聊天室信息
-// onlineUsers: socketId -> { userId, username }
-const onlineUsers = new Map();
-const onlineUsersIds = new Map();
 
 // JWT 验证中间件
 const authenticateToken = (req, res, next) => {
@@ -233,7 +141,7 @@ const authenticateToken = (req, res, next) => {
 };
 // Fetches and emits the friends list for a given socket
 async function getFriendsList(socket) {
-    const senderInfo = onlineUsers.get(socket.id);
+    const senderInfo = await getOnlineUser(socket.id)
     if (!senderInfo) {
         socket.emit('notification', { status: 'error', message: '未登录或会话无效' });
         return;
@@ -247,7 +155,7 @@ async function getFriendsList(socket) {
         const friendIds = friendships.map(f => f.user_id === senderInfo.userId ? f.friend_id : f.user_id);
 
         const friends = await db('users').whereIn('id', friendIds).select('id', 'username');
-        const onlineUserIds = new Set(Array.from(onlineUsers.values()).map(u => u.userId));
+        const onlineUserIds = await getAllOnlineUserIds();
 
         const friendsWithStatus = friends.map(friend => ({
             id: friend.id,
@@ -265,7 +173,7 @@ async function getFriendsList(socket) {
 
 // Fetches and emits the groups list for a given socket
 async function getGroupsList(socket) {
-    const senderInfo = onlineUsers.get(socket.id);
+    const senderInfo = await getOnlineUser(socket.id);
     if (!senderInfo) {
         socket.emit('notification', { status: 'error', message: '未登录或会话无效' });
         return;
@@ -375,7 +283,7 @@ async function handleSendDisconnectMessage(socket, user) {
 }
 
 async function handleGetFriendRequests(socket) {
-    const senderInfo = onlineUsers.get(socket.id);
+    const senderInfo = await getOnlineUser(socket.id);
     if (!senderInfo) return;
 
     try {
@@ -453,156 +361,13 @@ io.on('connection', (socket) => {
     };
 
     // 用户注册
-    socket.on('register-user', async (data) => {
-        const { username, password, email } = data;
-
-        if (!username || !password) {
-            socket.emit('notification', { status: 'error', message: '用户名和密码是必需的' });
-            return;
-        }
-
-        const emailIsExists = await db('users').where('email', email).first();
-        if (emailIsExists) {
-            socket.emit('notification', { status: 'error', message: '注册邮箱已存在' });
-            return;
-        }
-
-        try {
-            const hashedPassword = await bcrypt.hash(password, 10); // 哈希密码
-            let formattedId;
-
-            await db.transaction(async (trx) => {
-                // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
-                const maxIdResult = await trx('users')
-                    .max('id as maxId')
-                    .first()
-                    .forUpdate();
-
-                const nextId = (+maxIdResult.maxId || 0) + 1;
-                formattedId = String(nextId).padStart(6, '0')
-
-                // 插入新用户
-                await trx('users').insert({
-                    id: formattedId,
-                    username,
-                    password_hash: hashedPassword,
-                    email
-                });
-            });
-
-            socket.emit('user-registered', { userId: formattedId, username });
-        } catch (error) {
-            console.error('注册用户失败:', error);
-            socket.emit('notification', { status: 'error', message: '注册失败，请稍后再试' });
-        }
-    });
+    socket.on('register-user', (data) => registerUser(socket, data));
 
     // 用户登录
-    socket.on('login-user', async (data) => {
-        const { userId, password } = data;
-
-        if (!userId || !password) {
-            socket.emit('notification', { status: 'error', message: '用户ID和密码是必需的' });
-            return;
-        }
-
-        let user;
-
-        try {
-            const result = await db('users').where({ id: userId }).first(); // 根据ID查找用户
-            if (!result) {
-                user = await db('users').where({ email: userId }).first(); // 根据邮箱查找用户
-            } else {
-                user = result;
-            }
-
-            if (!user) {
-                socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
-                return;
-            }
+    socket.on('login-user', async (data) => userLogin(socket, data));
 
 
-            const isPasswordValid = await bcrypt.compare(password, user.password_hash ?? '');
-
-
-            if (!isPasswordValid) {
-                socket.emit('notification', { status: 'error', message: '用户ID或密码不正确' });
-                return;
-            }
-
-            // 检查用户是否已登录
-            if (onlineUsersIds.has(userId)) {
-                const targetSocketId = onlineUsersIds.get(userId).socketId;
-                const targetSocket = io.sockets.sockets.get(targetSocketId);
-                if (targetSocket) {
-                    targetSocket.emit('strong-logout-warning', { message: '在其他设备登录,已强制下线' });
-                }
-
-                // 清理用户数据
-                onlineUsers.delete(targetSocketId);
-                onlineUsersIds.delete(userId);
-            }
-
-            // 登录成功
-            const formattedId = String(user.id).padStart(6, '0');
-            const token = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
-            onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
-            onlineUsersIds.set(formattedId, { socketId: socket.id, username: user.username })
-            socket.emit('login-success', { userId: formattedId, username: user.username, token });
-
-        } catch (error) {
-            console.error('登录失败:', error);
-            socket.emit('notification', { status: 'error', message: '登录失败，请稍后再试' });
-        }
-    });
-
-    socket.on('login-with-token', async (data) => {
-        const token = data;
-
-        if (!token) {
-            socket.emit('notification', { status: 'error', message: '需要提供Token' });
-            return;
-        }
-
-        try {
-            const decoded = jwt.verify(token, JSON_WEB_TOKEN_SECRET);
-            const user = await db('users').where({ id: decoded.userId }).first();
-
-            if (!user) {
-                socket.emit('notification', { status: 'error', message: '无效的Token' });
-                return;
-            }
-
-            const userId = decoded.userId;
-
-            // 检查用户是否已登录
-            if (onlineUsersIds.has(userId)) {
-                const targetSocketId = onlineUsersIds.get(userId).socketId;
-                const targetSocket = io.sockets.sockets.get(targetSocketId);
-                if (targetSocket) {
-                    targetSocket.emit('strong-logout-warning', { message: '在其他设备登录,已强制下线' });
-                }
-                // 清理用户数据
-                onlineUsers.delete(targetSocketId);
-                onlineUsersIds.delete(userId);
-            }
-
-            const formattedId = String(user.id).padStart(6, '0');
-
-            const newToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
-            onlineUsers.set(socket.id, { userId: formattedId, username: user.username });
-            onlineUsersIds.set(formattedId, { socketId: socket.id, username: user.username })
-            socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken });
-
-        } catch (error) {
-            console.error('登录失败:', error);
-            if (error.name === 'TokenExpiredError') {
-                socket.emit('notification', { status: 'error', message: 'Token已过期，请重新登录' });
-            } else {
-                socket.emit('notification', { status: 'error', message: '登录失败，请稍后再试' });
-            }
-        }
-    });
+    socket.on('login-with-token', async (data) => userLoginWithToken(socket, data));
 
     socket.on('initial-data-success', async (data) => {
         let userId;
@@ -640,7 +405,6 @@ io.on('connection', (socket) => {
             }
 
             const formattedId = String(user.id).padStart(6, '0');
-            console.log('处理断开连接消息，用户ID:', formattedId);
             await handleSendDisconnectMessage(socket, { userId: formattedId, username: user.username });
             await handleGetFriendRequests(socket);
         } catch (error) {
@@ -650,7 +414,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('confirm-message-received', async ({ messageId, isGroup }) => {
-        const user = onlineUsers.get(socket.id);
+        const user = await getOnlineUser(socket.id);
 
         if (isGroup) {
             await db('group_message_read_status').where({ group_message_id: messageId }).andWhere({ user_id: user.userId }).update({ status: 'delivered' });
@@ -665,7 +429,7 @@ io.on('connection', (socket) => {
 
         const receiverId = message.receiver_id;
 
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
 
         if (!senderInfo) {
             socket.emit('notification', { status: 'error', message: '发送者信息不存在' });
@@ -710,6 +474,8 @@ io.on('connection', (socket) => {
             type: 'private'
         };
 
+        const onlineUsersIds = await getAllOnlineUserIds();
+
         if (onlineUsersIds.has(receiverId)) {
             const targetSocketId = onlineUsersIds.get(receiverId).socketId;
             io.to(targetSocketId).emit('new-message', savedMessage);
@@ -723,7 +489,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send-group-message', async (message) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
         const groupId = message.receiver_id;
         const sendMessageId = message.id
 
@@ -771,12 +537,13 @@ io.on('connection', (socket) => {
 
         // 存储消息到数据库
         await db('group_messages').insert(newMessage);
+        const onlineUsersIds = await getAllOnlineUserIds();
         for (const member of groupMembers) {
             if (onlineUsersIds.has(member.user_id) && member.user_id !== senderInfo.userId) {
                 const targetSocketId = onlineUsersIds.get(member.user_id).socketId;
                 io.to(targetSocketId).emit('new-message', savedMessage);
             }
-            else {
+            else if (member.user_id !== senderInfo.userId) {
                 await db('group_message_read_status').insert({
                     group_message_id: sendMessageId,
                     user_id: member.user_id,
@@ -825,7 +592,7 @@ io.on('connection', (socket) => {
 
     // 添加好友
     socket.on('add-friend', async (friendId) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
 
 
         if (!friendId) {
@@ -861,8 +628,7 @@ io.on('connection', (socket) => {
             });
 
             // 查找对方是否在线，以便发送实时通知
-            const targetSocketId = Array.from(onlineUsers.entries())
-                .find(([, uInfo]) => uInfo.userId === friendId)?.[0];
+            const targetSocketId = await getOnlineUserId(friendId);
 
 
 
@@ -884,7 +650,7 @@ io.on('connection', (socket) => {
 
     // 删除好友
     socket.on('delete-contact', async (friendId) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
         if (!senderInfo || !friendId) return;
 
         const sortedIds = [senderInfo.userId, friendId].sort();
@@ -904,7 +670,7 @@ io.on('connection', (socket) => {
 
     // 接受好友请求
     socket.on('accept-friend-request', async (requesterId) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
         if (!senderInfo || !requesterId) return;
 
         try {
@@ -919,7 +685,7 @@ io.on('connection', (socket) => {
                     .select('users.id', 'users.username')
                     .first();
 
-                const targetSocketId = onlineUsersIds.get(friendInformation.id)?.socketId;
+                const targetSocketId = await getOnlineUserId(friendInformation.id);
                 if (targetSocketId) {
                     io.to(targetSocketId).emit('friend-request-accepted', {
                         id: senderInfo.userId,
@@ -937,7 +703,7 @@ io.on('connection', (socket) => {
 
     //接受群聊邀请的请求
     socket.on('accept-group-invite', async (requesterId) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
         if (!senderInfo || !requesterId) return;
         try {
             const timestamp = new Date();
@@ -965,9 +731,10 @@ io.on('connection', (socket) => {
                 .join('group_members as gm', 'group_invitations.group_id', 'gm.group_id')
                 .select('gm.user_id');
 
+            const onlineUsersIds = await getAllOnlineUserIds();
             groupMembers.map(member => {
                 if (onlineUsersIds.get(member.id)) {
-                    io.to(onlineUsersIds.get(member.id)).emit('new-group-member', {
+                    io.to(onlineUsersIds.get(member.id)).socketId.emit('new-group-member', {
                         id: newMemberInformation.userId,
                         username: newMemberInformation.username,
                         groupId: newMemberInformation.groupId,
@@ -980,7 +747,7 @@ io.on('connection', (socket) => {
     })
 
     socket.on('create-group', async ({ checkedContacts }) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
         if (!senderInfo || !checkedContacts || checkedContacts.length === 0) return;
 
         let groupName = '';
@@ -1036,9 +803,9 @@ io.on('connection', (socket) => {
             socket.emit('grops-create-success');
 
             const checkedContactIds = [...checkedContacts.map(c => c.id), senderInfo.userId];
-            const onlineMemberSockets = Array.from(onlineUsers.entries())
-                .filter(([, userInfo]) => checkedContactIds.includes(userInfo.userId))
-                .map(([socketId]) => socketId);
+            const onlineUsersIds = await getAllOnlineUserIds();
+            const onlineMemberSockets = checkedContactIds
+                .map(id => onlineUsersIds.get(id)?.socketId)
 
             // 向所有在线群成员发送消息
             onlineMemberSockets.forEach(socketId => {
@@ -1051,7 +818,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('leave-group', async ({ groupId, userId }) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
         if (!senderInfo || !groupId) return;
 
         try {
@@ -1067,7 +834,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('invite-friends-join-group', async ({ groupId, groupName, checkedContacts }) => {
-        const senderInfo = onlineUsers.get(socket.id);
+        const senderInfo = await getOnlineUser(socket.id);
         const nowDate = new Date();
         if (!senderInfo || !groupId || !checkedContacts || checkedContacts.length === 0) return;
 
@@ -1094,9 +861,11 @@ io.on('connection', (socket) => {
                     continue; // 跳过当前联系人，继续处理下一个
                 }
 
+                const onlineUsersIds = await getAllOnlineUserIds();
+
                 if (onlineUsersIds.has(contact.id)) {
                     // 在线用户直接发送邀请
-                    const targetSocketId = onlineUsers.get(contact.id).socketId;
+                    const targetSocketId = onlineUsersIds.get(contact.id).socketId;
                     io.to(targetSocketId).emit('group-invite', {
                         groupId,
                         groupName,
@@ -1125,7 +894,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('update-user-info', async (payload) => {
-        const userId = onlineUsers.get(socket.id).userId;
+        const userId = (await getOnlineUser(socket.id))?.userId;
         const nowDate = new Date();
         await db('users').where({ id: userId }).update(Object.assign(payload, { updated_at: nowDate }));
     })
@@ -1139,16 +908,20 @@ io.on('connection', (socket) => {
     });
 
     // 用户断开连接
-    socket.on('disconnect', () => {
-        const userInfo = onlineUsers.get(socket.id);
+    socket.on('disconnect', async () => {
+        const userInfo = await getOnlineUser(socket.id);
+
 
         if (userInfo) {
             console.log(`${userInfo.username} (ID: ${userInfo.userId}) 断开连接`);
         }
+        else{
+            return;
+        }
 
         // 清理用户数据
-        onlineUsers.delete(socket.id);
-        onlineUsersIds.delete(userInfo?.userId);
+        await removeOnlineUserId(userInfo.userId);
+        await removeOnlineUser(socket.id);
     });
 });
 
@@ -1156,7 +929,8 @@ io.on('connection', (socket) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // REST API 端点
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+    const onlineUsers = await getAllOnlineUsers();
     res.json({
         status: 'ok',
         timestamp: new Date(),
@@ -1165,23 +939,23 @@ app.get('/api/health', (req, res) => {
 });
 
 // 文件下载接口（修改为从MinIO下载）
-app.get('/api/download/:fileId/:isGroup', authenticateToken, async (req, res) => {
-    const { fileId, isGroup } = req.params;
+app.get('/api/download/:fileId', authenticateToken, async (req, res) => {
+    const { fileId } = req.params;
 
-    const isGroupBool = isGroup === 'true';
 
     try {
         let fileMessage;
-        if (isGroupBool) {
-            fileMessage = await db('group_messages')
-                .where({ file_id: fileId, message_type: 'file' })
-                .first();
-        }
-        else {
+
+        fileMessage = await db('group_messages')
+            .where({ file_id: fileId, message_type: 'file' })
+            .first();
+
+        if (!fileMessage) {
             fileMessage = await db('messages')
                 .where({ file_id: fileId, message_type: 'file' })
                 .first();
         }
+
         if (!fileMessage) {
             return res.status(404).json({ error: '文件不存在或已被清理' });
         }
@@ -1221,7 +995,9 @@ app.post('/api/upload/initiate', authenticateToken, (req, res) => {
     const fileId = crypto.randomBytes(8).toString('hex');
     const fileExtension = path.extname(fileName);
     // 在对象名前加上用户ID路径
-    const objectName = isGroup ? `group-${receiverId}/files/${fileId}_${Date.now()}${fileExtension}` : `user-${senderId}/files/${fileId}_${Date.now()}${fileExtension}`;
+    const objectName = isGroup
+        ? `files/group-${receiverId}/${fileId}_${Date.now()}${fileExtension}`
+        : `files/user-${senderId}/${fileId}_${Date.now()}${fileExtension}`;
 
     // 生成一个有效期为15分钟的预签名URL，用于PUT操作
     minioClient.presignedPutObject(bucketName, objectName, 15 * 60, (err, presignedUrl) => {
@@ -1287,6 +1063,7 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
             const groupMembers = await db('group_members')
                 .where({ group_id: receiverId })
                 .select('user_id');
+            const onlineUsersIds = await getAllOnlineUserIds();
             for (const member of groupMembers) {
                 if (onlineUsersIds.has(member.user_id) && member.user_id !== senderId) {
                     const targetSocketId = onlineUsersIds.get(member.user_id)?.socketId;
@@ -1306,6 +1083,7 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
             newMessage.room_id = `private_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
             newMessage.receiver_id = receiverId;
             await db('messages').insert(newMessage);
+            const onlineUsersIds = await getAllOnlineUserIds();
             const targetSocketId = onlineUsersIds.get(receiverId)?.socketId;
             if (targetSocketId) {
                 io.to(targetSocketId).emit('new-message', savedMessage);
@@ -1418,7 +1196,7 @@ app.get('/api/getGroupMember/:groupId', authenticateToken, async (req, res) => {
 });
 
 async function githubCallback(req, res) {
-    const { code } = req.query;
+    const { code, state } = req.query;
 
     if (!code) {
         return res.status(400).send('Missing code');
@@ -1500,7 +1278,7 @@ async function githubCallback(req, res) {
         );
 
         /* 6. 重定向回前端 */
-        res.redirect(`fastshow://login?token=${token}`);
+        res.redirect(`fastshow://login?loginId=${state}&token=${token}`);
 
     } catch (err) {
         console.error(err);
