@@ -5,8 +5,8 @@ export function useMessageList(curSelectedContact) {
     contactRef.current = curSelectedContact;
     const [messages, setMessages] = useState([]);
     const pendingTimersRef = useRef(new Map());
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
 
-    // 移除内部的 selectedContact 状态
 
     const handleNewMessage = useCallback((msg) => {
         // Safety check: Do not process messages if the user is not logged in.
@@ -78,7 +78,7 @@ export function useMessageList(curSelectedContact) {
     }, [])
 
     const handleMessageListSelectContact = useCallback(async (contact) => {
-        const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        
 
         if (window.electronAPI) {
             const localHistory = await window.electronAPI.getChatHistory(
@@ -103,7 +103,6 @@ export function useMessageList(curSelectedContact) {
         if (!contactRef.current) return;
 
         const messageId = await window.electronAPI.getNewMessageId();
-        const currentUser = JSON.parse(localStorage.getItem('currentUser'))
 
         const newMessage = {
             id: messageId,
@@ -147,7 +146,6 @@ export function useMessageList(curSelectedContact) {
     const handleSendgroupMessage = useCallback(async (text) => {
         if (contactRef.current) {
             const messageId = await window.electronAPI.getNewMessageId();
-            const currentUser = JSON.parse(localStorage.getItem('currentUser'))
 
             const newMessage = {
                 id: messageId,
@@ -203,8 +201,6 @@ export function useMessageList(curSelectedContact) {
     const loadMoreMessages = useCallback(async () => {
         if (!window.electronAPI) return;
 
-        const currentUser = JSON.parse(localStorage.getItem('currentUser'))
-
         const contactId = contactRef.current.id;
         const isGroup = contactRef.current.type === 'group';
 
@@ -233,8 +229,6 @@ export function useMessageList(curSelectedContact) {
 
     const handleUploadFile = useCallback(async ({ filePath }) => {
         if (!contactRef.current) return;
-
-        const currentUser = JSON.parse(localStorage.getItem('currentUser'))
 
         const fileName = filePath.split(/[\\/]/).pop();
         const tempId = await window.electronAPI.getNewMessageId();

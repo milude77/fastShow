@@ -131,7 +131,7 @@ function App() {
   }, [darkMode]);
 
   const handleLoginSuccess = useCallback((data) => {
-    const { userId, username, token } = data;
+    const { userId, username, token, email } = data;
     window.electronAPI.loginSuccess({ userId, token });
     window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token });
     window.electronAPI.saveUserListCredentials({ userId, userName: username, token });
@@ -140,7 +140,7 @@ function App() {
       userId: userId,
       username: username
     }));
-    setCurrentUser({ userId, username, token });
+    setCurrentUser({ userId, username, email, token });
   }, [setCurrentUser]);
 
   const handleFriendsList = useCallback((friendsWithGroups) => {

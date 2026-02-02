@@ -3,7 +3,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-// import { v4 as uuidv4 } from 'uuid';
 import cors from 'cors';
 import knex from 'knex';
 import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
@@ -1170,6 +1169,7 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
         res.redirect(presignedUrl);
     } catch (error) {
         // 返回默认头像的预签名URL
+        console.error('获取头像失败，返回默认头像:', error);
         const defaultAvatarUrl = await minioClient.presignedGetObject(
             bucketName,
             'public-resources/default_avatar.jpg',

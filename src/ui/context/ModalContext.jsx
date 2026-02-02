@@ -4,6 +4,8 @@ import { ModalContext } from '../hooks/useModalManager';
 import CreateGoupsApp from '../components/custoModal/CreateGoupsApp';
 import InviteFriendsJoinGroup from '../components/custoModal/inviteFriends';
 import CustomModal from '../components/custoModal/customModal';
+import AvatarUploader from '../components/custoModal/AvatarUploader.jsx'
+import handleAvatarUpload from '../utils/uploadAvatar.js'
 export const ModalProvider = ({ children }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('');
@@ -33,6 +35,13 @@ export const ModalProvider = ({ children }) => {
             onClose={closeModal}
           />
         );
+      case 'avatarUploader':
+        return (
+          <AvatarUploader
+            onAvatarUpload={handleAvatarUpload}
+            onClose={closeModal}
+          />
+        )
       default:
         return null;
     }

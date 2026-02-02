@@ -99,9 +99,9 @@ export const userLogin = async (socket, data) => {
         // 登录成功
         const formattedId = String(user.id).padStart(6, '0');
         const token = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
-        await setOnlineUser(socket.id, { userId: formattedId, username: user.username });
-        await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username });
-        socket.emit('login-success', { userId: formattedId, username: user.username, token });
+        await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
+        await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
+        socket.emit('login-success', { userId: formattedId, username: user.username, token, email: user.email });
 
     } catch (error) {
         console.error('登录失败:', error);
@@ -144,9 +144,9 @@ export const userLoginWithToken = async (socket, data) => {
         const formattedId = String(user.id).padStart(6, '0');
 
         const newToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
-        await setOnlineUser(socket.id, { userId: formattedId, username: user.username });
-        await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username });
-        socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken });
+        await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
+        await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
+        socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken, email: user.email });
 
     } catch (error) {
         console.error('登录失败:', error);

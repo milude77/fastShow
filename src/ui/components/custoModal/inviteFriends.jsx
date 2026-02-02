@@ -1,7 +1,7 @@
-import { React, useEffect, useState } from 'react';
-import { Alert, Button } from 'antd';
+import { useEffect, useState } from 'react';
+import { Button } from 'antd';
 import './css/createGoupsApp.css';
-import { Checkbox, Input, Select } from 'antd/lib/index.js';
+import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
@@ -80,7 +80,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
                         onClick={() => {
                             socket.emit('invite-friends-join-group', { groupId, groupName, checkedContacts });
                         }}
-                        style={{ marginTop: 12 }}
+                        style={{ marginTop: 12, color: 'var(--text-color)' }}
                     >
                         邀请
                     </Button>

@@ -6,6 +6,7 @@ import Avatar from '../avatar.jsx'
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { useSocket } from '../../hooks/useSocket.js';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js'
+import { Button } from 'antd';
 const createImage = (url) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -51,14 +52,17 @@ async function getCroppedImg(imageSrc, pixelCrop) {
 }
 
 
-const AvatarUploader = ({ currentUser, onAvatarUpload, onClose }) => {
+const AvatarUploader = ({ onAvatarUpload, onClose }) => {
+
+  const currentUser = JSON.parse(localStorage.getItem('currentUser'))
+
   const [imgSrc, setImgSrc] = useState('');
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const { avatarSrc } = useUserAvatar(currentUser?.userId);
   const socket = useSocket();
-  const { messageApi } = useGlobalMessage();
+  const { messageApi, contextHolder } = useGlobalMessage();
 
 
   const onSelectFile = (e) => {
@@ -99,88 +103,88 @@ const AvatarUploader = ({ currentUser, onAvatarUpload, onClose }) => {
     await window.electronAPI.saveCurrentUserCredentials(curUserCredentials);
     await window.electronAPI.saveUserListCredentials(curUserCredentials)
     messageApi.success('更新用户信息成功')
-    onClose()
   };
 
   if (!imgSrc) {
     return (
-      <div className="avatar-uploader-modal">
-        <div className="avatar-modal-content">
-          <label htmlFor="file-upload">
-            <Avatar className='file-upload' size={120} src={avatarSrc} alt="头像" />
-          </label>
-          <input
-            type="file"
-            id="file-upload"
-            accept="image/*"
-            onChange={onSelectFile}
-            style={{ display: 'none' }}
-          />
-          <form onSubmit={handleSubmitInfo}>
-            <div className='user-id'>
-              <label className='info-lable'>
-                id:
-              </label>
-              <label>
-                {currentUser.userId}
-              </label>
+      <div className="avatar-modal-content">
+        {contextHolder}
+        <label htmlFor="file-upload">
+          <Avatar className='file-upload' size={120} src={avatarSrc} alt="头像" />
+        </label>
+        <input
+          type="file"
+          id="file-upload"
+          accept="image/*"
+          onChange={onSelectFile}
+          style={{ display: 'none' }}
+        />
+        <form onSubmit={handleSubmitInfo}>
+          <div className='id-info'>
+            <label className='info-lable'>id:</label>
+            <div className="id-content">
+              <label>{currentUser.userId}</label>
             </div>
-            <div className='user-name'>
-              <label className='info-lable' htmlFor="user-name">昵称:</label>
-              <Input
-                type="text"
-                id="user-name"
-                name="userName"
-                defaultValue={currentUser?.username || ''}
-              />
-            </div>
-            <div className="modal-actions">
-              <button type='submit'>保存</button>
-              <button onClick={onClose}>取消</button>
-            </div>
-          </form>
-        </div>
+          </div>
+          <div className='name-info'>
+            <label className='info-lable' htmlFor="user-name">昵称:</label>
+            <Input
+              type="text"
+              id="user-name"
+              name="userName"
+              defaultValue={currentUser?.username || ''}
+            />
+          </div>
+          <div className='email-info'>
+            <label className='info-lable' htmlFor="user-email">邮箱:</label>
+            <label style={{ color: `${currentUser?.email ? '' : 'red'}` }} >{currentUser?.email ? currentUser.email : '未绑定'}</label>
+            <Button>绑定邮箱</Button>
+          </div>
+          <div className="modal-actions">
+            <button type='submit'>保存</button>
+            <button onClick={onClose}>取消</button>
+          </div>
+        </form>
       </div>
     );
   }
 
   return (
-    <div className="avatar-uploader-modal">
-      <div className="modal-content">
-        <h2>移动和缩放图片</h2>
-        <div className="cropper-container">
-          <Cropper
-            image={imgSrc}
-            crop={crop}
-            zoom={zoom}
-            aspect={1}
-            cropShape="round"
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={onCropComplete}
-          />
-        </div>
-        <div className="controls">
-          <label>缩放</label>
-          <input
-            type="range"
-            value={zoom}
-            min={1}
-            max={3}
-            step={0.1}
-            aria-labelledby="Zoom"
-            onChange={(e) => {
-              setZoom(e.target.value);
-            }}
-            className="zoom-range"
-          />
-        </div>
-        <div className="modal-actions">
-          <button onClick={handleUpload}>保存</button>
-          <button onClick={onClose}>取消</button>
-        </div>
+    <div className="avatar-upload-content">
+      <h2>移动和缩放图片</h2>
+      <div className="cropper-container">
+        <Cropper
+          image={imgSrc}
+          crop={crop}
+          zoom={zoom}
+          aspect={1}
+          cropShape="round"
+          onCropChange={setCrop}
+          onZoomChange={setZoom}
+          onCropComplete={onCropComplete}
+        />
+      </div>
+      <div className="controls">
+        <label>缩放</label>
+        <input
+          type="range"
+          value={zoom}
+          min={1}
+          max={3}
+          step={0.1}
+          aria-labelledby="Zoom"
+          onChange={(e) => {
+            setZoom(e.target.value);
+          }}
+          className="zoom-range"
+        />
+      </div>
+      <div className="modal-actions">
+        <button onClick={handleUpload}>保存</button>
+        <button onClick={onClose}>取消</button>
       </div>
     </div>
+
   );
 };
 

@@ -9,6 +9,7 @@
     display: flex;
     width: 550px; 
     height: 450px; 
+    padding: 20px;
 }
 
 .friends-list {
@@ -20,7 +21,6 @@
     overflow-y: auto;
     flex-shrink: 0;
 }
-
 
 .create-group-form {
     display: flex;

@@ -4,16 +4,14 @@ import { Button, Badge, Space } from 'antd';
 import Avatar from '../avatar.jsx';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
-import axios from 'axios';
-import AvatarUploader from './AvatarUploader.jsx';
-import apiClient from '../../utils/api.js';
+import { useGlobalModal } from '../../hooks/useModalManager.js'
 
 
 const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
-    const { avatarSrc, refreshAvatar } = useUserAvatar(currentUser?.userId);
-    const [isUploaderOpen, setIsUploaderOpen] = useState(false);
+    const { avatarSrc } = useUserAvatar(currentUser?.userId);
     const [hasNewInvite, setHasNewInvite] = useState(false);
     const [newMessageCount, setNewMessageCount] = useState(0);
+    const { openModal } = useGlobalModal();
 
     const handleNewInvite = () => {
         setHasNewInvite(true);
@@ -40,50 +38,15 @@ const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, is
         };
     }, []);
 
-    const handleAvatarUpload = async (blob) => {
-        try {
-            const arrayBuffer = await blob.arrayBuffer();
-
-            // 先保存到本地
-            await window.electronAPI.saveAvatarLocally(arrayBuffer);
-            await refreshAvatar()
-
-            const serverUrl = await window.electronAPI.getServerUrl();
-            const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`);
-            const { presignedUrl, objectName } = initiateResponse.data;
-
-            await axios.put(presignedUrl, blob, {
-                headers: {
-                    'Content-Type': 'image/jpg',
-                },
-            });
-
-            await apiClient.post(`${serverUrl}/api/avatar/complete`, {
-                objectName,
-            });
-
-        } catch (error) {
-            console.error('Error uploading avatar:', error);
-        } finally {
-            setIsUploaderOpen(false);
-        }
-    };
-
     return (
         <div className='tool-bar'>
             <Avatar
                 size={35}
                 className='user-avatar'
-                onClick={() => setIsUploaderOpen(true)}
+                onClick={() => openModal('avatarUploader')}
                 src={avatarSrc}
                 alt="User Avatar" />
-            {isUploaderOpen && (
-                <AvatarUploader
-                    currentUser={currentUser}
-                    onAvatarUpload={handleAvatarUpload}
-                    onClose={() => setIsUploaderOpen(false)}
-                />
-            )}
+
             <div className='base-tool-bar'>
                 <Badge size="small" count={newMessageCount}>
                     <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} type="link" title='消息' icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>

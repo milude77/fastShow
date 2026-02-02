@@ -1,5 +1,5 @@
-import { React, useEffect, useState } from 'react';
-import { Alert, Button } from 'antd';
+import { useEffect, useState } from 'react';
+import { Button } from 'antd';
 import './css/createGoupsApp.css';
 import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
