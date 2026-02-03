@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom';
 import './css/CustomModal.css';
+import { AntdMessageProvider } from '../../context/AntdMeaageContext.jsx';
 
 const CustomModal = ({ isOpen, children }) => {
   if (!isOpen) {
@@ -7,12 +8,14 @@ const CustomModal = ({ isOpen, children }) => {
   }
 
   return ReactDOM.createPortal(
-    <div className="modal-overlay" >
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        {children}
+    <AntdMessageProvider>
+      <div className="modal-overlay" >
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          {children}
+        </div>
       </div>
-    </div>,
-    document.getElementById('modal-root') 
+    </AntdMessageProvider>,
+    document.getElementById('modal-root')
   );
 };
 

@@ -19,6 +19,13 @@
     color: var(--text-color);
 }
 
+.contact-info strong{
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: calc(100vw - 300px);
+}
+
 .message-list-tool {
     display: flex;
     justify-content: flex-end;

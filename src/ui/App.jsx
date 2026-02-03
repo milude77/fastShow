@@ -78,7 +78,7 @@ function App() {
   const [selectedContactInformation, setSelectedContactInformation] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [contacts, setContacts] = useState([]);
-  const { messageApi, contextHolder } = useGlobalMessage();
+  const { messageApi } = useGlobalMessage();
 
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
@@ -347,7 +347,6 @@ function App() {
   if (!currentUser) {
     return (
       <div>
-        {contextHolder}
         <AppHeaderBar />
         <AuthPage />
       </div>);
@@ -357,7 +356,6 @@ function App() {
     <ConfigProvider locale={zhCN}>
       <div className="app-wrapper">
         <div className="app">
-          {contextHolder}
           <div className='app-features-bar'>
             <ToolBar
               currentUser={currentUser}

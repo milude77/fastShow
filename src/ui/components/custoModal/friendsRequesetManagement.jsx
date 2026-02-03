@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useSocket } from '../../hooks/useSocket';
-import { message } from 'antd';
 import './css/friendsRequesetManagement.css';
+import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
 const FriendsRequestManagement = () => {
 
     const socket = useSocket();
-    const [messageApi, contextHolder] = message.useMessage();
+    const {messageApi} = useGlobalMessage();
     const [inviteInformationList, setInviteInformationList] = useState({});
     const [serverUrl, setServerUrl] = useState('');
 
@@ -109,7 +109,6 @@ const FriendsRequestManagement = () => {
 
     return (
         <div className='friends-request-management'>
-            {contextHolder}
             <h4 className='title'>好友请求</h4>
             <div className='invite-list'>
                 {inviteInformationList && Object.keys(inviteInformationList).length > 0 ? (

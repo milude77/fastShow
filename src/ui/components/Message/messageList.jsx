@@ -83,7 +83,7 @@ const MessageListHead = ({ contact, openContactOptions, memberLength }) => {
 
 const MessageList = ({ contact, messageListHook }) => {
 
-    const { messageApi, contextHolder } = useGlobalMessage();
+    const { messageApi } = useGlobalMessage();
 
 
     const convertFileSize = (sizeInKb) => {
@@ -401,7 +401,6 @@ const MessageList = ({ contact, messageListHook }) => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
-            {contextHolder}
             <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} memberLength={groupMemberList?.length || 0} />
             <div style={{ display: 'flex', flex: '1' }}>
                 <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>

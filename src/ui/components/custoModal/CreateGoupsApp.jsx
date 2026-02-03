@@ -5,12 +5,12 @@ import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
-const CreateGoupsApp = ({ onClose }) => {
+ const CreateGoupsApp = ({ onClose }) => {
 
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
     const socket = useSocket();
-    const { messageApi, contextHolder } = useGlobalMessage();
+    const { messageApi } = useGlobalMessage();
     const [serverUrl, setServerUrl] = useState('');
 
 
@@ -43,7 +43,6 @@ const CreateGoupsApp = ({ onClose }) => {
 
     return (
         <div className='create-groups-app-container'>
-            {contextHolder}
             <div className='friends-list'>
                 <span className='create-group-title'>选择好友创建</span>
                 {contacts && contacts.map((contact, index) => (
