@@ -1,11 +1,7 @@
 // contexts/ModalContext.js
 import React, { useState, useCallback } from 'react';
 import { ModalContext } from '../hooks/useModalManager';
-import CreateGoupsApp from '../components/custoModal/CreateGoupsApp';
-import InviteFriendsJoinGroup from '../components/custoModal/inviteFriends';
-import CustomModal from '../components/custoModal/customModal';
-import AvatarUploader from '../components/custoModal/AvatarUploader.jsx'
-import handleAvatarUpload from '../utils/uploadAvatar.js'
+
 export const ModalProvider = ({ children }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState('');
@@ -23,36 +19,11 @@ export const ModalProvider = ({ children }) => {
     setModalProps({});
   }, []);
 
-  const renderModalContent = () => {
-    switch (modalType) {
-      case 'createGroup':
-        return <CreateGoupsApp onClose={closeModal} />;
-      case 'inviteFriends':
-        return (
-          <InviteFriendsJoinGroup
-            groupId={modalProps.groupId}
-            groupName={modalProps.groupName}
-            onClose={closeModal}
-          />
-        );
-      case 'avatarUploader':
-        return (
-          <AvatarUploader
-            onAvatarUpload={handleAvatarUpload}
-            onClose={closeModal}
-          />
-        )
-      default:
-        return null;
-    }
-  };
+  
 
   return (
-    <ModalContext.Provider value={{ openModal, closeModal }}>
+    <ModalContext.Provider value={{ isModalOpen, modalType, modalProps, openModal, closeModal }}>
       {children}
-      <CustomModal isOpen={isModalOpen}>
-        {renderModalContent()}
-      </CustomModal>
     </ModalContext.Provider>
   );
 };

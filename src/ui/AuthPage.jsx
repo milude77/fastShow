@@ -11,8 +11,7 @@ import { FaGithub } from 'react-icons/fa';
 
 const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
 
-  const { avatarSrc } = useUserAvatar(credentials?.userId);
-
+  const { avatarSrc } = useUserAvatar();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', width: '300px' }}>

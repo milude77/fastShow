@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import './css/AvatarUploader.css';
 import { Input } from 'antd';
@@ -60,9 +60,10 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-  const { avatarSrc } = useUserAvatar(currentUser?.userId);
+  const { avatarSrc, refreshAvatar } = useUserAvatar();
+
   const socket = useSocket();
-  const { messageApi, contextHolder } = useGlobalMessage();
+  const { messageApi } = useGlobalMessage();
 
 
   const onSelectFile = (e) => {
@@ -105,10 +106,25 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
     messageApi.success('更新用户信息成功')
   };
 
+
+
+  useEffect(() => {
+    const handleAvatarUpdate = () => {
+      messageApi.success('头像更新成功')
+      refreshAvatar()
+      onClose()
+    };
+
+    window.electronAPI.ipcRenderer.on('avatar-saved-successfully', handleAvatarUpdate);
+
+    return () => {
+      window.electronAPI.ipcRenderer.removeListener('avatar-saved-successfully', handleAvatarUpdate)
+    }
+  }, [messageApi, onClose, avatarSrc])
+
   if (!imgSrc) {
     return (
       <div className="avatar-modal-content">
-        {contextHolder}
         <label htmlFor="file-upload">
           <Avatar className='file-upload' size={120} src={avatarSrc} alt="头像" />
         </label>

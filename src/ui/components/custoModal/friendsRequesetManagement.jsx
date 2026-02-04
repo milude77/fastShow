@@ -6,7 +6,7 @@ import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 const FriendsRequestManagement = () => {
 
     const socket = useSocket();
-    const {messageApi} = useGlobalMessage();
+    const { messageApi } = useGlobalMessage();
     const [inviteInformationList, setInviteInformationList] = useState({});
     const [serverUrl, setServerUrl] = useState('');
 

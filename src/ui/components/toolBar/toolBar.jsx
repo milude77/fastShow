@@ -7,8 +7,8 @@ import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlin
 import { useGlobalModal } from '../../hooks/useModalManager.js'
 
 
-const ToolBar = React.memo(({ currentUser, selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
-    const { avatarSrc } = useUserAvatar(currentUser?.userId);
+const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
+    const { avatarSrc } = useUserAvatar();
     const [hasNewInvite, setHasNewInvite] = useState(false);
     const [newMessageCount, setNewMessageCount] = useState(0);
     const { openModal } = useGlobalModal();

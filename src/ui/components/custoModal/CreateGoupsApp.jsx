@@ -3,14 +3,11 @@ import { Button } from 'antd';
 import './css/createGoupsApp.css';
 import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
-import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
-
  const CreateGoupsApp = ({ onClose }) => {
 
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
     const socket = useSocket();
-    const { messageApi } = useGlobalMessage();
     const [serverUrl, setServerUrl] = useState('');
 
 
@@ -28,7 +25,6 @@ import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
     useEffect(() => {
         const handleGropCreateSuccess = () => {
-            messageApi.success('群聊创建成功');
             setCheckedContacts([]);
             onClose();
         }
@@ -38,7 +34,7 @@ import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
         return () => {
             socket.off('grops-create-success', handleGropCreateSuccess);
         }
-    }, []);
+    }, [ onClose, socket ]);
 
 
     return (

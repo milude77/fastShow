@@ -3,14 +3,12 @@ import { Button } from 'antd';
 import './css/createGoupsApp.css';
 import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
-import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 
 const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
 
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
     const socket = useSocket();
-    const { messageApi } = useGlobalMessage();
     const [serverUrl, setServerUrl] = useState('');
 
 
@@ -28,7 +26,6 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
 
     useEffect(() => {
         const handleInviteFriendsJoinGroup = () => {
-            messageApi.success('邀请信息已发送');
             setCheckedContacts([]);
         }
 
@@ -37,7 +34,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
         return () => {
             socket.off('invite-friends-join-group-success', handleInviteFriendsJoinGroup);
         }
-    }, []);
+    }, [ socket ]);
 
 
     return (

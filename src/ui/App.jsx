@@ -9,6 +9,7 @@ import ContactList from './components/Contact/contactList';
 import MessageList from './components/Message/messageList';
 import ContactInformation from './components/addressBook/contactInformation';
 import FriendsRequestManagement from './components/custoModal/friendsRequesetManagement';
+import CustomModal from './components/custoModal/customModal.jsx';
 import ToolBar from './components/toolBar/toolBar.jsx';
 import AuthPage from './AuthPage';
 import AddressBook from './components/addressBook/addressBook.jsx';
@@ -17,6 +18,7 @@ import { useSocket } from './hooks/useSocket';
 import { useGlobalMessage } from './hooks/useGlobalMessage';
 import { useGlobalModal } from './hooks/useModalManager';
 import { useMessageList } from './hooks/useMessageList';
+import { useUserAvatar } from './hooks/useAvatar';
 
 import titleImage from './assets/title.png';
 
@@ -79,11 +81,11 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [contacts, setContacts] = useState([]);
   const { messageApi } = useGlobalMessage();
-
+  const { setUserId } = useUserAvatar();
   const { currentUser, setCurrentUser } = useAuth();
   const socket = useSocket();
 
-  const { openModal } = useGlobalModal();
+  const { isModalOpen, modalType, modalProps, openModal, closeModal } = useGlobalModal();
   const messageListHook = useMessageList(selectedContact);
   const {
     handleChatHistoryDeleted,
@@ -135,13 +137,14 @@ function App() {
     window.electronAPI.loginSuccess({ userId, token });
     window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token });
     window.electronAPI.saveUserListCredentials({ userId, userName: username, token });
+    setUserId(userId);
     localStorage.setItem('token', token);
     localStorage.setItem('currentUser', JSON.stringify({
       userId: userId,
       username: username
     }));
     setCurrentUser({ userId, username, email, token });
-  }, [setCurrentUser]);
+  }, [setCurrentUser, setUserId]);
 
   const handleFriendsList = useCallback((friendsWithGroups) => {
     setContacts(friendsWithGroups);
@@ -159,7 +162,7 @@ function App() {
     messageApi.success('退出群聊成功');
     setContacts(prevContacts => prevContacts.filter(contact => contact.type !== 'group' || contact.id !== groupId));
     setSelectedContact(null)
-  }, []);
+  }, [ messageApi ]);
 
   const handleConnect = useCallback(() => {
     setConnectionStatus('connected');
@@ -319,7 +322,7 @@ function App() {
       return (
         <MessageList
           contact={selectedContact}
-          messageListHook = {messageListHook}
+          messageListHook={messageListHook}
         />
       );
     }
@@ -345,20 +348,22 @@ function App() {
 
 
   if (!currentUser) {
+
     return (
       <div>
         <AppHeaderBar />
         <AuthPage />
-      </div>);
+      </div>
+    );
   }
 
   return (
     <ConfigProvider locale={zhCN}>
       <div className="app-wrapper">
-        <div className="app">
+        <div id="app">
+          <CustomModal isModalOpen={isModalOpen} modalType={modalType} modalProps={modalProps} closeModal={closeModal} />
           <div className='app-features-bar'>
             <ToolBar
-              currentUser={currentUser}
               selectFeatures={selectFeatures}
               setSelectFeatures={setSelectFeatures}
               isDarkMode={darkMode}

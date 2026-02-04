@@ -103,7 +103,7 @@ const MessageList = ({ contact, messageListHook }) => {
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [isFirstLoad, setIsFirstLoad] = useState(true);
     const [modal, modalContextHolder] = Modal.useModal();
-    const { getAvatarUrl, refreshAvatar } = useUserAvatar(currentUser?.userId);
+    const { getAvatarUrl } = useUserAvatar();
     const [isMessageListTop, setIsMessageListTop] = useState(false)
 
     const [groupMemberList, setGroupMemberList] = useState([]);
@@ -172,19 +172,6 @@ const MessageList = ({ contact, messageListHook }) => {
             setGroupMemberList(response.data);
         }
     }, [contact]);
-
-    useEffect(() => {
-        const handleAvatarUpdate = () => {
-            // 重新渲染消息列表以获取最新的头像URL
-            refreshAvatar();
-        };
-
-        window.electronAPI.ipcRenderer.on('avatar-saved-successfully', handleAvatarUpdate);
-
-        return () => {
-            window.electronAPI.ipcRenderer.removeListener('avatar-saved-successfully', handleAvatarUpdate);
-        };
-    }, [refreshAvatar]);
 
     useEffect(() => {
         getGroupMemberList();
