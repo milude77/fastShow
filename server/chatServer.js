@@ -800,6 +800,7 @@ io.on('connection', (socket) => {
             }
 
             socket.emit('grops-create-success');
+            socket.emit('notification', { status: 'success', message: `群聊创建成功` });
 
             const checkedContactIds = [...checkedContacts.map(c => c.id), senderInfo.userId];
             const onlineUsersIds = await getAllOnlineUserIds();
@@ -885,6 +886,7 @@ io.on('connection', (socket) => {
                 }
             }
             socket.emit('notification', { status: 'success', message: `发送请求成功` });
+            socket.emit('invite-friends-join-group-success');
         }
 
         catch (error) {

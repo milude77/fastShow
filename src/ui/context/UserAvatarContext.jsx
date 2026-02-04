@@ -50,6 +50,7 @@ export const UserAvatarProvider = ({ children }) => {
         if (userId) {  // 只有在userId存在时才加载
             loadAvatar();
         } else {
+            loadAvatar();
             // 如果没有userId，也标记为已检查
             setHasCheckedLocal(true);
             setLoading(false);

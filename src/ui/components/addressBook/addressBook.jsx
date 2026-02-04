@@ -1,4 +1,3 @@
-import { React } from 'react';
 import { Collapse } from 'antd';
 import { UserOutlined, TeamOutlined, CaretRightOutlined, UsergroupAddOutlined } from '@ant-design/icons';
 import './css/addressBook.css';
@@ -13,9 +12,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
     onSelectContact(contactId);
   };
 
-  const currentUser = JSON.parse(localStorage.getItem('currentUser'))
-
-  const { getAvatarUrl } = useUserAvatar(currentUser?.userId);
+  const { getAvatarUrl } = useUserAvatar();
 
   const friendsList = contacts.filter(contact => contact.type == "friend");
   const groupList = contacts.filter(contact => contact.type == "group")

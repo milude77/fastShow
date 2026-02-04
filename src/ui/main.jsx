@@ -5,13 +5,16 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { SocketProvider } from './context/SocketContext.jsx';
 import { ModalProvider } from './context/ModalContext.jsx';
 import { AntdMessageProvider } from './context/AntdMeaageContext.jsx';
+import { UserAvatarProvider } from './context/UserAvatarContext.jsx';
 
 createRoot(document.getElementById('root')).render(
   <AuthProvider>
     <SocketProvider>
       <ModalProvider>
         <AntdMessageProvider>
-          <App />
+          <UserAvatarProvider>
+            <App />
+          </UserAvatarProvider>
         </AntdMessageProvider>
       </ModalProvider>
     </SocketProvider>

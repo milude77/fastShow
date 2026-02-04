@@ -28,6 +28,7 @@ export async function initializeDatabase(db) {
         table.string('nickName').nullable().defaultTo(null);
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.boolean('isFriend').defaultTo(true);
+        table.interger('version').notNullable().defaultTo(0);
       })
     }
 
@@ -37,6 +38,7 @@ export async function initializeDatabase(db) {
         table.string('groupName').notNullable();
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.boolean('isMember').defaultTo(true);
+        table.integer('version').notNullable().defaultTo(0);
       })
     }
 
@@ -108,20 +110,17 @@ export async function initializeDatabase(db) {
  * 数据库迁移：确保 messages 表符合当前 Electron 架构（camelCase）并备份
  * - 备份当前用户数据库文件
  * - 检测 snake_case（旧版）与 camelCase（现版）列形态
- * - 如存在旧版列且缺少现版列：采用“新表复制”策略重建
- * - 否则对缺失列进行补列（幂等）
+ * - 直接补充缺失的列（幂等）
  * - 使用 electron-store 按用户记录迁移版本，避免重复执行
  */
-/** moved to ./db.js: migrateUserDb() */
 export async function migrateUserDb(db, userId, dbPath) {
   try {
-
-    const curuentDbVersion = dbMigrationManager.getMigrationVersion(userId);
+    const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 7;
+    const targetVer = 8;
     // 若版本已满足，直接返回
-    if (curuentDbVersion >= targetVer) {
+    if (currentDbVersion >= targetVer) {
       return;
     }
 
@@ -143,120 +142,108 @@ export async function migrateUserDb(db, userId, dbPath) {
       await initializeDatabase(db);
     }
 
-    // 检测列形态
-    const camel_messageType = await db.schema.hasColumn('messages', 'messageType');
-    const snake_message_type = await db.schema.hasColumn('messages', 'message_type');
+    // 为 messages 表补充缺失的列（幂等）
+    const columnsToCheck = [
+      { name: 'messageType', type: 'string', default: 'text' },
+      { name: 'fileName', type: 'string', nullable: true },
+      { name: 'fileUrl', type: 'string', nullable: true },
+      { name: 'fileSize', type: 'string', nullable: true },
+      { name: 'localFilePath', type: 'string', nullable: true },
+      { name: 'fileExt', type: 'boolean', nullable: true, default: false },
+      { name: 'status', type: 'string', nullable: true }
+    ];
 
-    const camel_fileName = await db.schema.hasColumn('messages', 'fileName');
-    const snake_file_name = await db.schema.hasColumn('messages', 'file_name');
-
-    const camel_fileUrl = await db.schema.hasColumn('messages', 'fileUrl');
-    const snake_file_url = await db.schema.hasColumn('messages', 'file_url');
-
-    const camel_fileSize = await db.schema.hasColumn('messages', 'fileSize');
-    const snake_file_size = await db.schema.hasColumn('messages', 'file_size');
-
-    const camel_localFilePath = await db.schema.hasColumn('messages', 'localFilePath');
-    const snake_local_file_path = await db.schema.hasColumn('messages', 'local_file_path');
-
-    const camel_fileExt = await db.schema.hasColumn('messages', 'fileExt');
-    const snake_file_ext = await db.schema.hasColumn('messages', 'file_ext');
-    const camel_status = await db.schema.hasColumn('messages', 'status');
-    const hasTypeColumn = await db.schema.hasColumn('friends', 'type');
-
-    const snakePresent = snake_message_type || snake_file_name || snake_file_url || snake_file_size || snake_local_file_path || snake_file_ext;
-    const camelMissing = !camel_messageType || !camel_fileName || !camel_fileUrl || !camel_fileSize || !camel_localFilePath || !camel_fileExt || !camel_status;
-
-    if (snakePresent && camelMissing) {
-      // 重建表策略：创建新表（目标列），投影插入，替换旧表
-      await db.transaction(async (trx) => {
-        await trx.raw('PRAGMA foreign_keys=OFF;');
-        try {
-          await trx.schema.dropTableIfExists('messages_new');
-          await trx.schema.createTable('messages_new', (table) => {
-            table.string('id').primary();
-            table.string('sender_id').notNullable();
-            table.string('receiver_id').notNullable();
-            table.text('text').notNullable();
-            table.timestamp('timestamp').defaultTo(trx.fn.now());
-            table.string('username').notNullable();
-            table.string('sender').notNullable().defaultTo('user');
-            table.string('messageType').defaultTo('text');
-            table.string('fileName').nullable();
-            table.string('fileUrl').nullable();
-            table.string('fileSize').nullable();
-            table.string('localFilePath').nullable();
-            table.boolean('fileExt').nullable().defaultTo(false);
-            table.string('status').nullable();
-          });
-
-          await trx.raw(`
-            INSERT INTO messages_new (id, sender_id, receiver_id, text, timestamp, username, sender, messageType, fileName, fileUrl, fileSize, localFilePath, fileExt, status)
-            SELECT
-              id,
-              sender_id,
-              receiver_id,
-              text,
-              timestamp,
-              username,
-              COALESCE(sender, 'user') AS sender,
-              COALESCE(messageType, message_type, 'text') AS messageType,
-              COALESCE(fileName, file_name) AS fileName,
-              COALESCE(fileUrl, file_url) AS fileUrl,
-              COALESCE(fileSize, CAST(file_size AS TEXT)) AS fileSize,
-              COALESCE(localFilePath, local_file_path) AS localFilePath,
-              COALESCE(fileExt, CASE WHEN file_ext IS NULL THEN 0 ELSE file_ext END) AS fileExt,
-            FROM messages;
-          `);
-
-          await trx.schema.dropTable('messages');
-          await trx.schema.renameTable('messages_new', 'messages');
-        } finally {
-          await trx.raw('PRAGMA foreign_keys=ON;');
-        }
-      });
-      console.log('Messages table rebuilt to camelCase schema.');
-    } else {
-      // 按需补列（幂等）
-      if (!camel_messageType) {
+    for (const col of columnsToCheck) {
+      const exists = await db.schema.hasColumn('messages', col.name);
+      if (!exists) {
         await db.schema.table('messages', (table) => {
-          table.string('messageType').defaultTo('text');
+          let colDef;
+          switch (col.type) {
+            case 'string':
+              colDef = table.string(col.name);
+              break;
+            case 'boolean':
+              colDef = table.boolean(col.name);
+              break;
+          }
+
+          if (col.nullable) {
+            colDef = colDef.nullable();
+          } else {
+            colDef = colDef.notNullable();
+          }
+
+          if (col.default !== undefined) {
+            colDef = colDef.defaultTo(col.default);
+          }
         });
-      }
-      if (!camel_fileName) {
-        await db.schema.table('messages', (table) => {
-          table.string('fileName').nullable();
-        });
-      }
-      if (!camel_fileUrl) {
-        await db.schema.table('messages', (table) => {
-          table.string('fileUrl').nullable();
-        });
-      }
-      if (!camel_fileSize) {
-        await db.schema.table('messages', (table) => {
-          table.string('fileSize').nullable();
-        });
-      }
-      if (!camel_localFilePath) {
-        await db.schema.table('messages', (table) => {
-          table.string('localFilePath').nullable();
-        });
-      }
-      if (!camel_fileExt) {
-        await db.schema.table('messages', (table) => {
-          table.boolean('fileExt').nullable().defaultTo(false);
-        });
-      }
-      if (!hasTypeColumn) {
-        await db.schema.table('friends', (table) => {
-          table.string('type').nullable().defaultTo('private');
-        });
-        console.log("Added 'type' column to 'friends' table.");
+        console.log(`Added '${col.name}' column to 'messages' table.`);
       }
     }
 
+    // 为 friends 表补充 type 列
+    const hasTypeColumn = await db.schema.hasColumn('friends', 'type');
+    if (!hasTypeColumn) {
+      await db.schema.table('friends', (table) => {
+        table.string('type').nullable().defaultTo('private');
+      });
+      console.log("Added 'type' column to 'friends' table.");
+    }
 
+    // 为 friendships 表补充 version 和 is_deleted 列
+    const hasVersionColumn = await db.schema.hasColumn('friends', 'version');
+    if (!hasVersionColumn) {
+      await db.schema.table('friends', (table) => {
+        table.integer('version').notNullable().defaultTo(0);
+      });
+      console.log("Added 'version' column to 'friends' table.");
+    }
+
+    const hasIsDeletedColumn = await db.schema.hasColumn('friends', 'is_deleted');
+    if (!hasIsDeletedColumn) {
+      await db.schema.table('friends', (table) => {
+        table.boolean('is_deleted').notNullable().defaultTo(false);
+      });
+      console.log("Added 'is_deleted' column to 'friends' table.");
+    }
+
+    // 为 groups 表补充 is_exit 和 version 列
+    const hasGroupsVersionColumn = await db.schema.hasColumn('groups', 'version');
+    if (!hasGroupsVersionColumn) {
+      await db.schema.table('groups', (table) => {
+        table.integer('version').notNullable().defaultTo(0);
+      });
+      console.log("Added 'version' column to 'groups' table.");
+    }
+
+    const hasIsExitColumn = await db.schema.hasColumn('groups', 'is_exit');
+    if (!hasIsExitColumn) {
+      await db.schema.table('groups', (table) => {
+        table.boolean('is_exit').notNullable().defaultTo(false);
+      });
+      console.log("Added 'is_exit' column to 'groups' table.");
+    }
+
+    // 为 friends 表添加索引（如果不存在）
+    const indexesToAdd = [
+      { tableName: 'friends', columns: ['user_id'], indexName: 'friends_user_id_idx' },
+      { tableName: 'friends', columns: ['version'], indexName: 'friends_version_idx' },
+      { tableName: 'groups', columns: ['version'], indexName: 'groups_version_idx' }
+    ];
+
+    for (const idx of indexesToAdd) {
+      // Knex doesn't have direct methods to check if index exists in SQLite
+      // We'll just try to create them and ignore errors
+      try {
+        await db.schema.alterTable(idx.tableName, (table) => {
+          table.index(idx.columns, idx.indexName);
+        });
+        console.log(`Created index '${idx.indexName}' on '${idx.tableName}'.`);
+      } catch (e) {
+        // Index might already exist, ignore error
+        console.log(`Index '${idx.indexName}' may already exist on '${idx.tableName}'.`);
+      }
+    }
 
     try {
       if (dbPath && fs.existsSync(path.dirname(dbPath))) {
@@ -271,7 +258,11 @@ export async function migrateUserDb(db, userId, dbPath) {
           .sort((a, b) => b.mtime - a.mtime);
         const keep = 0;
         for (let i = keep; i < files.length; i++) {
-          try { fs.unlinkSync(files[i].full); } catch { /* 忽略清理失败 */ }
+          try {
+            fs.unlinkSync(files[i].full);
+          } catch {
+            /* 忽略清理失败 */
+          }
         }
       }
     } catch (cleanupErr) {
