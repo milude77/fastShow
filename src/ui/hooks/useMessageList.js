@@ -1,11 +1,29 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useSocket } from '../hooks/useSocket';
 
 export function useMessageList(curSelectedContact) {
     const contactRef = useRef(curSelectedContact);
+    const [currentUser, setCurrentUser] = useState(null);
     contactRef.current = curSelectedContact;
     const [messages, setMessages] = useState([]);
     const pendingTimersRef = useRef(new Map());
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    const socket = useSocket();
+
+    const handleLoginSuccess = useCallback((data) => {
+        const { userId, username, token, email } = data;
+
+        setCurrentUser({ userId, username, email, token });
+
+    }, [setCurrentUser]);
+
+    useEffect(() => {
+        socket.on('login-success', handleLoginSuccess);
+
+        return () => {
+            socket.off('login-success', handleLoginSuccess);
+        }
+    }, [ socket, setCurrentUser, handleLoginSuccess ]);
+
 
 
     const handleNewMessage = useCallback((msg) => {
@@ -52,7 +70,7 @@ export function useMessageList(curSelectedContact) {
                 return [...prev, newMessage];
             })
         }
-    }, []); // 使用外部传入的联系人
+    }, []); 
 
     const handleSendMessageStatus = useCallback(({ senderInfo, sendMessageId, receiverId, isGroup }) => {
         // 收到服务端成功回执，清除超时计时器
@@ -78,7 +96,6 @@ export function useMessageList(curSelectedContact) {
     }, [])
 
     const handleMessageListSelectContact = useCallback(async (contact) => {
-        
 
         if (window.electronAPI) {
             const localHistory = await window.electronAPI.getChatHistory(
@@ -96,7 +113,7 @@ export function useMessageList(curSelectedContact) {
             contact.id,
             contact.type === 'group'
         );
-    }, []);
+    }, [ currentUser ]);
 
 
     const handleSendMessage = useCallback(async (text) => {
@@ -141,7 +158,7 @@ export function useMessageList(curSelectedContact) {
             messageId
         });
 
-    }, []);
+    }, [currentUser]);
 
     const handleSendgroupMessage = useCallback(async (text) => {
         if (contactRef.current) {
@@ -184,7 +201,7 @@ export function useMessageList(curSelectedContact) {
                 messageId
             });
         }
-    }, []);
+    }, [ currentUser ]);
 
     const handleResendMessage = useCallback((contactID, msg, contactType) => {
         if (contactID == contactRef.current.id) {
@@ -196,7 +213,7 @@ export function useMessageList(curSelectedContact) {
                 handleSendMessage(msg.text);
             }
         }
-    }, [handleSendMessage, handleSendgroupMessage, messages])
+    }, [ handleSendMessage, handleSendgroupMessage ])
 
     const loadMoreMessages = useCallback(async () => {
         if (!window.electronAPI) return;
@@ -225,7 +242,7 @@ export function useMessageList(curSelectedContact) {
 
         }
         return true;
-    }, [messages]); // 添加依赖
+    }, [ messages, currentUser ]); // 添加依赖
 
     const handleUploadFile = useCallback(async ({ filePath }) => {
         if (!contactRef.current) return;
@@ -289,7 +306,7 @@ export function useMessageList(curSelectedContact) {
                 msg.id === tempId ? { ...msg, status: 'fail', fileSize: '上传失败' } : msg
             ))
         }
-    }, []);
+    }, [ currentUser ]);
 
 
 

@@ -26,7 +26,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
 
     useEffect(() => {
         const handleInviteFriendsJoinGroup = () => {
-            setCheckedContacts([]);
+            onClose()
         }
 
         socket.on('invite-friends-join-group-success', handleInviteFriendsJoinGroup);
@@ -34,7 +34,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
         return () => {
             socket.off('invite-friends-join-group-success', handleInviteFriendsJoinGroup);
         }
-    }, [ socket ]);
+    }, [ socket, onClose ]);
 
 
     return (

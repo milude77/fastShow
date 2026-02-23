@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from'react';
+import React, { useState, useEffect, useCallback } from'react';
 import './css/messageInput.css'
 
 
@@ -26,14 +26,14 @@ const MessageInput = ({ contactID, contactType, onSendMessage, onSendGroupMessag
     }, 200);
 
 
-    const getSavedDraft = async() => {
+    const getSavedDraft = useCallback(async() => {
         const savedDraft = await window.electronAPI.getMessageDraft(contactID, contactType == 'group');
         setDraft(savedDraft);
-    };
+    }, [contactID, contactType]);
 
     useEffect(() => {
         getSavedDraft()
-    },[contactID, contactType])
+    },[contactID, contactType, getSavedDraft])
 
     const handleDraftChange = (event) => {
         setDraft(event.target.value);

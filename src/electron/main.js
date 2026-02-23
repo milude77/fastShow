@@ -735,7 +735,6 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
         socket.on('disconnect-message-send-comple', () => event.sender.send('disconnect-message-send-comple'))
         // 创建托盘 - 同样需要更新托盘图标路径
         createTray(mainWindow);
-        console.log('发送信号:', userId);
         socket.emit('initial-data-success', { userId });
         socket.emit('get-contacts');
 
@@ -1051,7 +1050,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         await writeChatHistory(receiverId, saveMessage)
 
         event.sender.send('file-upload-complete', { messageId });
-
+        event.sender.send('send-new-meaage', { contactId: receiverId, isGroup });
 
         return { success: true, messageData: returnedData, messageId };
 
@@ -1497,13 +1496,15 @@ ipcMain.handle('get-socket-status', () => {
 });
 
 
-ipcMain.handle('get-friends-list', async () => {
+ipcMain.handle('get-contact-list', async () => {
     if (!db) {
         return [];
     }
     const friends = await db('friends')
-        .select('id', 'userName')
-    return friends;
+        .select('id', 'userName', 'lastMessage')
+    const groups = await db('groups')
+        .select('id', 'groupName', 'lastMessage')
+    const contactList = sort([...friends, ...groups]);
 });
 
 ipcMain.handle('get-last-message', async (event, { contactId, isGroup }) => {

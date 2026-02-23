@@ -143,7 +143,7 @@ const AuthPage = () => {
       socket.off('user-registered', handleRegisterSuccess);
       socket.off('notification', handleNotificationMessage);
     }
-  }, [socket]);
+  }, [socket, messageApi, modal, isRegistering, username, password, email, confirmPassword]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -202,7 +202,7 @@ const AuthPage = () => {
       window.electronAPI.ipcRenderer.removeListener('strong-logout-waring', handleStrongLogoutWaring)
       window.electronAPI.ipcRenderer.removeListener('oauth-success', handleOauthSuccess)
     }
-  }, []);
+  }, [ modal, socket ]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>

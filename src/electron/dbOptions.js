@@ -28,7 +28,8 @@ export async function initializeDatabase(db) {
         table.string('nickName').nullable().defaultTo(null);
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.boolean('isFriend').defaultTo(true);
-        table.interger('version').notNullable().defaultTo(0);
+        table.integer('version').notNullable().defaultTo(0);
+        table.timestamp('lastMessage').nullable().defaultTo(null);
       })
     }
 
@@ -39,6 +40,7 @@ export async function initializeDatabase(db) {
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.boolean('isMember').defaultTo(true);
         table.integer('version').notNullable().defaultTo(0);
+        table.timestamp('lastMessage').nullable().defaultTo(null);
       })
     }
 
@@ -118,7 +120,7 @@ export async function migrateUserDb(db, userId, dbPath) {
     const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 8;
+    const targetVer = 10;
     // 若版本已满足，直接返回
     if (currentDbVersion >= targetVer) {
       return;
@@ -207,6 +209,15 @@ export async function migrateUserDb(db, userId, dbPath) {
       console.log("Added 'is_deleted' column to 'friends' table.");
     }
 
+    const hasIsExitFriendLatestColumn = await db.schema.hasColumn('friends', 'lastMessage');
+
+    if (!hasIsExitFriendLatestColumn) {
+      await db.schema.table('friends', (table) => {
+        table.timestamp('lastMessage').nullable().defaultTo(null);
+      });
+      console.log("Added 'lastMessage' column to 'friends' table.");
+    }
+
     // 为 groups 表补充 is_exit 和 version 列
     const hasGroupsVersionColumn = await db.schema.hasColumn('groups', 'version');
     if (!hasGroupsVersionColumn) {
@@ -223,6 +234,18 @@ export async function migrateUserDb(db, userId, dbPath) {
       });
       console.log("Added 'is_exit' column to 'groups' table.");
     }
+
+    const hasIsExitLatestColumn = await db.schema.hasColumn('groups', 'lastMessage');
+
+    if (!hasIsExitLatestColumn) {
+      await db.schema.table('groups', (table) => {
+        table.timestamp('lastMessage').nullable().defaultTo(null);
+      });
+      console.log("Added 'lastMessage' column to 'groups' table.");
+    }
+
+
+
 
     // 为 friends 表添加索引（如果不存在）
     const indexesToAdd = [

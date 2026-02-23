@@ -52,7 +52,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
 
         const message = await window.electronAPI.getLastMessage(contactId, isGroup);
         setLastMessage(message);
-    }, [contact.type, contact.type]);
+    }, [contact.type]);
 
     const throttledGetLastMessage = throttle(getLastMessage, 300)
 
@@ -72,7 +72,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
 
     useEffect(() => {
         getLastMessage(contact.id);
-    }, [contact.id, draft, getLastMessage]);
+    }, [contact.id, getLastMessage]);
 
     const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
@@ -90,7 +90,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
             }
             throttledGetLastMessage(contactId);
         }
-    }, [contact.id, contact.type, throttledGetLastMessage]);
+    }, [contact.id, contact.type, throttledGetLastMessage, getLastMessage, draft]);
 
     useEffect(() => {
         window.electronAPI.ipcRenderer.on('revived-new-chat-message', handleNewMessage);

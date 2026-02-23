@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import Cropper from 'react-easy-crop';
 import './css/AvatarUploader.css';
 import { Input } from 'antd';
@@ -87,7 +87,15 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
           imgSrc,
           croppedAreaPixels
         );
-        onAvatarUpload(croppedImageBlob);
+        const message = await onAvatarUpload(croppedImageBlob);
+        if (message.status === 200) {
+          messageApi.success('头像上传成功')
+          refreshAvatar()
+          onClose()
+        } else {
+          messageApi.error('头像上传失败')
+        }
+
       } catch (e) {
         console.error(e);
       }
@@ -106,21 +114,6 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
     messageApi.success('更新用户信息成功')
   };
 
-
-
-  useEffect(() => {
-    const handleAvatarUpdate = () => {
-      messageApi.success('头像更新成功')
-      refreshAvatar()
-      onClose()
-    };
-
-    window.electronAPI.ipcRenderer.on('avatar-saved-successfully', handleAvatarUpdate);
-
-    return () => {
-      window.electronAPI.ipcRenderer.removeListener('avatar-saved-successfully', handleAvatarUpdate)
-    }
-  }, [messageApi, onClose, avatarSrc])
 
   if (!imgSrc) {
     return (

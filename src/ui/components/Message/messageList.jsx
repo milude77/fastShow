@@ -142,7 +142,7 @@ const MessageList = ({ contact, messageListHook }) => {
 
             setIsLoadingMore(false);
         }
-    }, [messages]);
+    }, [messages, isLoadingMore]);
 
     const firstScrollToBottom = useCallback((behavior = "auto") => {
         if (lastMessageRef.current && isFirstLoad) {

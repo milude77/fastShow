@@ -18,6 +18,7 @@ const ContactList = memo(({ contacts, selectedContact, onSelectContact }) => {
     fetchServerUrl();
   }, []);
 
+
   return (
     <div>
       <div className='contact-list'>

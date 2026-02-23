@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSocket } from './hooks/useSocket';
 import AppHeaderBar from './components/appHeaderBar';
 import { message } from 'antd';
@@ -13,14 +13,14 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
 
   const { getAvatarUrl } = useUserAvatar();
 
-  const handleAddFriendCall = (message) => {
+  const handleAddFriendCall = useCallback((message) => {
     if (message.success) {
       messageApi.success('好友请求已发送');
     }
     else {
       messageApi.error(`发送好友请求失败 错误原因：${message.message}`);
     }
-  }
+  }, [messageApi])
 
 
 
@@ -31,7 +31,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
     return () => {
       socket.off('add-friends-msg');
     }
-  }, [socket])
+  }, [socket, handleAddFriendCall])
   const handleAddFriend = async (userId) => {
     await onAddFriend(userId);
   }

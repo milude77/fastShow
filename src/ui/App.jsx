@@ -132,6 +132,15 @@ function App() {
     }
   }, [darkMode]);
 
+  const getContactList = async () => {
+    const contactList = await window.electronAPI.getContactList();
+    setContacts(contactList);
+  }
+
+  useEffect(() => {
+    getContactList()
+  }, []);
+
   const handleLoginSuccess = useCallback((data) => {
     const { userId, username, token, email } = data;
     window.electronAPI.loginSuccess({ userId, token });
@@ -162,7 +171,7 @@ function App() {
     messageApi.success('退出群聊成功');
     setContacts(prevContacts => prevContacts.filter(contact => contact.type !== 'group' || contact.id !== groupId));
     setSelectedContact(null)
-  }, [ messageApi ]);
+  }, [messageApi]);
 
   const handleConnect = useCallback(() => {
     setConnectionStatus('connected');
@@ -211,16 +220,50 @@ function App() {
     }
   }, [messageApi]);
 
+  const sortContactList = useCallback((event, { contactId, isGroup }) => {
+    setContacts(prev => {
+      const targetIndex = prev.findIndex(c =>
+        c.id === contactId &&
+        (isGroup ? c.type === 'group' : c.type === 'friend')
+      );
+
+      if (targetIndex === -1) {
+        console.warn('Contact not found for message:', contactId);
+        return prev;
+      }
+
+      // 1. 获取目标联系人（保持引用稳定）
+      const targetContact = prev[targetIndex];
+
+
+      // 3. 构造新数组：移除原位置，插入顶部
+      const newContacts = [
+        targetContact,
+        ...prev.slice(0, targetIndex),
+        ...prev.slice(targetIndex + 1)
+      ];
+
+      return newContacts;
+    });
+  }, []);
+
+
+
   useEffect(() => {
+
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
+    window.electronAPI.ipcRenderer.on('send-new-meaage', sortContactList);
+    window.electronAPI.ipcRenderer.on('revived-new-chat-message', sortContactList);
 
     return () => {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
       window.electronAPI.ipcRenderer.removeListener('message-history-deleted', handleChatHistoryDeleted);
+      window.electronAPI.ipcRenderer.removeListener('send-new-meaage', sortContactList);
+      window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', sortContactList);
     }
 
-  }, [])
+  }, [handleChatHistoryDeleted, sortContactList])
 
   useEffect(() => {
     if (!socket) return;
@@ -233,7 +276,7 @@ function App() {
     socket.on('reconnecting', handleReconnecting);
     socket.on('message-sent-success', handleSendMessageStatus)
     socket.on('new-group', handleNewGroup)
-    socket.on('leave-group-success', handleLeaveGroupSuccess)
+    socket.on('leave-group-success', handleLeaveGroupSuccess);
     socket.on('new-friend-request', handleNewFriendRequests);
     socket.on('group-invite', handleNewGroupInvite);
     socket.on('notification', handleNotificationMessage);
@@ -256,7 +299,7 @@ function App() {
       socket.off('notification', handleNotificationMessage);
       socket.off('strong-logout-warning', handleStrongLogoutWarning);
     };
-  }, [socket, messageApi]);
+  }, [socket, handleLoginSuccess, handleNewMessage, handleFriendsList, friendsRequestAccepted, handleConnect, handleDisconnect, handleReconnecting, handleSendMessageStatus, handleNewGroup, handleLeaveGroupSuccess, handleNewFriendRequests, handleNewGroupInvite, handleNotificationMessage, handleStrongLogoutWarning]);
 
 
   const handleAddressBookSelectContact = useCallback((contact) => {
@@ -280,7 +323,7 @@ function App() {
       const newContacts = prevContacts.filter(contact => { return (contact.id !== contactId || contact.type !== 'friend') });
       return newContacts;
     });
-  }, []);
+  }, [setSelectedContactInformation, setSelectedContact, setContacts, messageApi]);
 
   const renderFeature = () => {
     switch (selectFeatures) {

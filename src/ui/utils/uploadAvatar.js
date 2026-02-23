@@ -18,9 +18,11 @@ const handleAvatarUpload = async (blob) => {
             },
         });
 
-        await apiClient.post(`${serverUrl}/api/avatar/complete`, {
+        const result =  await apiClient.post(`${serverUrl}/api/avatar/complete`, {
             objectName,
         });
+
+        return result;
 
     } catch (error) {
         console.error('Error uploading avatar:', error);

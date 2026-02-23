@@ -1,5 +1,5 @@
 // MessageItem.jsx
-import React, { forwardRef, useEffect, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useState } from 'react';
 import FileItem from './FileItem.jsx';
 import TextItem from './TextItem.jsx';
 import Avatar from '../avatar.jsx';
@@ -22,11 +22,11 @@ const MessageItem = forwardRef(({
     
     const key = msg.id || `${msg.timestamp}-${index}`;
 
-    const handleAvatarChange = (event, avatarPath) => {
+    const handleAvatarChange = useCallback((event, avatarPath) => {
         if (msg.sender === 'user'){ 
             setUserAvatar(avatarPath)
         };
-    }
+    }, [msg.sender])
 
     useEffect(() =>{
         setUserAvatar(userAvatarSrc);
@@ -35,7 +35,7 @@ const MessageItem = forwardRef(({
         return () => {
             window.electronAPI.ipcRenderer.removeListener('avatar-saved-successfully', handleAvatarChange)
         }
-    }, [userAvatarSrc]);
+    }, [userAvatarSrc, handleAvatarChange]);
 
 
     return (

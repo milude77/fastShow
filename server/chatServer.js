@@ -192,7 +192,6 @@ async function getGroupsList(socket) {
         .orderBy('g.updated_at', 'desc');
 
 
-    // 组装返回结构：每个群附带成员列表
     const payload = baseGroups.map(g => ({
         id: g.groupId,
         username: g.groupName,
@@ -1170,8 +1169,6 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
 
         res.redirect(presignedUrl);
     } catch (error) {
-        // 返回默认头像的预签名URL
-        console.error('获取头像失败，返回默认头像:', error);
         const defaultAvatarUrl = await minioClient.presignedGetObject(
             bucketName,
             'public-resources/default_avatar.jpg',
