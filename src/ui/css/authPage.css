@@ -58,3 +58,98 @@
     border-radius: 4px;
     border: 1px solid #ced4da;
 }
+
+.select-history-user{
+    display: flex;
+    align-items: center;
+}
+
+.select-history-user span{
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: calc(100% - 24px);
+}
+
+.login-loading-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.login-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  min-width: 300px;
+}
+
+.avatar-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+/* 从右到左滑入动画 */
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.slide-in-from-right {
+  animation: slideInFromRight 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* 粒子轨道容器 */
+.particle-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140px;
+  height: 140px;
+  transform: translate(-50%, -50%);
+  animation: orbitRotate 3s linear infinite;
+}
+
+/* 蓝色粒子 */
+.blue-particle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background-color: #1890ff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #1890ff, 0 0 20px rgba(24, 144, 255, 0.7);
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 轨道旋转动画 - 实现粒子围绕中心头像顺时针转动 */
+@keyframes orbitRotate {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 500;
+  color: #333;
+  text-align: center;
+  margin-top: 20px;
+}

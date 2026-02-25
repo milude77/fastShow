@@ -223,6 +223,22 @@ async function readChatHistory(
     }
 }
 
+async function updateContactLastMessagetimestamp(contactId, isGroup) {
+    try {
+        if (isGroup) {
+            await db('groups')
+                .where('id', contactId)
+                .update({ lastMessage: new Date() });
+        } else {
+            await db('friends')
+                .where('id', contactId)
+                .update({ lastMessage: new Date() });
+        }
+    } catch (error) {
+        console.error(`Failed to update last message timestamp for contact ${contactId}:`, error);
+    }
+}
+
 // 写入指定联系人的聊天记录
 async function writeChatHistory(contactId, msg) {
     try {
@@ -255,6 +271,9 @@ async function writeChatHistory(contactId, msg) {
         else {
             await db('group_messages').insert(messageData);
         }
+
+        await updateContactLastMessagetimestamp(contactId, msg.type == 'group');
+
     } catch (error) {
         console.error(`Failed to write chat history for contact ${contactId}:`, error);
         console.error('Error details:', {
@@ -719,6 +738,8 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
                 if (friendsToDelete.length > 0) {
                     await db('friends').whereIn('id', friendsToDelete).update({ isFriend: false });
                 }
+
+                event.sender.send('contacts-list-updated');
 
             } catch (e) {
                 console.error('Friends sync error:', e);
@@ -1301,6 +1322,48 @@ ipcMain.handle('check-file-exists', async (event, { messageId, isGroup }) => {
     }
 });
 
+ipcMain.handle('check-assest-file-exits', async (event, filePath) => {
+    return fs.existsSync(filePath);
+})
+
+async function downloadFileToLocal(fileUrl, filePath) {
+    try {
+        const response = await apiClient.get(fileUrl, {
+            responseType: 'stream',
+            timeout: 0,
+        });
+        const writer = fs.createWriteStream(filePath);
+
+        response.data.on('data', chunk => {
+            writer.write(chunk);
+        });
+
+        // 错误处理
+        response.data.on('error', err => {
+            writer.destroy();
+            throw err;
+        });
+
+        writer.on('error', err => {
+            response.data.destroy();
+            throw err;
+        });
+
+        // 等待写入完成
+        await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+    }
+    catch (error) {
+        console.error('文件下载失败:', error);
+    }
+}
+
+ipcMain.handle('download-assest-file', async (event, { fileUrl, filePath }) => { 
+    await downloadFileToLocal(fileUrl, filePath);
+})
+
 ipcMain.handle('delete-contact', async (event, { contactId }) => {
     if (!db) {
         return { success: false, error: '数据库未连接' };
@@ -1500,11 +1563,21 @@ ipcMain.handle('get-contact-list', async () => {
     if (!db) {
         return [];
     }
-    const friends = await db('friends')
-        .select('id', 'userName', 'lastMessage')
-    const groups = await db('groups')
-        .select('id', 'groupName', 'lastMessage')
-    const contactList = sort([...friends, ...groups]);
+    let friends = await db('friends')
+        .select('id', 'userName as username', 'lastMessage')
+    friends = friends.map(item => ({
+        ...item,
+        type: 'friend'
+    }));
+    let groups = await db('groups')
+        .select('id', 'groupName as username', 'lastMessage')
+    groups = groups.map(item => ({
+        ...item,
+        type: 'group'
+    }));
+    const contactList = [...groups, ...friends].sort((a, b) => b.lastMessage - a.lastMessage);
+
+    return contactList;
 });
 
 ipcMain.handle('get-last-message', async (event, { contactId, isGroup }) => {

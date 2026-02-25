@@ -752,10 +752,10 @@ io.on('connection', (socket) => {
         const nowDate = new Date();
 
         if (checkedContacts.length < 2) {
-            groupName = `${senderInfo.username},${checkedContacts[0].userName}`;
+            groupName = `${senderInfo.username},${checkedContacts[0].username}`;
         }
         else {
-            groupName = `${senderInfo.username},${checkedContacts.slice(0, 2).map(c => c.userName).join(',')}`;
+            groupName = `${senderInfo.username},${checkedContacts.slice(0, 2).map(c => c.username).join(',')}`;
         }
 
         if (checkedContacts.length > 2) {
@@ -791,7 +791,7 @@ io.on('connection', (socket) => {
                 await db('group_members').insert({
                     group_id: nextId,
                     user_id: contact.id,
-                    user_name: contact.userName,
+                    user_name: contact.username,
                     created_at: nowDate,
                     updated_at: nowDate,
                     role: 'member'
@@ -808,7 +808,7 @@ io.on('connection', (socket) => {
 
             // 向所有在线群成员发送消息
             onlineMemberSockets.forEach(socketId => {
-                io.to(socketId).emit('new-group', { id: nextId, username: groupName, createdAt: nowDate, joinedAt: nowDate, type: 'group', members: checkedContacts.map(c => ({ userId: c.id, userName: c.userName })) });
+                io.to(socketId).emit('new-group', { id: nextId, username: groupName, createdAt: nowDate, joinedAt: nowDate, type: 'group' });
             });
         } catch (error) {
             console.error('Error creating group:', error);
@@ -844,7 +844,7 @@ io.on('connection', (socket) => {
                     .where({ group_id: groupId, user_id: contact.id })
                     .first();
                 if (existingMember) {
-                    socket.emit('notification', { status: 'error', message: `${contact.userName} 已是群成员` });
+                    socket.emit('notification', { status: 'error', message: `${contact.username} 已是群成员` });
                     continue; // 跳过当前联系人，继续处理下一个
                 }
 
@@ -856,7 +856,7 @@ io.on('connection', (socket) => {
                     .where('id', invitationId)
                     .first();
                 if (existingInvite) {
-                    socket.emit('notification', { status: 'error', message: `已邀请 ${contact.userName}, 勿重复邀请` });
+                    socket.emit('notification', { status: 'error', message: `已邀请 ${contact.username}, 勿重复邀请` });
                     continue; // 跳过当前联系人，继续处理下一个
                 }
 
@@ -1175,6 +1175,112 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
             24 * 60 * 60
         );
         res.redirect(defaultAvatarUrl);
+    }
+});
+
+// 在 chatServer.js 中添加或修改头像下载路由
+app.get('/api/avatar/:userId/:userType/download', async (req, res) => {
+    const { userId, userType } = req.params;
+
+    try {
+        // 验证参数
+        if (!userId || !userType) {
+            return res.status(400).json({ error: '缺少必要参数' });
+        }
+
+        // 验证用户ID格式
+        if (!/^[0-9]+$/.test(userId)) {
+            return res.status(400).json({ error: '无效的用户ID格式' });
+        }
+
+        // 构建 MinIO 对象名称
+        let objectName;
+        if (userType === 'user') {
+            objectName = `user-${userId}/avatar.jpg`;
+        } else if (userType === 'group') {
+            objectName = `group-${userId}/avatar.jpg`;
+        } else {
+            return res.status(400).json({ error: '无效的用户类型' });
+        }
+
+        // 检查文件是否存在
+        try {
+            await minioClient.statObject(bucketName, objectName);
+        } catch (statError) {
+            // 如果头像不存在，返回默认头像
+            try {
+                const defaultObjectName = 'public-resources/default_avatar.jpg';
+                await minioClient.statObject(bucketName, defaultObjectName);
+                
+                // 流式传输默认头像
+                const dataStream = await minioClient.getObject(bucketName, defaultObjectName);
+                
+                // 设置响应头
+                res.setHeader('Content-Type', 'image/jpeg');
+                res.setHeader('Content-Disposition', 'inline; filename="default_avatar.jpg"');
+                
+                // 管道传输数据
+                dataStream.pipe(res);
+                return;
+            } catch (defaultError) {
+                console.error('默认头像也不存在:', defaultError);
+                return res.status(404).json({ error: '头像文件不存在' });
+            }
+        }
+
+        // 获取文件流
+        const dataStream = await minioClient.getObject(bucketName, objectName);
+
+        // 获取文件元数据
+        const stat = await minioClient.statObject(bucketName, objectName);
+
+        // 设置响应头
+        res.setHeader('Content-Type', stat.metaData['content-type'] || 'image/jpeg');
+        res.setHeader('Content-Length', stat.size);
+        res.setHeader('Content-Disposition', `inline; filename="avatar-${userId}.jpg"`);
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // 缓存1小时
+        res.setHeader('ETag', stat.etag);
+
+        // 检查客户端是否支持范围请求（断点续传）
+        const range = req.headers.range;
+        if (range) {
+            const parts = range.replace(/bytes=/, "").split("-");
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+            const chunksize = (end - start) + 1;
+
+            res.writeHead(206, {
+                'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': chunksize,
+                'Content-Type': stat.metaData['content-type'] || 'image/jpeg'
+            });
+
+            const partialDataStream = await minioClient.getPartialObject(
+                bucketName, 
+                objectName, 
+                start, 
+                chunksize
+            );
+            
+            partialDataStream.pipe(res);
+        } else {
+            // 直接流式传输整个文件
+            dataStream.pipe(res);
+        }
+
+    } catch (error) {
+        console.error('头像下载错误:', error);
+        
+        if (!res.headersSent) {
+            if (error.code === 'NoSuchKey') {
+                return res.status(404).json({ error: '头像文件不存在' });
+            } else if (error.code === 'InvalidObjectName') {
+                return res.status(400).json({ error: '无效的文件名' });
+            } else {
+                return res.status(500).json({ error: '服务器内部错误' });
+            }
+        }
     }
 });
 

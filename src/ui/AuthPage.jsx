@@ -1,31 +1,75 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket';
-import { Button } from 'antd';
-import { Modal } from 'antd';
+import { Button, Select, Modal } from 'antd';
 import './css/authPage.css'
 import Avatar from './components/avatar.jsx';
 import { useUserAvatar } from './hooks/useAvatar.js';
 import { useGlobalMessage } from './hooks/useGlobalMessage';
 import { FaGithub } from 'react-icons/fa';
 
+// 用户登录中
+const LoginLoading = ({ credentials }) => {
+  const { getAvatarUrl } = useUserAvatar();
 
+  return (
+    <div className="login-loading-container">
+      <div className="login-card slide-in-from-right">
+        <div className="avatar-container">
+          <div className="particle-orbit">
+            <div className="blue-particle"></div>
+          </div>
+          <Avatar size={100} src={getAvatarUrl(credentials.userId)} alt="头像" />
+        </div>
+        <div className="title">欢迎，{credentials.userName}</div>
+      </div>
+    </div>
+  )
+}
+
+//快速登录
 const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
 
-  const { avatarSrc } = useUserAvatar();
+  const { getAvatarUrl } = useUserAvatar();
+  const [curCredentials, setCurCredentials] = useState(credentials)
+  const [allUserCredentials, setAllUserCredentials] = useState([])
+
+  useEffect(() => {
+    window.electronAPI.getUserListCredentials().then(userListCredentials => {
+      setAllUserCredentials(Object.values(userListCredentials))
+    })
+  }, [])
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', width: '300px' }}>
       <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>快速登录</span>
       <Avatar
         size={100}
-        src={avatarSrc}
+        src={getAvatarUrl(curCredentials.userId)}
         alt="头像"
       />
-      <span>{credentials.userName}</span>
+      <Select
+        style={{ marginTop: '20px', width: '10rem' }}
+        value={curCredentials.userId}
+        onChange={(userId) => {
+          const credentials = allUserCredentials.find(
+            item => item.userId === userId
+          );
+          setCurCredentials(credentials);
+        }}>
+        {allUserCredentials.map((credentials) => (
+          <Select.Option key={credentials.userId} value={credentials.userId} >
+            <div className='select-history-user'>
+              <Avatar size={24} src={getAvatarUrl(credentials.userId)} />
+              <span>{credentials.userName}</span>
+            </div>
+          </Select.Option>
+        ))}
+      </Select>
       <Button
         type="primary"
         style={{ marginTop: '20px' }}
-        onClick={() => { onLogin(credentials.token); }}
+        onClick={() => { onLogin(curCredentials); }}
       >
         登录
       </Button>
@@ -35,8 +79,11 @@ const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) =>
   )
 }
 
+// 登录/注册页面
 const AuthPage = () => {
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [logincredentials, setLogincredentials] = useState(null)
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
@@ -120,28 +167,12 @@ const AuthPage = () => {
       });
     };
 
-    const handleNotificationMessage = (data) => {
-      switch (data.status) {
-        case 'success':
-          messageApi.success(data.message);
-          break;
-        case 'error':
-          messageApi.error(data.message);
-          break;
-        case 'info':
-          messageApi.info(data.message);
-          break;
-      }
-    };
-
 
     socket.on('user-registered', handleRegisterSuccess);
-    socket.on('notification', handleNotificationMessage);
 
 
     return () => {
       socket.off('user-registered', handleRegisterSuccess);
-      socket.off('notification', handleNotificationMessage);
     }
   }, [socket, messageApi, modal, isRegistering, username, password, email, confirmPassword]);
 
@@ -151,7 +182,7 @@ const AuthPage = () => {
       setMessage('错误: 无法连接服务器');
     }
 
-    if (isRegistering && email.trim() === '' ){
+    if (isRegistering && email.trim() === '') {
       setMessage('请输入有效的邮箱地址');
     }
 
@@ -170,6 +201,7 @@ const AuthPage = () => {
     if (isRegistering) {
       socket.emit('register-user', { username, password, email });
     } else {
+      setIsLoggingIn(true);
       socket.emit('login-user', credentials);
     }
   };
@@ -202,7 +234,19 @@ const AuthPage = () => {
       window.electronAPI.ipcRenderer.removeListener('strong-logout-waring', handleStrongLogoutWaring)
       window.electronAPI.ipcRenderer.removeListener('oauth-success', handleOauthSuccess)
     }
-  }, [ modal, socket ]);
+  }, [modal, socket]);
+
+  const userLoginOption = (credentials) => {
+    setLogincredentials(credentials)
+    setIsLoggingIn(true)
+    setTimeout(() => {
+      socket.emit('login-with-token', credentials.token)
+    }, 2000) 
+  };
+
+  if(isLoggingIn && logincredentials){
+    return <LoginLoading credentials={logincredentials} />
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -211,7 +255,8 @@ const AuthPage = () => {
         ?
         <LastLoginUser
           credentials={lastLoginUser}
-          onLogin={(token) => { socket.emit('login-with-token', token); }} message={message}
+          onLogin={userLoginOption} 
+          message={message}
           handleNewUserLogin={handleNewUserLogin}
         />
         :

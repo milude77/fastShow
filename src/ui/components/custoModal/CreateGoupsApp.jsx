@@ -16,8 +16,9 @@ import { useSocket } from '../../hooks/useSocket';
         window.electronAPI.getServerUrl().then((url) => {
             setServerUrl(url)
         });
-        window.electronAPI.getFriendsList().then((friends) => {
-            setContacts(friends);
+        window.electronAPI.getContactList().then((contacts) => {
+            const friendsList = contacts.filter(contact => contact.type === 'friend').sort((a, b) => b.lastMessage - a.lastMessage);
+            setContacts(friendsList);
         });
     }, []);
 
@@ -56,7 +57,7 @@ import { useSocket } from '../../hooks/useSocket';
                             checked={checkedContacts.some(c => c.id === contact.id)}
                         />
                         <img src={`${serverUrl}/api/avatar/${contact.id}/user`} alt='avatar' className='friend-avatar' />
-                        {contact.userName}
+                        {contact.username}
                     </div>
                 ))}
             </div>
@@ -66,7 +67,7 @@ import { useSocket } from '../../hooks/useSocket';
                     <div key={index} className='selected-contact-item'>
                         <div key={index} className='friend-item'>
                             <img src={`${serverUrl}/api/avatar/${contact.id}/user`} alt='avatar' className='friend-avatar' />
-                            <span>{contact.userName}</span>
+                            <span>{contact.username}</span>
                         </div>
                     </div>
                 ))}

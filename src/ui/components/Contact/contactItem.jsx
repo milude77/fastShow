@@ -5,6 +5,7 @@ import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import Avatar from '../avatar.jsx';
 import './css/contactItem.css';
+import { formatTime } from '../../utils/timeFormatter.js';
 
 const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact, serverUrl }) => {
     const [lastMessage, setLastMessage] = useState({});
@@ -56,11 +57,6 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
 
     const throttledGetLastMessage = throttle(getLastMessage, 300)
 
-    const formatTime = useCallback((timestamp) => {
-        if (!timestamp) return '';
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }, []);
 
     useEffect(() => {
         newMessageCountRef.current = newMessageCount;
@@ -127,7 +123,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
                 <span className={`contact-message ${draft ? 'draft' : ''}`}>
                     {draft ? `[草稿]${draft}` : (lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : '')}
                 </span>
-                <span className="contact-timestamp">{formatTime(lastMessage?.timestamp)}</span>
+                {lastMessage?.timestamp && (<span className="contact-timestamp">{formatTime(lastMessage?.timestamp)}</span>)}
                 {newMessageCount > 0 && (
                     <Badge
                         size="small"

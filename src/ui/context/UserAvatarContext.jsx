@@ -29,12 +29,16 @@ export const UserAvatarProvider = ({ children }) => {
 
                 // 然后尝试获取本地头像
                 const avatarPath = await window.electronAPI.getUserAvatarPath();
+                const avatarIsExit = await window.electronAPI.checkAssestFileExits(avatarPath)
 
-                if (avatarPath) {
+                if (avatarPath && avatarIsExit) {
                     const normalizedPath = avatarPath.replace(/\\/g, '/');
                     setAvatarSrc(`avatar:///${encodeURI(normalizedPath)}`);
                 } else {
                     setAvatarSrc(`${url}/api/avatar/${userId}/user`);
+                    if (userId) {
+                        window.electronAPI.downloadFileToPath(`${url}/api/avatar/${userId}/user/download`, avatarPath)
+                    };
                 }
                 setHasCheckedLocal(true);
             } catch (error) {

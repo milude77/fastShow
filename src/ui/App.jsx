@@ -137,9 +137,6 @@ function App() {
     setContacts(contactList);
   }
 
-  useEffect(() => {
-    getContactList()
-  }, []);
 
   const handleLoginSuccess = useCallback((data) => {
     const { userId, username, token, email } = data;
@@ -153,6 +150,7 @@ function App() {
       username: username
     }));
     setCurrentUser({ userId, username, email, token });
+    getContactList();
   }, [setCurrentUser, setUserId]);
 
   const handleFriendsList = useCallback((friendsWithGroups) => {
@@ -255,21 +253,22 @@ function App() {
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
     window.electronAPI.ipcRenderer.on('send-new-meaage', sortContactList);
     window.electronAPI.ipcRenderer.on('revived-new-chat-message', sortContactList);
+    window.electronAPI.ipcRenderer.on('contacts-list-updated', getContactList);
 
     return () => {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
       window.electronAPI.ipcRenderer.removeListener('message-history-deleted', handleChatHistoryDeleted);
       window.electronAPI.ipcRenderer.removeListener('send-new-meaage', sortContactList);
       window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', sortContactList);
+      window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
     }
 
-  }, [handleChatHistoryDeleted, sortContactList])
+  }, [ handleChatHistoryDeleted, sortContactList, getContactList])
 
   useEffect(() => {
     if (!socket) return;
     socket.on('login-success', handleLoginSuccess);
     socket.on('new-message', handleNewMessage);
-    socket.on('contacts-list', handleFriendsList);
     socket.on('friend-request-accepted', friendsRequestAccepted);
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
@@ -285,7 +284,6 @@ function App() {
     return () => {
       socket.off('login-success', handleLoginSuccess);
       socket.off('user-registered', handleLoginSuccess);
-      socket.off('contacts-list', handleFriendsList);
       socket.off('new-message', handleNewMessage);
       socket.off('friend-request-accepted', friendsRequestAccepted);
       socket.off('connect', handleConnect);
@@ -316,13 +314,13 @@ function App() {
 
 
   const handleDeleteContact = useCallback((event, { contactId }) => {
-    messageApi.success('删除好友成功');
     setSelectedContactInformation(null)
     setSelectedContact(null)
     setContacts(prevContacts => {
       const newContacts = prevContacts.filter(contact => { return (contact.id !== contactId || contact.type !== 'friend') });
       return newContacts;
     });
+    messageApi.success('删除好友成功');
   }, [setSelectedContactInformation, setSelectedContact, setContacts, messageApi]);
 
   const renderFeature = () => {
