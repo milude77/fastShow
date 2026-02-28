@@ -1171,7 +1171,7 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
     } catch (error) {
         const defaultAvatarUrl = await minioClient.presignedGetObject(
             bucketName,
-            'public-resources/default_avatar.jpg',
+            `public-resources/${userType === 'user' ? 'default_avatar' : 'default_group_avatar'}.png`,
             24 * 60 * 60
         );
         res.redirect(defaultAvatarUrl);
@@ -1206,7 +1206,7 @@ app.get('/api/avatar/:userId/:userType/download', async (req, res) => {
         // 检查文件是否存在
         try {
             await minioClient.statObject(bucketName, objectName);
-        } catch (statError) {
+        } catch (error) {
             // 如果头像不存在，返回默认头像
             try {
                 const defaultObjectName = 'public-resources/default_avatar.jpg';

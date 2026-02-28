@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Modal, Button } from 'antd';
 import './css/messageList.css';
 import { FileOutlined, TeamOutlined } from '@ant-design/icons';
@@ -100,8 +100,9 @@ const MessageList = ({ contact, messageListHook }) => {
 
     const messageContainerRef = useRef(null);
     const lastMessageRef = useRef(null);
+    const LastMessageTimestamp = useRef(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
-    const [isFirstLoad, setIsFirstLoad] = useState(true);
+    const firstLoadRef = useRef(true);
     const [modal, modalContextHolder] = Modal.useModal();
     const { getAvatarUrl } = useUserAvatar();
     const [isMessageListTop, setIsMessageListTop] = useState(false)
@@ -126,11 +127,11 @@ const MessageList = ({ contact, messageListHook }) => {
     const currentDistanceFromBottom = useRef(0);
 
     const handleScroll = async () => {
+        //滚动到顶部加载更多消息
         if (messageContainerRef.current.scrollTop < 50 && !isLoadingMore && !isMessageListTop) {
             currentDistanceFromBottom.current = messageContainerRef.current.scrollHeight - messageContainerRef.current.scrollTop - 50
-
             setIsLoadingMore(true);
-            const isTop =  await onLoadMore();
+            const isTop = await onLoadMore();
             setIsMessageListTop(isTop);
         }
     };
@@ -144,25 +145,14 @@ const MessageList = ({ contact, messageListHook }) => {
         }
     }, [messages, isLoadingMore]);
 
-    const firstScrollToBottom = useCallback((behavior = "auto") => {
-        if (lastMessageRef.current && isFirstLoad) {
-            lastMessageRef.current.scrollIntoView({
-                behavior: behavior,
-                block: 'end'  // 确保元素滚动到容器底部
-            });
-            setIsFirstLoad(false);
-        }
-    }, [isFirstLoad]);
-
     const scrollToBottom = useCallback((behavior = "auto") => {
-        if (lastMessageRef.current && isFirstLoad) {
+        if (lastMessageRef.current) {
             lastMessageRef.current.scrollIntoView({
                 behavior: behavior,
                 block: 'end'  // 确保元素滚动到容器底部
             });
-            setIsFirstLoad(false);
         }
-    }, [isFirstLoad]);
+    }, []);
 
     const getGroupMemberList = useCallback(async () => {
         const url = await window.electronAPI.getServerUrl();
@@ -175,15 +165,18 @@ const MessageList = ({ contact, messageListHook }) => {
 
     useEffect(() => {
         getGroupMemberList();
-        setIsFirstLoad(true);
+        firstLoadRef.current = true;
         setIsMessageListTop(false)
         setOpenContactOptions(false)
     }, [contact, getGroupMemberList]);
 
 
     useEffect(() => {
-        firstScrollToBottom();
-    }, [messages, contact, firstScrollToBottom]);
+        if (firstLoadRef.current && messages.length > 0) {
+            firstLoadRef.current = false;
+            scrollToBottom();
+        }
+    }, [messages, scrollToBottom]);
 
     const handleSendMessage = (message) => {
         onSendMessage(message);
@@ -207,25 +200,27 @@ const MessageList = ({ contact, messageListHook }) => {
         }
     })
 
+    const processedMessages = useMemo(() => {
+        let lastShownTimestamp = null;
 
+        return messages.map((msg) => {
+            let showTime = false;
 
-    // 判断是否显示时间戳
-    const LastMessageTimestamp = useRef(null);
+            if (!lastShownTimestamp) {
+                showTime = true;
+                lastShownTimestamp = msg.timestamp;
+            } else if (msg.timestamp - lastShownTimestamp > 5 * 60 * 1000) {
+                showTime = true;
+                lastShownTimestamp = msg.timestamp;
+            }
 
-    useEffect(() => {
-        LastMessageTimestamp.current = null;
-    }, [messages, contact, isMessageListTop]);
-    const shouldShowTimestamp = (currentTimestamp) => {
-        if (!LastMessageTimestamp.current) {
-            LastMessageTimestamp.current = currentTimestamp;
-            return true;
-        }
-        else if (currentTimestamp - LastMessageTimestamp.current > 60 * 5000) {
-            LastMessageTimestamp.current = currentTimestamp;
-            return true;
-        }
-        return false;
-    }
+            return {
+                ...msg,
+                showTime
+            };
+        });
+
+    }, [messages]);
 
     // 拖拽上传文件
     // 由于js限制，拖拽文件无法在渲染层中获取路径，所以拖拽上传无法保存本地路径
@@ -269,7 +264,7 @@ const MessageList = ({ contact, messageListHook }) => {
                     title: `发送文件 ${fileName} 给 ${contact?.username}？`,
                     onOk() {
                         onUploadFile({ filePath });
-                        scrollToBottom();
+                        scrollToBottom("smooth");
                     }
                 });
             }
@@ -401,13 +396,12 @@ const MessageList = ({ contact, messageListHook }) => {
                         onScroll={handleScroll}
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}>
-                        <ul className='message-list'>
-                            {messages && messages.map((msg, index) => {
-                                const isShowTimestamp = shouldShowTimestamp(msg.timestamp);
+                        <div className='message-list'>
+                            {messages && processedMessages.map((msg, index) => {
                                 const AvatarSrc = getAvatarUrl(msg.sender_id);
                                 return (
                                     <>
-                                        {isShowTimestamp && <span className="message-timestamp">{formatTime(msg.timestamp)}</span>}
+                                        {msg.showTime && <span className="message-timestamp">{formatTime(msg.timestamp)}</span>}
                                         <MessageItem
                                             key={msg.id}
                                             msg={msg}
@@ -420,12 +414,12 @@ const MessageList = ({ contact, messageListHook }) => {
                                             handleDownloadFile={handleDownloadFile}
                                             convertFileSize={convertFileSize}
                                             isGroup={contact.type === 'group'}
-                                            ref={index === messages.length - 1 ? lastMessageRef : null}
                                         />
+                                        <div className="message-list-botton" ref={lastMessageRef}></div>
                                     </>
                                 )
                             })}
-                        </ul >
+                        </div >
                         <div className="group-member-toggle-btn"
 
                             onMouseEnter={() => setGroupMemberListBtnDisplay(true)}

@@ -1671,6 +1671,9 @@ ipcMain.handle('leave-group', async (event, { groupId, currentUserID }) => {
         await db('group_messages')
             .where('receiver_id', groupId)
             .del();
+        await db('groups')
+            .where('id', groupId)
+            .del();
     } catch (error) {
         console.error('Failed to leave group:', error);
     }
