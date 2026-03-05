@@ -5,19 +5,10 @@
   align-items: center;
   color: var(--text-color);
   height: 32px;
-  top: 0;
-  right: 0;
   z-index: 1000;
   user-select: none;
   width: 100%;
   -webkit-app-region: drag; 
-}
-
-
-.title-bar-controls {
-  display: flex;
-  height: 100%;
-  right: 0;
 }
 
 .title-bar-button {

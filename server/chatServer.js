@@ -628,11 +628,9 @@ io.on('connection', (socket) => {
             // 查找对方是否在线，以便发送实时通知
             const targetSocketId = await getOnlineUserId(friendId);
 
-
-
             if (targetSocketId) {
                 // 发送完整的用户信息（ID和用户名）
-                io.to(targetSocketId).emit('new-friend-request', {
+                io.to(targetSocketId.socketId).emit('new-friend-request', {
                     id: friendshipId,
                     inviterId: senderInfo.userId,
                     inviterName: senderInfo.username
@@ -685,7 +683,7 @@ io.on('connection', (socket) => {
 
                 const targetSocketId = await getOnlineUserId(friendInformation.id);
                 if (targetSocketId) {
-                    io.to(targetSocketId).emit('friend-request-accepted', {
+                    io.to(targetSocketId.socketId).emit('friend-request-accepted', {
                         id: senderInfo.userId,
                         username: senderInfo.username,
                         type: 'friend',
@@ -915,7 +913,7 @@ io.on('connection', (socket) => {
         if (userInfo) {
             console.log(`${userInfo.username} (ID: ${userInfo.userId}) 断开连接`);
         }
-        else{
+        else {
             return;
         }
 
@@ -923,6 +921,59 @@ io.on('connection', (socket) => {
         await removeOnlineUserId(userInfo.userId);
         await removeOnlineUser(socket.id);
     });
+
+    //音视频通信模块
+    socket.on("join-room", async (roomId) => {
+        const userInfo = await getOnlineUser(socket.id);
+        socket.join(roomId);
+        console.log(`${userInfo.username} 加入房间 ${roomId}`);
+    });
+
+    socket.on('call-request', async({ roomId, contactId }) => {
+        // 如果指定了目标用户，只发送给该用户
+        const targetId = await getOnlineUserId(contactId);
+        if (targetId) {
+            socket.to(targetId.socketId).emit('call-request', { callerId: socket.id });
+        } else {
+            // 否则发送给房间内所有其他用户
+            socket.to(roomId).emit('call-request', { callerId: socket.id });
+        }
+    });
+
+    // 处理offer时指定接收者
+    socket.on('offer', ({ roomId, offer, targetId }) => {
+        if (targetId) {
+            socket.to(targetId).emit('offer', {
+                offer,
+                senderId: socket.id
+            });
+        } else {
+            socket.to(roomId).emit('offer', {
+                offer,
+                senderId: socket.id
+            });
+        }
+    });
+
+    // 处理answer时指定接收者
+    socket.on('answer', ({ roomId, answer, targetId }) => {
+        if (targetId) {
+            socket.to(targetId).emit('answer', { answer });
+        } else {
+            socket.to(roomId).emit('answer', { answer });
+        }
+    });
+
+    socket.on("ice-candidate", ({ roomId, candidate, targetId }) => {
+        console.log('接受', roomId, candidate, targetId)
+        if (targetId) {
+            socket.to(targetId).emit("ice-candidate", { candidate });
+        }
+        else {
+            socket.to(roomId).emit("ice-candidate", { candidate });
+        }
+    });
+
 });
 
 // 静态文件服务（用于文件下载）
@@ -1211,14 +1262,14 @@ app.get('/api/avatar/:userId/:userType/download', async (req, res) => {
             try {
                 const defaultObjectName = 'public-resources/default_avatar.jpg';
                 await minioClient.statObject(bucketName, defaultObjectName);
-                
+
                 // 流式传输默认头像
                 const dataStream = await minioClient.getObject(bucketName, defaultObjectName);
-                
+
                 // 设置响应头
                 res.setHeader('Content-Type', 'image/jpeg');
                 res.setHeader('Content-Disposition', 'inline; filename="default_avatar.jpg"');
-                
+
                 // 管道传输数据
                 dataStream.pipe(res);
                 return;
@@ -1257,12 +1308,12 @@ app.get('/api/avatar/:userId/:userType/download', async (req, res) => {
             });
 
             const partialDataStream = await minioClient.getPartialObject(
-                bucketName, 
-                objectName, 
-                start, 
+                bucketName,
+                objectName,
+                start,
                 chunksize
             );
-            
+
             partialDataStream.pipe(res);
         } else {
             // 直接流式传输整个文件
@@ -1271,7 +1322,7 @@ app.get('/api/avatar/:userId/:userType/download', async (req, res) => {
 
     } catch (error) {
         console.error('头像下载错误:', error);
-        
+
         if (!res.headersSent) {
             if (error.code === 'NoSuchKey') {
                 return res.status(404).json({ error: '头像文件不存在' });

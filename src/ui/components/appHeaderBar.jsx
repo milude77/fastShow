@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef } from 'react';
 import { Button } from 'antd';
 import { PushpinOutlined, PushpinFilled, MinusOutlined, BorderOutlined, CloseOutlined } from '@ant-design/icons';
 import '../css/appHeaderBar.css';
 
-const AppHeaderBar = ({ style }) => {
+const AppHeaderBar = forwardRef(({ style }, ref) => {
   const [isPinned, setIsPinned] = useState(false);
 
   const customSetIsPinned = (newIsPinnedState) => {
@@ -45,15 +45,13 @@ const AppHeaderBar = ({ style }) => {
   };
 
   return (
-    <div className="title-bar" style={style}>
-      <div className="title-bar-controls">
-        <Button className='title-bar-button' type="text" icon={isPinned ? <PushpinFilled /> : <PushpinOutlined />} onClick={handlePin} />
-        <Button className='title-bar-button' type="text" icon={<MinusOutlined />} onClick={handleMinimize} />
-        <Button className='title-bar-button' type="text" icon={<BorderOutlined />} onClick={handleMaximize} />
-        <Button className='title-bar-button' type="text" icon={<CloseOutlined />} onClick={handleClose} />
-      </div>
+    <div className="title-bar" ref={ref} style={style}>
+      <Button className='title-bar-button' type="text" icon={isPinned ? <PushpinFilled /> : <PushpinOutlined />} onClick={handlePin} />
+      <Button className='title-bar-button' type="text" icon={<MinusOutlined />} onClick={handleMinimize} />
+      <Button className='title-bar-button' type="text" icon={<BorderOutlined />} onClick={handleMaximize} />
+      <Button className='title-bar-button' type="text" icon={<CloseOutlined />} onClick={handleClose} />
     </div>
   );
-};
+});
 
 export default AppHeaderBar;

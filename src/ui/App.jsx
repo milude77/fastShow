@@ -263,7 +263,11 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
     }
 
-  }, [ handleChatHistoryDeleted, sortContactList, getContactList])
+  }, [handleChatHistoryDeleted, sortContactList, getContactList])
+
+  const handleCallRequest = useCallback(async ({ callerId }) => {
+    await window.electronAPI.receivedCallRequest(callerId)
+  }, [])
 
   useEffect(() => {
     if (!socket) return;
@@ -280,6 +284,7 @@ function App() {
     socket.on('group-invite', handleNewGroupInvite);
     socket.on('notification', handleNotificationMessage);
     socket.on('strong-logout-warning', handleStrongLogoutWarning);
+    socket.on('call-request', handleCallRequest)
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
@@ -296,6 +301,7 @@ function App() {
       socket.off('group-invite', handleNewGroupInvite);
       socket.off('notification', handleNotificationMessage);
       socket.off('strong-logout-warning', handleStrongLogoutWarning);
+      socket.off('call-request', handleCallRequest)
     };
   }, [socket, handleLoginSuccess, handleNewMessage, handleFriendsList, friendsRequestAccepted, handleConnect, handleDisconnect, handleReconnecting, handleSendMessageStatus, handleNewGroup, handleLeaveGroupSuccess, handleNewFriendRequests, handleNewGroupInvite, handleNotificationMessage, handleStrongLogoutWarning]);
 

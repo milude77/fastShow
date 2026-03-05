@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { Modal, Button } from 'antd';
+import { Modal, Button, Menu, Dropdown } from 'antd';
 import './css/messageList.css';
 import { FileOutlined, TeamOutlined } from '@ant-design/icons';
-import { WhatsAppOutlined, EllipsisOutlined } from '@ant-design/icons';
+import { WhatsAppOutlined, EllipsisOutlined, PhoneOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import ContactOption from "./contactOption";
 import GroupMember from "./groupMember";
 import MessageInput from "./messageInput";
@@ -59,22 +59,40 @@ const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
     )
 }
 
-const MessageListTool = ({ openContactOptions }) => {
+const MessageListTool = ({ openContactOptions, voiceCallToContact, videoCallToContact }) => {
+
+    const MenuItem = (
+        <Menu>
+            <Menu.Item key="1" >
+                <Button type="link" icon={<PhoneOutlined />} onClick={() => voiceCallToContact()} >语音通话</Button>
+            </Menu.Item>
+            <Menu.Item key="2">
+                <Button type="link" icon={<VideoCameraOutlined />} onClick={() => videoCallToContact()} >视频通话</Button>
+            </Menu.Item>
+        </Menu>
+    )
+
     return (
-        <div className="message-list-tool">
-            <WhatsAppOutlined className="icon" />
+        <div className="message-list-tool" >
+            <Dropdown
+                overlay={MenuItem}
+                trigger={['click']}
+            >
+                <WhatsAppOutlined id="" className="icon" />
+            </Dropdown>
+
             <EllipsisOutlined id="contact-options-btn" className="icon" onClick={() => openContactOptions()} />
         </div>
     )
 }
 
-const MessageListHead = ({ contact, openContactOptions, memberLength }) => {
+const MessageListHead = ({ contact, openContactOptions, memberLength, voiceCallToContact, videoCallToContact }) => {
     return (
         <div className='contact-info'>
             <strong>
                 {contact.username + (contact.type === 'friend' ? '' : `(${memberLength})`)}
             </strong>
-            <MessageListTool openContactOptions={openContactOptions} />
+            <MessageListTool openContactOptions={openContactOptions} voiceCallToContact={voiceCallToContact} videoCallToContact={videoCallToContact} />
         </div>
     )
 }
@@ -143,7 +161,7 @@ const MessageList = ({ contact, messageListHook }) => {
 
             setIsLoadingMore(false);
         }
-    }, [messages, isLoadingMore]);
+    }, [messages]);
 
     const scrollToBottom = useCallback((behavior = "auto") => {
         if (lastMessageRef.current) {
@@ -380,10 +398,18 @@ const MessageList = ({ contact, messageListHook }) => {
         setOpenContactOptions(false);
     };
 
+    const handleVoiceCallToContact = () => {
+        window.electronAPI.voiceCallToContact(contact.id);
+    };
+
+    const handleVideoCallToContact = () => {
+        window.electronAPI.videoCallToContact(contact.id);
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {modalContextHolder}
-            <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} memberLength={groupMemberList?.length || 0} />
+            <MessageListHead contact={contact} openContactOptions={handleOpenContactOptions} memberLength={groupMemberList?.length || 0} voiceCallToContact={handleVoiceCallToContact} videoCallToContact={handleVideoCallToContact} />
             <div style={{ display: 'flex', flex: '1' }}>
                 <div style={{ display: 'flex', flex: '1', flexDirection: 'column', position: 'relative' }}>
                     <div className='history-message-box' style={{ height: window.innerHeight - 310 }} ref={messageContainerRef}
@@ -400,10 +426,9 @@ const MessageList = ({ contact, messageListHook }) => {
                             {messages && processedMessages.map((msg, index) => {
                                 const AvatarSrc = getAvatarUrl(msg.sender_id);
                                 return (
-                                    <>
+                                    <React.Fragment key={msg.id} >
                                         {msg.showTime && <span className="message-timestamp">{formatTime(msg.timestamp)}</span>}
                                         <MessageItem
-                                            key={msg.id}
                                             msg={msg}
                                             index={index}
                                             userAvatarSrc={AvatarSrc}
@@ -416,7 +441,7 @@ const MessageList = ({ contact, messageListHook }) => {
                                             isGroup={contact.type === 'group'}
                                         />
                                         <div className="message-list-botton" ref={lastMessageRef}></div>
-                                    </>
+                                    </React.Fragment>
                                 )
                             })}
                         </div >

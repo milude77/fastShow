@@ -3,8 +3,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   newChatMessage: (contactId, msg) => ipcRenderer.send('new-chat-message', { contactId, msg }),
   getNewMessageId: () => ipcRenderer.invoke('get-new-message-id'),
-  sendPrivateMessage: ( { receiverId, message, messageId } ) => ipcRenderer.send('send-private-message', { receiverId, message, messageId }),
-  sendGroupMessage: ( { groupId, message, messageId } ) => ipcRenderer.send('send-group-message', { groupId, message, messageId }),
+  sendPrivateMessage: ({ receiverId, message, messageId }) => ipcRenderer.send('send-private-message', { receiverId, message, messageId }),
+  sendGroupMessage: ({ groupId, message, messageId }) => ipcRenderer.send('send-group-message', { groupId, message, messageId }),
   sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
   resendMessage: (messageId, isGroup) => ipcRenderer.invoke('resend-message', { messageId, isGroup }),
   getLastMessage: (contactId, isGroup) => ipcRenderer.invoke('get-last-message', { contactId, isGroup }),
@@ -40,7 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   openFileLocation: (messageId, isGroup) => ipcRenderer.invoke('open-file-location', { messageId, isGroup }),
-  checkFileExists: (messageId, isGroup) => ipcRenderer.invoke('check-file-exists', { messageId, isGroup }), 
+  checkFileExists: (messageId, isGroup) => ipcRenderer.invoke('check-file-exists', { messageId, isGroup }),
   checkAssestFileExits: (filePath) => ipcRenderer.invoke('check-assest-file-exits', filePath),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, pageSize, isGroup, beforeTimestamp) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, pageSize, isGroup, beforeTimestamp }),
@@ -51,10 +51,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteContact: (contactId) => ipcRenderer.invoke('delete-contact', { contactId }),
   deleteContactMessageHistory: (contact) => ipcRenderer.invoke('delete-contact-message-history', { contact }),
   leaveGroup: (groupId, currentUserID) => ipcRenderer.invoke('leave-group', { groupId, currentUserID }),
+  getVoiceChatServerUrl: () => ipcRenderer.invoke('get-voice-chat-server-url'),
 
 
   //用户数据配置相关
-  loginSuccess: ({ userId, token }) => ipcRenderer.send('login-success', { userId, token}),
+  loginSuccess: ({ userId, token }) => ipcRenderer.send('login-success', { userId, token }),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
   getContactList: () => ipcRenderer.invoke('get-contact-list'),
@@ -69,6 +70,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteUser: (removeUserId) => ipcRenderer.send('delete-saved-user', removeUserId),
   strongLogoutWaring: (message) => ipcRenderer.send('strong-logout-waring', message),
   logout: () => ipcRenderer.send('logout'),
+
+  //音视频通话功能配置
+  voiceCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'audio' }),
+  videoCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'video' }),
+  receivedCallRequest: (callerId) => ipcRenderer.send('voice-call-to-contact', { callerId }),
+  hangupCall: () => ipcRenderer.send('hangup-call'),
 
   //github配置相关
   githubOAuth: () => ipcRenderer.invoke('github-oauth'),

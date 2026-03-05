@@ -73,7 +73,6 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
           (searchResults.map(user => (
             <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                {console.log(getAvatarUrl(user.id))}
                 <Avatar
                   src={getAvatarUrl(user.id)}
                   size={40}

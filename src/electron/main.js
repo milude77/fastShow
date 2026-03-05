@@ -46,6 +46,7 @@ let reconnectionTimer;
 let heartbeatTimeout;
 let tray = null;
 let mainWindow = null;
+let voiceWindow = null;
 let currentUserId;
 let currentUserToken;
 
@@ -505,7 +506,7 @@ function createMainWindow() {
     });
 
     if (isDev) {
-        mainWindow.loadURL("http://localhost:5234");
+        mainWindow.loadURL(`http://localhost:5234`);
         mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(path.join(app.getAppPath(), "dist", "index.html"));
@@ -521,6 +522,11 @@ function createMainWindow() {
 
     // 处理窗口关闭事件（点击关闭按钮隐藏到托盘）
     mainWindow.on('close', (event) => {
+        BrowserWindow.getAllWindows().forEach(win => {
+            if (win !== mainWindow) {
+                win.close();
+            }
+        });
         if (!app.quitting) {
             event.preventDefault();
             mainWindow.setSkipTaskbar(true);
@@ -668,6 +674,10 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
         }
 
         dbPath = path.join(userDbPath, 'chat_history.sqlite3');
+
+        if (!fs.existsSync(dbPath)) {
+            fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+        }
 
         // 创建数据库连接
         db = knex({
@@ -1328,6 +1338,10 @@ ipcMain.handle('check-assest-file-exits', async (event, filePath) => {
 
 async function downloadFileToLocal(fileUrl, filePath) {
     try {
+        if (!fs.existsSync(filePath)) {
+            fs.makdirSync(path.dirname(filePath), { recursive: true });
+        }
+
         const response = await apiClient.get(fileUrl, {
             responseType: 'stream',
             timeout: 0,
@@ -1360,7 +1374,7 @@ async function downloadFileToLocal(fileUrl, filePath) {
     }
 }
 
-ipcMain.handle('download-assest-file', async (event, { fileUrl, filePath }) => { 
+ipcMain.handle('download-assest-file', async (event, { fileUrl, filePath }) => {
     await downloadFileToLocal(fileUrl, filePath);
 })
 
@@ -1731,6 +1745,47 @@ ipcMain.on('logout', async () => {
     app.exit();
 });
 
+const creatVoiceWindow = async (event, { contactId, callMode, callerId }) => {
+    voiceWindow = new BrowserWindow({
+        width: 400,
+        height: 600,
+        minHeight: 300,
+        minWidth: 400,
+        frame: false,
+        webPreferences: {
+            preload: path.join(app.getAppPath(), "src", "electron", "preload.js"),
+            devTools: isDev
+        }
+    });
+
+    let voiceWindowPath;
+
+    voiceWindowPath = isDev
+        ? `http://localhost:5234/voice.html?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`
+        : `file://${path.join(app.getAppPath(), "dist", "voice.html")}?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`;
+
+    if (isDev) {
+        voiceWindow.openDevTools()
+    }
+    voiceWindow.loadURL(voiceWindowPath);
+    voiceWindow.on('closed', () => {
+        voiceWindow = null;
+    });
+}
+
+//音视频通话功能模块
+ipcMain.on('voice-call-to-contact', async (event, { contactId = null, callMode = null, callerId = null }) => {
+    if (!voiceWindow) {
+        await creatVoiceWindow(event, { contactId, callMode, callerId });
+    }
+    else {
+        return
+    }
+});
+
+ipcMain.handle('get-voice-chat-server-url', async () => {
+    return config.SOCKET_VOICE_SERVER_URL
+})
 
 // --- End Socket.IO IPC ---
 
@@ -1786,8 +1841,6 @@ app.on('second-instance', (event, argv) => {
     }
 
 });
-
-
 
 app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit()
