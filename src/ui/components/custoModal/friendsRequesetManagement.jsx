@@ -2,8 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useSocket } from '../../hooks/useSocket';
 import './css/friendsRequesetManagement.css';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
+import { useTranslation } from 'react-i18next';
+
+
 
 const FriendsRequestManagement = () => {
+    const { t } = useTranslation();
+
 
     const socket = useSocket();
     const { messageApi } = useGlobalMessage();
@@ -37,7 +42,7 @@ const FriendsRequestManagement = () => {
                         status: 'accept'
                     }
                 }));
-                messageApi.success('已接受群邀请');
+                messageApi.success(t('friendsRequest.acceptedGroupInvite'));
                 return;
             }
             socket.emit('accept-friend-request', requesterId);
@@ -49,7 +54,7 @@ const FriendsRequestManagement = () => {
                     status: 'accept'
                 }
             }));
-            messageApi.success('已接受好友请求');
+            messageApi.success(t('friendsRequest.acceptedFriendRequest'));
         }
     };
 
@@ -65,7 +70,7 @@ const FriendsRequestManagement = () => {
                         status: 'declined'
                     }
                 }));
-                messageApi.success('已拒绝群邀请');
+                messageApi.success(t('friendsRequest.declinedGroupInvite'));
                 return;
             }
             socket.emit('decline-friend-request', requesterId);
@@ -77,7 +82,7 @@ const FriendsRequestManagement = () => {
                     status: 'declined'
                 }
             }));
-            messageApi.success('已拒绝好友请求');
+            messageApi.success(t('friendsRequest.declinedFriendRequest'));
         }
     }
     const renderActionButtons = (status, id, isGroupInvite = false) => {
@@ -85,20 +90,20 @@ const FriendsRequestManagement = () => {
             case 'pending':
                 return (
                     <div>
-                        <button onClick={() => handleAcceptRequest(id, isGroupInvite)}>接受</button>
-                        <button onClick={() => handleDeclineRequest(id, isGroupInvite)}>拒绝</button>
+                        <button onClick={() => handleAcceptRequest(id, isGroupInvite)}>{t('friendsRequest.accept')}</button>
+                        <button onClick={() => handleDeclineRequest(id, isGroupInvite)}>{t('friendsRequest.decline')}</button>
                     </div>
                 );
             case 'accept':
                 return (
                     <div>
-                        <span>{`${isGroupInvite ? '已加入群聊' : '已接受好友请求'}`}</span>
+                        <span>{`${isGroupInvite ? t('friendsRequest.acceptedGroupInvite') : t('friendsRequest.acceptedFriendRequest')}`}</span>
                     </div>
                 );
             case 'declined':
                 return (
                     <div>
-                        <span> {`${isGroupInvite ? '已拒绝群邀请' : '已拒绝好友请求'}`}</span>
+                        <span> {`${isGroupInvite ? t('friendsRequest.declinedGroupInvite') : t('friendsRequest.declinedFriendRequest')}`}</span>
                     </div>
                 );
             default:
@@ -106,10 +111,9 @@ const FriendsRequestManagement = () => {
         }
     };
 
-
     return (
         <div className='friends-request-management'>
-            <h4 className='title'>好友请求</h4>
+            <h4 className='title'>{t('friendsRequest.title')}</h4>
             <div className='invite-list'>
                 {inviteInformationList && Object.keys(inviteInformationList).length > 0 ? (
                     Object.entries(inviteInformationList).map(([id, req]) => (
@@ -122,7 +126,7 @@ const FriendsRequestManagement = () => {
                                 />
                                 <div className='invite-content'>
                                     <span className='invite-text'>
-                                        <h4>{req.inviter_name}</h4> 请求添加你为好友
+                                        <h4>{req.inviter_name}</h4> {t('friendsRequest.requestAddFriend')}
                                     </span>
                                     <div className='invite-actions'>
                                         {renderActionButtons(req.status, id)}
@@ -138,7 +142,7 @@ const FriendsRequestManagement = () => {
                                 />
                                 <div className='invite-content'>
                                     <span className='invite-text'>
-                                        <h4>{req.inviter_name}</h4> 邀请你加入群聊 <h4>{req.group_name}</h4>
+                                        <h4>{req.inviter_name}</h4> {t('friendsRequest.inviteJoinGroup')} <h4>{req.group_name}</h4>
                                     </span>
                                     <div className='invite-actions'>
                                         {renderActionButtons(req.status, id, true)}
@@ -149,7 +153,7 @@ const FriendsRequestManagement = () => {
                     ))
                 )
                     : (
-                        <p>没有新的好友请求</p>
+                        <p>{t('friendsRequest.noNewRequests')}</p>
                     )}
             </div>
         </div>

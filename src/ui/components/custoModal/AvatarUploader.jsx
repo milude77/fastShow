@@ -7,6 +7,8 @@ import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { useSocket } from '../../hooks/useSocket.js';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js'
 import { Button } from 'antd';
+import { useTranslation } from 'react-i18next';
+
 const createImage = (url) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -55,6 +57,7 @@ async function getCroppedImg(imageSrc, pixelCrop) {
 const AvatarUploader = ({ onAvatarUpload, onClose }) => {
 
   const currentUser = JSON.parse(localStorage.getItem('currentUser'))
+  const { t } = useTranslation();
 
   const [imgSrc, setImgSrc] = useState('');
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -89,11 +92,11 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
         );
         const message = await onAvatarUpload(croppedImageBlob);
         if (message.status === 200) {
-          messageApi.success('头像上传成功')
+          messageApi.success(t('avatarUploader.uploadSuccess'))
           refreshAvatar()
           onClose()
         } else {
-          messageApi.error('头像上传失败')
+          messageApi.error(t('avatarUploader.uploadFailed'))
         }
 
       } catch (e) {
@@ -111,7 +114,7 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
     curUserCredentials = Object.assign(curUserCredentials, { userName });
     await window.electronAPI.saveCurrentUserCredentials(curUserCredentials);
     await window.electronAPI.saveUserListCredentials(curUserCredentials)
-    messageApi.success('更新用户信息成功')
+    messageApi.success(t('avatarUploader.updateSuccess'))
   };
 
 
@@ -130,13 +133,13 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
         />
         <form onSubmit={handleSubmitInfo}>
           <div className='id-info'>
-            <label className='info-lable'>id:</label>
+            <label className='info-lable'>{t('avatarUploader.idLabel')}</label>
             <div className="id-content">
               <label>{currentUser.userId}</label>
             </div>
           </div>
           <div className='name-info'>
-            <label className='info-lable' htmlFor="user-name">昵称:</label>
+            <label className='info-lable' htmlFor="user-name">{t('avatarUploader.nicknameLabel')}</label>
             <Input
               type="text"
               id="user-name"
@@ -145,13 +148,13 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
             />
           </div>
           <div className='email-info'>
-            <label className='info-lable' htmlFor="user-email">邮箱:</label>
-            <label style={{ color: `${currentUser?.email ? '' : 'red'}` }} >{currentUser?.email ? currentUser.email : '未绑定'}</label>
-            <Button>绑定邮箱</Button>
+            <label className='info-lable' htmlFor="user-email">{t('avatarUploader.emailLabel')}</label>
+            <label style={{ color: `${currentUser?.email ? '' : 'red'}` }} >{currentUser?.email ? currentUser.email : t('avatarUploader.notBound')}</label>
+            <Button>{t('avatarUploader.bindEmail')}</Button>
           </div>
           <div className="modal-actions">
-            <button type='submit'>保存</button>
-            <button onClick={onClose}>取消</button>
+            <button type='submit'>{t('avatarUploader.save')}</button>
+            <button onClick={onClose}>{t('avatarUploader.cancel')}</button>
           </div>
         </form>
       </div>
@@ -160,7 +163,7 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
 
   return (
     <div className="avatar-upload-content">
-      <h2>移动和缩放图片</h2>
+      <h2>{t('avatarUploader.moveAndZoom')}</h2>
       <div className="cropper-container">
         <Cropper
           image={imgSrc}
@@ -174,7 +177,7 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
         />
       </div>
       <div className="controls">
-        <label>缩放</label>
+        <label>{t('avatarUploader.zoom')}</label>
         <input
           type="range"
           value={zoom}
@@ -189,8 +192,8 @@ const AvatarUploader = ({ onAvatarUpload, onClose }) => {
         />
       </div>
       <div className="modal-actions">
-        <button onClick={handleUpload}>保存</button>
-        <button onClick={onClose}>取消</button>
+        <button onClick={handleUpload}>{t('avatarUploader.save')}</button>
+        <button onClick={onClose}>{t('avatarUploader.cancel')}</button>
       </div>
     </div>
 

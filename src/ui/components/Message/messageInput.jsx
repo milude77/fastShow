@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from'react';
 import './css/messageInput.css'
-
+import { useTranslation } from 'react-i18next';
 
 const MessageInput = ({ contactID, contactType, onSendMessage, onSendGroupMessage }) => {
+    const { t } = useTranslation();
     const [draft, setDraft] = useState('');
 
     const deDounce = (func, delay) => {
@@ -68,7 +69,7 @@ const MessageInput = ({ contactID, contactType, onSendMessage, onSendGroupMessag
                 onChange={handleDraftChange}
                 onKeyDown={handleKeyDown}
             />
-            <button className='message-send-btn' onClick={() => handleSendMessage(draft)}>发送</button>
+            <button className='message-send-btn' onClick={() => handleSendMessage(draft)}>{t('chat.sendMessage')}</button>
         </>
     );
 };

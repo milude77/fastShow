@@ -6,8 +6,10 @@ import { useEffect, useState } from 'react';
 import Avatar from '../avatar.jsx';
 import './css/contactItem.css';
 import { formatTime } from '../../utils/timeFormatter.js';
+import { useTranslation } from 'react-i18next';
 
 const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact, serverUrl }) => {
+    const { t } = useTranslation();
     const [lastMessage, setLastMessage] = useState({});
     const [draft, setDraft] = useState('');
     const [newMessageCount, setNewMessageCount] = useState(0);
@@ -125,7 +127,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
             <div className="contact-info-grid">
                 <span className="contact-username">{contact.username}</span>
                 <span className={`contact-message ${draft ? 'draft' : ''}`}>
-                    {draft ? `[草稿]${draft}` : (lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : '')}
+                    {draft ? `[${t('contactItem.draft')}]${draft}` : (lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : '')}
                 </span>
                 {lastMessage?.timestamp && (<span className="contact-timestamp">{formatTime(lastMessage?.timestamp)}</span>)}
                 {newMessageCount > 0 && (

@@ -1,0 +1,173 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "cancel": "取消",
+    "confirm": "确认",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "search": "搜索",
+    "close": "关闭",
+    "yes": "是",
+    "no": "否"
+  },
+  "voice": {
+    "incomingCall": "来电",
+    "outgoingCall": "去电",
+    "callEnded": "通话结束",
+    "callerId": "来电号码",
+    "answer": "接听",
+    "reject": "拒绝",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "hold": "保持",
+    "resume": "恢复",
+    "hangup": "挂断"
+  },
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "theme": "主题",
+    "notifications": "通知",
+    "audio": "音频设置",
+    "video": "视频设置",
+    "userManagement": "用户管理",
+    "general": "通用",
+    "confirmLogout": "确定要退出登录吗？",
+    "logout": "退出登录"
+  },
+  "language": {
+    "zh": "中文",
+    "en": "English",
+    "ru": "Русский"
+  },
+  "avatarUploader": {
+    "uploadSuccess": "头像上传成功",
+    "uploadFailed": "头像上传失败",
+    "updateSuccess": "更新用户信息成功",
+    "idLabel": "ID:",
+    "nicknameLabel": "昵称:",
+    "emailLabel": "邮箱:",
+    "notBound": "未绑定",
+    "bindEmail": "绑定邮箱",
+    "save": "保存",
+    "cancel": "取消",
+    "moveAndZoom": "移动和缩放图片",
+    "zoom": "缩放"
+  },
+  "contactItem": {
+    "draft": "草稿"
+  },
+  "voiceApp": {
+    "call": "呼叫",
+    "waitingForAnswer": "等待对方接听...",
+    "answer": "接听",
+    "reject": "拒绝",
+    "hangup": "挂断"
+  },
+  "app": {
+    "createGroup": "创建群聊",
+    "addFriend": "添加好友",
+    "search": "搜索",
+    "disconnected": "已断开连接",
+    "reconnecting": "正在重新连接...",
+    "leaveGroupSuccess": "退出群聊成功",
+    "deleteFriendSuccess": "删除好友成功",
+    "defaultList": "默认列表"
+  },
+  "search": {
+    "placeholder": "按 用户名/id 搜索",
+    "noResults": "搜索结果无用户/群聊"
+  },
+  "friendsRequest": {
+    "title": "好友请求",
+    "accept": "接受",
+    "decline": "拒绝",
+    "acceptedGroupInvite": "已加入群聊",
+    "declinedGroupInvite": "已拒绝群邀请",
+    "acceptedFriendRequest": "已接受好友请求",
+    "declinedFriendRequest": "已拒绝好友请求",
+    "noNewRequests": "没有新的好友请求",
+    "requestAddFriend": "请求添加你为好友",
+    "inviteJoinGroup": "邀请你加入群聊",
+    "sent": "好友请求已发送",
+    "sendFailed": "发送好友请求失败 错误原因："
+  },
+  "chat": {
+    "sendMessage": "发送消息",
+    "messagePlaceholder": "输入消息...",
+    "online": "在线",
+    "offline": "离线",
+    "typing": "正在输入..."
+  },
+  "group": {
+    "members": "群聊成员",
+    "inviteFriendsTitle": "邀请好友加入群聊",
+    "selectFriends": "选择好友",
+    "invite": "邀请",
+    "confirmLeave": "确认退出群聊",
+    "leave": "退出群聊",
+    "clearHistoryWarning": "(将清空所有历史消息！)"
+  },
+  "contact": {
+    "confirmDelete": "确认删除好友",
+    "clearHistoryWarning": "(将清空所有历史消息！)",
+    "confirmClearHistory": "确认清空",
+    "historyChat": "的历史聊天记录？",
+    "historyCleared": "消息已清除",
+    "clearHistory": "清空历史聊天记录",
+    "delete": "删除好友",
+    "invite": "邀请",
+    "sendMessage": "发消息",
+    "confirmDeleteMsg": "确定要删除该好友吗？"
+  },
+  "file": {
+    "tooLarge": "文件过大",
+    "sizeLimit": "暂不支持上传超过 200MB 的文件",
+    "sendConfirm": "发送文件",
+    "folderNotSupported": "暂不支持上传文件夹",
+    "compressHint": "请压缩后或选择具体文件上传",
+    "downloadFailed": "文件下载失败:",
+    "openLocationFailed": "无法打开文件位置:",
+    "notExists": "文件不存在或已被移动",
+    "resendFailed": "消息重新发送失败:",
+    "localPathNotFound": "无法重传文件：本地文件路径不存在",
+    "readFailed": "无法重传文件：文件读取失败",
+    "deleteFailed": "删除原消息记录失败:",
+    "resendFileFailed": "文件重传失败:",
+    "resendFileSuccess": "文件重新发送成功",
+    "uploading": "上传中..."
+  },
+  "call": {
+    "voice": "语音通话",
+    "video": "视频通话"
+  },
+  "contacts": {
+    "friendRequests": "好友申请",
+    "myFriends": "我的好友",
+    "noFriends": "暂无好友",
+    "myGroups": "我的群聊",
+    "noGroups": "暂无群聊"
+  },
+  "nav": {
+    "messages": "消息",
+    "contacts": "联系人",
+    "settings": "设置"
+  },
+  "user": {
+    "loadingList": "正在加载用户列表...",
+    "noUserInfo": "未找到用户信息",
+    "noUsername": "（无用户名）",
+    "confirmRemove": "确定要移除该账号吗？",
+    "confirmSwitch": "确定切换到用户",
+    "giveTo": "给"
+  },
+  "createGroup": {
+    "selectFriends": "选择好友创建",
+    "createGroupTitle": "创建群聊",
+    "create": "创建",
+    "cancel": "取消"
+  }
+}

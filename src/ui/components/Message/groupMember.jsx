@@ -1,12 +1,13 @@
 import React from 'react';
 import './css/groupMember.css';
 import Avatar from '../avatar.jsx';
-
+import { useTranslation } from 'react-i18next';
 
 const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
+    const { t } = useTranslation();
     return (
         <div className="group-notice-bar group-member-list">
-            <span>{`群聊成员 ${members.length}`}</span>
+            <span>{`${t('group.members')} ${members.length}`}</span>
             {members.map((member, index) => {
                 return (
                     <div className="group-member" key={index}>

@@ -1,0 +1,173 @@
+{
+  "common": {
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успешно",
+    "cancel": "Отмена",
+    "confirm": "Подтвердить",
+    "save": "Сохранить",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "search": "Поиск",
+    "close": "Закрыть",
+    "yes": "Да",
+    "no": "Нет"
+  },
+  "voice": {
+    "incomingCall": "Входящий звонок",
+    "outgoingCall": "Исходящий звонок",
+    "callEnded": "Звонок завершен",
+    "callerId": "Номер звонящего",
+    "answer": "Ответить",
+    "reject": "Отклонить",
+    "mute": "Отключить звук",
+    "unmute": "Включить звук",
+    "hold": "Удержать",
+    "resume": "Возобновить",
+    "hangup": "Завершить"
+  },
+  "settings": {
+    "title": "Настройки",
+    "language": "Язык",
+    "theme": "Тема",
+    "notifications": "Уведомления",
+    "audio": "Настройки аудио",
+    "video": "Настройки видео",
+    "userManagement": "Управление пользователями",
+    "general": "Общие",
+    "confirmLogout": "Вы уверены, что хотите выйти?",
+    "logout": "Выйти"
+  },
+  "language": {
+    "zh": "中文",
+    "en": "English",
+    "ru": "Русский"
+  },
+  "avatarUploader": {
+    "uploadSuccess": "Аватар загружен успешно",
+    "uploadFailed": "Ошибка загрузки аватара",
+    "updateSuccess": "Информация о пользователе обновлена",
+    "idLabel": "ID:",
+    "nicknameLabel": "Никнейм:",
+    "emailLabel": "Email:",
+    "notBound": "Не привязано",
+    "bindEmail": "Привязать Email",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "moveAndZoom": "Переместить и масштабировать изображение",
+    "zoom": "Масштаб"
+  },
+  "contactItem": {
+    "draft": "Черновик"
+  },
+  "voiceApp": {
+    "call": "Вызов",
+    "waitingForAnswer": "Ожидание ответа...",
+    "answer": "Ответить",
+    "reject": "Отклонить",
+    "hangup": "Завершить"
+  },
+  "app": {
+    "createGroup": "Создать группу",
+    "addFriend": "Добавить друга",
+    "search": "Поиск",
+    "disconnected": "Отключено",
+    "reconnecting": "Переподключение...",
+    "leaveGroupSuccess": "Успешный выход из группы",
+    "deleteFriendSuccess": "Друг успешно удален",
+    "defaultList": "Список по умолчанию"
+  },
+  "search": {
+    "placeholder": "Поиск по имени пользователя/id",
+    "noResults": "Пользователи/группы не найдены"
+  },
+  "friendsRequest": {
+    "title": "Запросы в друзья",
+    "accept": "Принять",
+    "decline": "Отклонить",
+    "acceptedGroupInvite": "Присоединился к группе",
+    "declinedGroupInvite": "Отклонено приглашение в группу",
+    "acceptedFriendRequest": "Запрос в друзья принят",
+    "declinedFriendRequest": "Запрос в друзья отклонен",
+    "noNewRequests": "Нет новых запросов в друзья",
+    "requestAddFriend": "запрашивает добавить вас в друзья",
+    "inviteJoinGroup": "приглашает вас присоединиться к группе",
+    "sent": "Запрос в друзья отправлен",
+    "sendFailed": "Не удалось отправить запрос в друзья. Причина: "
+  },
+  "chat": {
+    "sendMessage": "Отправить сообщение",
+    "messagePlaceholder": "Введите сообщение...",
+    "online": "В сети",
+    "offline": "Не в сети",
+    "typing": "Печатает..."
+  },
+  "group": {
+    "members": "Участники группы",
+    "inviteFriendsTitle": "Пригласить друзей в группу",
+    "selectFriends": "Выбрать друзей",
+    "invite": "Пригласить",
+    "confirmLeave": "Вы уверены, что хотите покинуть группу?",
+    "leave": "Покинуть группу",
+    "clearHistoryWarning": "(Вся история сообщений будет удалена!)"
+  },
+  "contact": {
+    "confirmDelete": "Вы уверены, что хотите удалить друга",
+    "clearHistoryWarning": "(Вся история сообщений будет удалена!)",
+    "confirmClearHistory": "Вы уверены, что хотите очистить",
+    "historyChat": "историю чата?",
+    "historyCleared": "Сообщения очищены",
+    "clearHistory": "Очистить историю чата",
+    "delete": "Удалить друга",
+    "invite": "Пригласить",
+    "sendMessage": "Отправить сообщение",
+    "confirmDeleteMsg": "Вы уверены, что хотите удалить этого друга?"
+  },
+  "file": {
+    "tooLarge": "Файл слишком большой",
+    "sizeLimit": "Файлы размером более 200 МБ не поддерживаются",
+    "sendConfirm": "Отправить файл",
+    "folderNotSupported": "Загрузка папок не поддерживается",
+    "compressHint": "Пожалуйста, архивируйте или выберите конкретные файлы для загрузки",
+    "downloadFailed": "Ошибка загрузки файла:",
+    "openLocationFailed": "Не удалось открыть расположение файла:",
+    "notExists": "Файл не существует или был перемещен",
+    "resendFailed": "Ошибка повторной отправки сообщения:",
+    "localPathNotFound": "Не удалось повторно отправить файл: Локальный путь не найден",
+    "readFailed": "Не удалось повторно отправить файл: Ошибка чтения файла",
+    "deleteFailed": "Не удалось удалить исходное сообщение:",
+    "resendFileFailed": "Ошибка повторной отправки файла:",
+    "resendFileSuccess": "Файл успешно отправлен повторно",
+    "uploading": "Загрузка..."
+  },
+  "call": {
+    "voice": "Голосовой звонок",
+    "video": "Видеозвонок"
+  },
+  "contacts": {
+    "friendRequests": "Запросы в друзья",
+    "myFriends": "Мои друзья",
+    "noFriends": "Нет друзей",
+    "myGroups": "Мои группы",
+    "noGroups": "Нет групп"
+  },
+  "nav": {
+    "messages": "Сообщения",
+    "contacts": "Контакты",
+    "settings": "Настройки"
+  },
+  "user": {
+    "loadingList": "Загрузка списка пользователей...",
+    "noUserInfo": "Информация о пользователе не найдена",
+    "noUsername": "(Нет имени пользователя)",
+    "confirmRemove": "Вы уверены, что хотите удалить этот аккаунт?",
+    "confirmSwitch": "Вы уверены, что хотите переключиться на пользователя",
+    "giveTo": "для"
+  },
+  "createGroup": {
+    "selectFriends": "Выберите друзей для создания",
+    "createGroupTitle": "Создать групповой чат",
+    "create": "Создать",
+    "cancel": "Отмена"
+  }
+}

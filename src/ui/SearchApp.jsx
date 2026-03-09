@@ -6,8 +6,10 @@ import selectImg from './assets/select.png';
 import { Button } from 'antd/es/radio';
 import { useUserAvatar } from './hooks/useAvatar.js';
 import Avatar from './components/avatar.jsx';
+import { useTranslation } from 'react-i18next';
 
 const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) => {
+  const { t } = useTranslation();
   const socket = useSocket();
   const [messageApi, contextHolder] = message.useMessage();
 
@@ -15,12 +17,12 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
 
   const handleAddFriendCall = useCallback((message) => {
     if (message.success) {
-      messageApi.success('好友请求已发送');
+      messageApi.success(t('friendsRequest.sent'));
     }
     else {
-      messageApi.error(`发送好友请求失败 错误原因：${message.message}`);
+      messageApi.error(`${t('friendsRequest.sendFailed')}${message.message}`);
     }
-  }, [messageApi])
+  }, [messageApi, t])
 
 
 
@@ -43,7 +45,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
         <input
           style={{ width: '50%', alignItems: 'center', height: '30px' }}
           type="search"
-          placeholder="按 用户名/id 搜索"
+          placeholder={t('search.placeholder')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -59,7 +61,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
             padding: '0 15px'
           }}
         >
-          搜索
+          {t('common.search')}
         </button>
       </form>
       <div style={{
@@ -79,7 +81,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
                 />
                 <span>{user.username} ({user.id})</span>
               </div>
-              <Button onClick={() => handleAddFriend(user.id)}>添加好友</Button>
+              <Button onClick={() => handleAddFriend(user.id)}>{t('app.addFriend')}</Button>
             </div>
           )))
           :
@@ -102,7 +104,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
               }}>
               </div>
               <span>
-                搜索结果无用户/群聊
+                {t('search.noResults')}
               </span>
             </div>
           )

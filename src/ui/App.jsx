@@ -19,12 +19,14 @@ import { useGlobalMessage } from './hooks/useGlobalMessage';
 import { useGlobalModal } from './hooks/useModalManager';
 import { useMessageList } from './hooks/useMessageList';
 import { useUserAvatar } from './hooks/useAvatar';
+import { useTranslation } from 'react-i18next';
 
 import titleImage from './assets/title.png';
 
 
 
 const SearchBar = ({ currentUser, onCreateGroup }) => {
+  const { t } = useTranslation();
 
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -37,16 +39,15 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
   const MenuItem = (
     <Menu>
       <Menu.Item className='menu-item' key="1">
-        <Button type="link" onClick={onCreateGroup}><CommentOutlined />创建群聊</Button>
+        <Button type="link" onClick={onCreateGroup}><CommentOutlined />{t('app.createGroup')}</Button>
       </Menu.Item>
       <Menu.Item className='menu-item' key="2">
-        <Button type="link" onClick={() => { window.electronAPI.openSearchWindow(currentUser.id, searchTerm) }}><UsergroupAddOutlined />添加好友</Button>
+        <Button type="link" onClick={() => { window.electronAPI.openSearchWindow(currentUser.id, searchTerm) }}><UsergroupAddOutlined />{t('app.addFriend')}</Button>
       </Menu.Item>
     </Menu>
   );
 
   return (
-
     <div className="search-bar-container" style={{ display: 'flex', alignItems: 'center' }}>
       <div className='search-input-bar'>
         <SearchOutlined />
@@ -54,7 +55,7 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
           style={{ color: 'var(--text-color)' }}
           className='search-input'
           type="search"
-          placeholder="搜索"
+          placeholder={t('app.search')}
           onChange={(e) => setSearchTerm(e.target.value)}
           value={searchTerm}
           onKeyDown={handleKeyDown}
@@ -73,6 +74,7 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
 };
 
 function App() {
+  const { t } = useTranslation();
   const [darkMode, setDarkMode] = useState(false);
   const [selectFeatures, setSelectFeatures] = useState('message');
   const [selectedContact, setSelectedContact] = useState(null);
@@ -166,7 +168,7 @@ function App() {
   }, []);
 
   const handleLeaveGroupSuccess = useCallback((groupId) => {
-    messageApi.success('退出群聊成功');
+    messageApi.success(t('app.leaveGroupSuccess'));
     setContacts(prevContacts => prevContacts.filter(contact => contact.type !== 'group' || contact.id !== groupId));
     setSelectedContact(null)
   }, [messageApi]);
@@ -324,7 +326,7 @@ function App() {
       const newContacts = prevContacts.filter(contact => { return (contact.id !== contactId || contact.type !== 'friend') });
       return newContacts;
     });
-    messageApi.success('删除好友成功');
+    messageApi.success(t('app.deleteFriendSuccess'));
   }, [setSelectedContactInformation, setSelectedContact, setContacts, messageApi]);
 
   const renderFeature = () => {
@@ -354,10 +356,10 @@ function App() {
 
   const renderConnectionStatus = () => {
     if (connectionStatus === 'disconnected') {
-      return <Alert message="已断开连接" type="error" showIcon />;
+      return <Alert message={t('app.disconnected')} type="error" showIcon />;
     }
     if (connectionStatus === 'reconnecting') {
-      return <Alert message="正在重新连接..." type="warning" showIcon />;
+      return <Alert message={t('app.reconnecting')} type="warning" showIcon />;
     }
     return null;
   };

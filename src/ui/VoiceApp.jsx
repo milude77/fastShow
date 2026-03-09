@@ -5,8 +5,10 @@ import '../ui/css/voiceApp.css'
 import { CloseCircleOutlined, PhoneOutlined, AudioOutlined, AudioMutedOutlined, VideoCameraOutlined, VideoCameraAddOutlined } from '@ant-design/icons';
 import Avatar from './components/avatar'
 import { useUserAvatar } from './hooks/useAvatar';
+import { useTranslation } from 'react-i18next';
 
 const VoiceApp = () => {
+  const { t } = useTranslation();
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
@@ -310,21 +312,21 @@ const VoiceApp = () => {
       <div className="voice-tool-btn">
         <div >
           {callStatus === "idle" && (
-            <button className="call-start-btn round-btn" onClick={startCall}>呼叫</button>
+            <button className="call-start-btn round-btn" onClick={startCall}>{t('voiceApp.call')}</button>
           )}
           {callStatus === "calling" && (
-            <p>等待对方接听...</p>
+            <p>{t('voiceApp.waitingForAnswer')}</p>
           )}
           {callStatus === "receiving" && (
             <div className="call-actions" >
-              <button className="accept-call-btn round-btn" onClick={acceptCall}><PhoneOutlined /> 接听</button>
-              <button className="reject-call-btn round-btn" onClick={closeCall}><CloseCircleOutlined /> 拒绝</button>
+              <button className="accept-call-btn round-btn" onClick={acceptCall}><PhoneOutlined /> {t('voiceApp.answer')}</button>
+              <button className="reject-call-btn round-btn" onClick={closeCall}><CloseCircleOutlined /> {t('voiceApp.reject')}</button>
             </div>
           )}
           {(callStatus === "connecting" || callStatus === "connected") && (
             <div className="call-actions" >
               <button className={`open-microphone-btn round-btn ${openMicrophone ? 'voice-open' : 'voice-close'}`} onClick={() => setOpenMicrophone(!openMicrophone)}>{openMicrophone ? <AudioOutlined /> : <AudioMutedOutlined />}</button>
-              <button className="reject-call-btn round-btn" onClick={closeCall}><CloseCircleOutlined />挂断</button>
+              <button className="reject-call-btn round-btn" onClick={closeCall}><CloseCircleOutlined />{t('voiceApp.hangup')}</button>
               <button className={`open-video-btn round-btn ${isVideoMode ? 'voice-open' : 'voice-close'}`} onClick={() => setIsVideoMode(!isVideoMode)}>{isVideoMode ? <VideoCameraOutlined /> : <VideoCameraAddOutlined />}</button>
             </div>
           )}

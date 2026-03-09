@@ -3,10 +3,12 @@ import { UserOutlined, TeamOutlined, CaretRightOutlined, UsergroupAddOutlined } 
 import './css/addressBook.css';
 import Avatar from '../avatar.jsx';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
+import { useTranslation } from 'react-i18next';
 
 const { Panel } = Collapse;
 
 const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
+    const { t } = useTranslation();
 
   const handleSelectContact = (contactId) => {
     onSelectContact(contactId);
@@ -21,7 +23,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
     <div className="address-book-container">
       <div className="friend-request-manager" onClick={() => { onSelectContact('friendsRequest') }} >
         <UsergroupAddOutlined style={{ color: 'var(--text-color)' }} />
-        <span style={{ color: 'var(--text-color)' }}>好友申请</span>
+        <span style={{ color: 'var(--text-color)' }}>{t('contacts.friendRequests')}</span>
       </div>
       <Collapse
         bordered={false}
@@ -33,7 +35,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
           header={
             <div className="address-book-header">
               <UserOutlined style={{ color: 'var(--text-color)' }} />
-              <span style={{ color: 'var(--text-color)' }}>我的好友</span>
+              <span style={{ color: 'var(--text-color)' }}>{t('contacts.myFriends')}</span>
             </div>
           }
           key="1"
@@ -50,14 +52,14 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
               </div>
             ))
           ) : (
-            <div className="address-book-no-data">暂无好友</div>
+            <div className="address-book-no-data">{t('contacts.noFriends')}</div>
           )}
 
         </Panel>
         <Panel header={
           <div className="address-book-header">
             <TeamOutlined style={{ color: 'var(--text-color)' }} />
-            <span style={{ color: 'var(--text-color)' }}>我的群聊</span>
+            <span style={{ color: 'var(--text-color)' }}>{t('contacts.myGroups')}</span>
           </div>
         } key="2" className="site-collapse-custom-panel">
           {/* 这里可以放置群聊列表 */}
@@ -68,7 +70,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
               </div>
             ))
           ) : (
-            <div style={{ color: 'var(--text-color)' }}>暂无群聊</div>
+            <div style={{ color: 'var(--text-color)' }}>{t('contacts.noGroups')}</div>
           )}
         </Panel>
       </Collapse>

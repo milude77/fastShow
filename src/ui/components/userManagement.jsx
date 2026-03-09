@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Popconfirm, Button } from "antd"
 import { CheckOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 function UserManagement() {
+    const { t } = useTranslation();
     const [userList, setUserList] = useState({});
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
@@ -37,13 +39,13 @@ function UserManagement() {
     }
 
     if (loading) {
-        return <div>正在加载用户列表...</div>;
+        return <div>{t('user.loadingList')}</div>;
     }
 
     const userIds = Object.keys(userList);
 
     if (userIds.length === 0) {
-        return <div>未找到用户信息</div>;
+        return <div>{t('user.noUserInfo')}</div>;
     }
 
     return (
@@ -51,7 +53,7 @@ function UserManagement() {
             <ul className='user-list' style={{ listStyleType: 'none', padding: 0 }}>
                 {userIds.map((userId) => {
                     const user = userList[userId];
-                    const userName = user && user.userName ? user.userName : '（无用户名）';
+                    const userName = user && user.userName ? user.userName : t('user.noUsername');
                     const isCurrentUser = currentUser?.userId == userId;
 
                     const userInfo = (
@@ -71,18 +73,18 @@ function UserManagement() {
                             ) : (
                                 <div style = {{display:"flex", justifyContent: 'space-between'}} >
                                     <Popconfirm
-                                        title="确定要移除该账号吗？"
+                                        title={t('user.confirmRemove')}
                                         onConfirm={() => handleDeleteContact(userId)}
-                                        okText="确定"
-                                        cancelText="取消"
+                                        okText={t('common.confirm')}
+                                        cancelText={t('common.cancel')}
                                     > 
                                         <MinusCircleOutlined style={{ color: 'red', marginRight: '8px', width: '20px' }} />
                                     </Popconfirm>
                                     <Popconfirm
-                                        title={`确定切换到用户 ${userName} 吗？`}
+                                        title={`${t('user.confirmSwitch')} ${userName} ${t('common.confirm')}？`}
                                         onConfirm={() => handleSwichCurrentUser(userId)}
-                                        okText="是"
-                                        cancelText="否"
+                                        okText={t('common.yes')}
+                                        cancelText={t('common.no')}
                                     >
                                         {userInfo}
                                     </Popconfirm>

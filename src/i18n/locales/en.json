@@ -1,0 +1,173 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "voice": {
+    "incomingCall": "Incoming Call",
+    "outgoingCall": "Outgoing Call",
+    "callEnded": "Call Ended",
+    "callerId": "Caller ID",
+    "answer": "Answer",
+    "reject": "Reject",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "hold": "Hold",
+    "resume": "Resume",
+    "hangup": "Hang Up"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "notifications": "Notifications",
+    "audio": "Audio Settings",
+    "video": "Video Settings",
+    "userManagement": "User Management",
+    "general": "General",
+    "confirmLogout": "Are you sure you want to logout?",
+    "logout": "Logout"
+  },
+  "language": {
+    "zh": "中文",
+    "en": "English",
+    "ru": "Русский"
+  },
+  "avatarUploader": {
+    "uploadSuccess": "Avatar uploaded successfully",
+    "uploadFailed": "Avatar upload failed",
+    "updateSuccess": "User info updated successfully",
+    "idLabel": "ID:",
+    "nicknameLabel": "Nickname:",
+    "emailLabel": "Email:",
+    "notBound": "Not Bound",
+    "bindEmail": "Bind Email",
+    "save": "Save",
+    "cancel": "Cancel",
+    "moveAndZoom": "Move and Zoom Image",
+    "zoom": "Zoom"
+  },
+  "contactItem": {
+    "draft": "Draft"
+  },
+  "voiceApp": {
+    "call": "Call",
+    "waitingForAnswer": "Waiting for answer...",
+    "answer": "Answer",
+    "reject": "Reject",
+    "hangup": "Hang Up"
+  },
+  "app": {
+    "createGroup": "Create Group",
+    "addFriend": "Add Friend",
+    "search": "Search",
+    "disconnected": "Disconnected",
+    "reconnecting": "Reconnecting...",
+    "leaveGroupSuccess": "Left group successfully",
+    "deleteFriendSuccess": "Friend deleted successfully",
+    "defaultList": "Default List"
+  },
+  "search": {
+    "placeholder": "Search by username/id",
+    "noResults": "No users/groups found"
+  },
+  "friendsRequest": {
+    "title": "Friend Requests",
+    "accept": "Accept",
+    "decline": "Decline",
+    "acceptedGroupInvite": "Joined group",
+    "declinedGroupInvite": "Declined group invite",
+    "acceptedFriendRequest": "Friend request accepted",
+    "declinedFriendRequest": "Friend request declined",
+    "noNewRequests": "No new friend requests",
+    "requestAddFriend": "requests to add you as a friend",
+    "inviteJoinGroup": "invites you to join group",
+    "sent": "Friend request sent",
+    "sendFailed": "Failed to send friend request. Reason: "
+  },
+  "chat": {
+    "sendMessage": "Send Message",
+    "messagePlaceholder": "Type a message...",
+    "online": "Online",
+    "offline": "Offline",
+    "typing": "Typing..."
+  },
+  "group": {
+    "members": "Group Members",
+    "inviteFriendsTitle": "Invite Friends to Join Group",
+    "selectFriends": "Select Friends",
+    "invite": "Invite",
+    "confirmLeave": "Are you sure you want to leave the group?",
+    "leave": "Leave Group",
+    "clearHistoryWarning": "(All history messages will be cleared!)"
+  },
+  "contact": {
+    "confirmDelete": "Are you sure you want to delete friend",
+    "clearHistoryWarning": "(All history messages will be cleared!)",
+    "confirmClearHistory": "Are you sure you want to clear",
+    "historyChat": "'s chat history?",
+    "historyCleared": "Messages cleared",
+    "clearHistory": "Clear Chat History",
+    "delete": "Delete Friend",
+    "invite": "Invite",
+    "sendMessage": "Send Message",
+    "confirmDeleteMsg": "Are you sure you want to delete this friend?"
+  },
+  "file": {
+    "tooLarge": "File Too Large",
+    "sizeLimit": "Files larger than 200MB are not supported",
+    "sendConfirm": "Send file",
+    "folderNotSupported": "Folder upload is not supported",
+    "compressHint": "Please compress or select specific files to upload",
+    "downloadFailed": "File download failed:",
+    "openLocationFailed": "Unable to open file location:",
+    "notExists": "File does not exist or has been moved",
+    "resendFailed": "Message resend failed:",
+    "localPathNotFound": "Cannot resend file: Local file path not found",
+    "readFailed": "Cannot resend file: File read failed",
+    "deleteFailed": "Failed to delete original message:",
+    "resendFileFailed": "File resend failed:",
+    "resendFileSuccess": "File resent successfully",
+    "uploading": "Uploading..."
+  },
+  "call": {
+    "voice": "Voice Call",
+    "video": "Video Call"
+  },
+  "contacts": {
+    "friendRequests": "Friend Requests",
+    "myFriends": "My Friends",
+    "noFriends": "No friends yet",
+    "myGroups": "My Groups",
+    "noGroups": "No groups yet"
+  },
+  "nav": {
+    "messages": "Messages",
+    "contacts": "Contacts",
+    "settings": "Settings"
+  },
+  "user": {
+    "loadingList": "Loading user list...",
+    "noUserInfo": "No user information found",
+    "noUsername": "(No username)",
+    "confirmRemove": "Are you sure you want to remove this account?",
+    "confirmSwitch": "Are you sure you want to switch to user",
+    "giveTo": "to"
+  },
+  "createGroup": {
+    "selectFriends": "Select Friends to Create",
+    "createGroupTitle": "Create Group Chat",
+    "create": "Create",
+    "cancel": "Cancel"
+  }
+}

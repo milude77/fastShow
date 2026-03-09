@@ -4,9 +4,10 @@ import './css/SettingsAPP.css'
 import UserManagement  from './components/userManagement.jsx';
 import AppHeaderBar from './components/appHeaderBar.jsx';
 import { Popconfirm, Button } from "antd"
-
+import { useTranslation } from 'react-i18next';
 
 function SettingsAPP() {
+    const { t } = useTranslation();
 
     const [tooBarState, setToolBarState] = useState('userManagement');
 
@@ -22,21 +23,21 @@ function SettingsAPP() {
             <div className='settings-area'>
                 <div className='tool-bar'>
                     <div className={tooBarState === 'userManagement' ? 'tool-bar-item active' : 'tool-bar-item'} onClick={() => setToolBarState('userManagement')}>
-                        用户管理
+                        {t('settings.userManagement')}
                     </div>
                     <div className='tool-bar-item' onClick={() => setToolBarState('userManagement')}>
-                        通用
+                        {t('settings.general')}
                     </div>
                 </div>
                 <div className='content-area'>
                     <UserManagement />
                     <Popconfirm
-                        title="确定要退出登录吗？"
-                        okText="确定"
-                        cancelText="取消"
+                        title={t('settings.confirmLogout')}
+                        okText={t('common.confirm')}
+                        cancelText={t('common.cancel')}
                         onConfirm={handleLogout}
                     >
-                        <Button className="logout-button">退出登录</Button>
+                        <Button className="logout-button">{t('settings.logout')}</Button>
                     </Popconfirm>
                 </div>
             </div>

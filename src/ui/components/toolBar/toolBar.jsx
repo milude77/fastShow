@@ -5,9 +5,10 @@ import Avatar from '../avatar.jsx';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { useGlobalModal } from '../../hooks/useModalManager.js'
-
+import { useTranslation } from 'react-i18next';
 
 const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
+    const { t } = useTranslation();
     const { avatarSrc } = useUserAvatar();
     const [hasNewInvite, setHasNewInvite] = useState(false);
     const [newMessageCount, setNewMessageCount] = useState(0);
@@ -49,17 +50,17 @@ const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, isDarkMode, tog
 
             <div className='base-tool-bar'>
                 <Badge size="small" count={newMessageCount}>
-                    <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} type="link" title='消息' icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
+                    <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} type="link" title={t('nav.messages')} icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
                 </Badge>
                 <Badge size="small" dot={hasNewInvite} >
-                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title='联系人' icon={<TeamOutlined />} onClick={() => { setHasNewInvite(false); setSelectFeatures('contact') }}></Button>
+                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title={t('nav.contacts')} icon={<TeamOutlined />} onClick={() => { setHasNewInvite(false); setSelectFeatures('contact') }}></Button>
                 </Badge>
             </div>
             <div className='change-theme-bar'>
                 <Button style={{ color: 'var(--text-color)' }} type='link' icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />} onClick={() => toggleDarkMode()}></Button>
             </div>
             <div className='setting-bth'>
-                <Button style={{ color: 'var(--text-color)' }} type="link" title='设置' icon={<SettingOutlined />} onClick={() => window.electronAPI.openSettingsWindow()}></Button>
+                <Button style={{ color: 'var(--text-color)' }} type="link" title={t('nav.settings')} icon={<SettingOutlined />} onClick={() => window.electronAPI.openSettingsWindow()}></Button>
             </div>
         </div>
     );

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Progress } from 'antd';
 import { ExclamationCircleOutlined, FolderOpenOutlined, DownloadOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 
 export default function FileItem({ msg, handleResendFile, handleOpenFileLocation, handleDownloadFile, isGroup, convertFileSize }) {
+    const { t } = useTranslation();
     // 添加进度状态
     const [fileExt, setFileExt] = useState(false)
     const [uploadProgress, setUploadProgress] = useState(msg.uploadProgress || 0);
@@ -168,7 +170,7 @@ export default function FileItem({ msg, handleResendFile, handleOpenFileLocation
                 >
                     <span className="message-text">{msg.fileName}</span>
                     <span style={{ color: 'gray' }}>
-                        {msg.fileSize ? convertFileSize(msg.fileSize) : '上传中...'}
+                        {msg.fileSize ? convertFileSize(msg.fileSize) : t('file.uploading')}
                     </span>
                 </div>
 

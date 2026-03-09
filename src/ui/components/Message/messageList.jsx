@@ -11,10 +11,10 @@ import apiClient from '../../utils/api.js';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 import { formatTime } from '../../utils/timeFormatter.js';
-
-
+import { useTranslation } from 'react-i18next';
 
 const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
+    const { t } = useTranslation();
     const [modal, modalContextHolder] = Modal.useModal();
 
     const MAX_FILE_SIZE = 200 * 1024 * 1024;
@@ -28,8 +28,8 @@ const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
                 modal.error({
                     zIndex: 2000,
                     centered: true,
-                    title: '文件过大',
-                    content: `暂不支持上传超过 200MB 的文件`,
+                    title: t('file.tooLarge'),
+                    content: t('file.sizeLimit'),
                 });
                 return;
             }
@@ -37,7 +37,7 @@ const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
                 zIndex: 2000,
                 centered: true,
                 maskClosable: false,
-                title: `发送文件 ${fileName} 给 ${contact?.username}？`,
+                title: `${t('file.sendConfirm')} ${fileName} ${t('user.giveTo')} ${contact?.username}？`,
                 onOk() {
                     onUploadFile({ filePath });
                     scrollToBottom();
@@ -60,14 +60,15 @@ const InputToolBar = ({ contact, onUploadFile, scrollToBottom }) => {
 }
 
 const MessageListTool = ({ openContactOptions, voiceCallToContact, videoCallToContact }) => {
+    const { t } = useTranslation();
 
     const MenuItem = (
         <Menu>
             <Menu.Item key="1" >
-                <Button type="link" icon={<PhoneOutlined />} onClick={() => voiceCallToContact()} >语音通话</Button>
+                <Button type="link" icon={<PhoneOutlined />} onClick={() => voiceCallToContact()} >{t('call.voice')}</Button>
             </Menu.Item>
             <Menu.Item key="2">
-                <Button type="link" icon={<VideoCameraOutlined />} onClick={() => videoCallToContact()} >视频通话</Button>
+                <Button type="link" icon={<VideoCameraOutlined />} onClick={() => videoCallToContact()} >{t('call.video')}</Button>
             </Menu.Item>
         </Menu>
     )
@@ -100,7 +101,7 @@ const MessageListHead = ({ contact, openContactOptions, memberLength, voiceCallT
 
 
 const MessageList = ({ contact, messageListHook }) => {
-
+    const { t } = useTranslation();
     const { messageApi } = useGlobalMessage();
 
 
@@ -241,7 +242,7 @@ const MessageList = ({ contact, messageListHook }) => {
     }, [messages]);
 
     // 拖拽上传文件
-    // 由于js限制，拖拽文件无法在渲染层中获取路径，所以拖拽上传无法保存本地路径
+    // 由于 js 限制，拖拽文件无法在渲染层中获取路径，所以拖拽上传无法保存本地路径
     const handleDrop = (event) => {
         event.preventDefault();
         const MAX_FILE_SIZE = 200 * 1024 * 1024;
@@ -252,8 +253,8 @@ const MessageList = ({ contact, messageListHook }) => {
                 modal.warning({
                     zIndex: 2000,
                     centered: true,
-                    title: '暂不支持上传文件夹',
-                    content: '请压缩后或选择具体文件上传',
+                    title: t('file.folderNotSupported'),
+                    content: t('file.compressHint'),
                 });
                 return;
             }
@@ -266,8 +267,8 @@ const MessageList = ({ contact, messageListHook }) => {
                 modal.error({
                     zIndex: 2000,
                     centered: true,
-                    title: '文件过大',
-                    content: `暂不支持上传超过 200MB 的文件`,
+                    title: t('file.tooLarge'),
+                    content: t('file.sizeLimit'),
                 });
                 return;
             }
@@ -279,7 +280,7 @@ const MessageList = ({ contact, messageListHook }) => {
                     zIndex: 2000,
                     centered: true,
                     maskClosable: false,
-                    title: `发送文件 ${fileName} 给 ${contact?.username}？`,
+                    title: `${t('file.sendConfirm')} ${fileName} ${t('user.giveTo')} ${contact?.username}？`,
                     onOk() {
                         onUploadFile({ filePath });
                         scrollToBottom("smooth");
@@ -305,11 +306,11 @@ const MessageList = ({ contact, messageListHook }) => {
                 return
             } else {
                 console.error('文件下载失败:', result);
-                messageApi.error('文件下载失败: ' + result.error);
+                messageApi.error(`${t('file.downloadFailed')} ${result.error}`);
             }
         } catch (error) {
             console.error('文件下载出错:', error);
-            messageApi.error('文件下载出错: ' + error.message);
+            messageApi.error(`${t('file.downloadFailed')} ${error.message}`);
         }
     };
 
@@ -321,14 +322,14 @@ const MessageList = ({ contact, messageListHook }) => {
             if (checkResult.exists) {
                 const result = await window.electronAPI.openFileLocation(messageId, isGroup);
                 if (!result.success) {
-                    messageApi.error('无法打开文件位置: ' + result.error);
+                    messageApi.error(`${t('file.openLocationFailed')} ${result.error}`);
                 }
             } else {
-                messageApi.warning('文件不存在或已被移动');
+                messageApi.warning(t('file.notExists'));
             }
         } catch (error) {
             console.error('打开文件位置出错:', error);
-            messageApi.error('打开文件位置出错: ' + error.message);
+            messageApi.error(`${t('file.openLocationFailed')} ${error.message}`);
         }
     };
 
@@ -340,9 +341,9 @@ const MessageList = ({ contact, messageListHook }) => {
             onResendMessage(contact.id, msg, contact.type)
             scrollToBottom("smooth");
         } else {
-            messageApi.error('消息重新发送失败: ' + res.error);
+            messageApi.error(`${t('file.resendFailed')} ${res.error}`);
         }
-    }, [onResendMessage, messageApi, scrollToBottom]);
+    }, [onResendMessage, messageApi, scrollToBottom, t]);
 
 
     //重发文件
@@ -350,14 +351,14 @@ const MessageList = ({ contact, messageListHook }) => {
         try {
             // 检查是否有本地文件路径
             if (!msg.localFilePath) {
-                messageApi.error('无法重传文件：本地文件路径不存在');
+                messageApi.error(t('file.localPathNotFound'));
                 return;
             }
 
             // 读取文件内容
             const fileContent = await window.electronAPI.readFile(msg.localFilePath);
             if (!fileContent) {
-                messageApi.error('无法重传文件：文件读取失败');
+                messageApi.error(t('file.readFailed'));
                 return;
             }
 
@@ -374,13 +375,13 @@ const MessageList = ({ contact, messageListHook }) => {
             const isGroup = contact.type === 'group';
             const res = await window.electronAPI.resendMessage(msg.id, isGroup);
             if (!res.success) {
-                messageApi.error('删除原消息记录失败: ' + res.error);
+                messageApi.error(`${t('file.deleteFailed')} ${res.error}`);
             }
 
-            messageApi.success('文件重新发送成功');
+            messageApi.success(t('file.resendFileSuccess'));
         } catch (error) {
             console.error('文件重传失败:', error);
-            messageApi.error('文件重传失败: ' + error.message);
+            messageApi.error(`${t('file.resendFileFailed')} ${error.message}`);
         }
     }
 

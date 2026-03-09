@@ -3,9 +3,10 @@ import { Modal } from 'antd';
 import './css/contactOption.css'
 import Avatar from '../avatar.jsx';
 import { useGlobalModal } from '../../hooks/useModalManager.js';
-
+import { useTranslation } from 'react-i18next';
 
 const ContactOption = ({ contact, currentUser, openContactOptions, onClose, groupMemberList, messageApi }) => {
+    const { t } = useTranslation();
     const optionRef = useRef(null);
     const [modal, modalContextHolder] = Modal.useModal();
     const [serverUrl, setServerUrl] = useState('');
@@ -44,7 +45,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
 
     const deleteContactMessageHistoryFun = async (contact) => {
         await window.electronAPI.deleteContactMessageHistory(contact)
-        messageApi.success('消息已清除');
+        messageApi.success(t('contact.historyCleared'));
     }
 
     const handleDeleteContact = () => {
@@ -54,8 +55,8 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
             maskClosable: false,
             title: (
                 <>
-                    确认删除好友 {contact.username}？
-                    <span style={{ color: 'red' }}>(将清空所有历史消息！)</span>
+                    {t('contact.confirmDelete')} {contact.username}？
+                    <span style={{ color: 'red' }}>{t('contact.clearHistoryWarning')}</span>
                 </>
             ),
             onOk() {
@@ -69,7 +70,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
             zIndex: 2000,
             centered: true,
             maskClosable: false,
-            title: `确认清空 "${contact.username}" 的历史聊天记录？`,
+            title: `${t('contact.confirmClearHistory')} "${contact.username}" ${t('contact.historyChat')}`,
             onOk() {
                 deleteContactMessageHistoryFun(contact);
             }
@@ -83,8 +84,8 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
             maskClosable: false,
             title: (
                 <>
-                    确认退出群聊 {contact.username}?
-                    <span style={{ color: 'red' }}>(将清空所有历史消息！)</span>
+                    {t('group.confirmLeave')} {contact.username}?
+                    <span style={{ color: 'red' }}>{t('group.clearHistoryWarning')}</span>
                 </>
             ),
             onOk() {
@@ -143,15 +144,15 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
                             }}>
                             +
                         </button>
-                        <span>邀请</span>
+                        <span>{t('group.invite')}</span>
                     </div>
                 </div>
             }
-            <button className="delete-message-history" onClick={() => handleDeleteContactMessageHistory(contact)} >清空历史聊天记录</button>
+            <button className="delete-message-history" onClick={() => handleDeleteContactMessageHistory(contact)} >{t('contact.clearHistory')}</button>
             {contact.type === 'group' ?
-                <button className="delete-message-history" onClick={() => handleLeaveGroup(contact)} >退出群聊</button>
+                <button className="delete-message-history" onClick={() => handleLeaveGroup(contact)} >{t('group.leave')}</button>
                 :
-                <button className="delete-message-history" onClick={() => handleDeleteContact(contact.id)}>删除好友</button>
+                <button className="delete-message-history" onClick={() => handleDeleteContact(contact.id)}>{t('contact.delete')}</button>
             }
         </div>
     )

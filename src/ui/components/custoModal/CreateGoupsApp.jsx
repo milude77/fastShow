@@ -3,8 +3,10 @@ import { Button } from 'antd';
 import './css/createGoupsApp.css';
 import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
- const CreateGoupsApp = ({ onClose }) => {
+import { useTranslation } from 'react-i18next';
 
+const CreateGoupsApp = ({ onClose }) => {
+    const { t } = useTranslation();
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
     const socket = useSocket();
@@ -41,7 +43,7 @@ import { useSocket } from '../../hooks/useSocket';
     return (
         <div className='create-groups-app-container'>
             <div className='friends-list'>
-                <span className='create-group-title'>选择好友创建</span>
+                <span className='create-group-title'>{t('createGroup.selectFriends')}</span>
                 {contacts && contacts.map((contact, index) => (
                     <div key={index} className='friend-item'
                         onClick={() => {
@@ -62,7 +64,7 @@ import { useSocket } from '../../hooks/useSocket';
                 ))}
             </div>
             <div className='create-group-form'>
-                <span className='create-group-title'>创建群聊</span>
+                <span className='create-group-title'>{t('createGroup.createGroupTitle')}</span>
                 {checkedContacts && checkedContacts.map((contact, index) => (
                     <div key={index} className='selected-contact-item'>
                         <div key={index} className='friend-item'>
@@ -80,14 +82,14 @@ import { useSocket } from '../../hooks/useSocket';
                         }}
                         style={{ marginTop: 12, color:'var(--text-color)' }}
                     >
-                        创建
+                        {t('createGroup.create')}
                     </Button>
                     <Button
                         type='primary'
                         onClick={onClose}
                         style={{ marginTop: 12 }}
                     >
-                        取消
+                        {t('createGroup.cancel')}
                     </Button>
                 </div>
             </div>

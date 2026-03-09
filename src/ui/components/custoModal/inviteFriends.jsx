@@ -3,8 +3,10 @@ import { Button } from 'antd';
 import './css/createGoupsApp.css';
 import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
+import { useTranslation } from 'react-i18next';
 
 const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
+    const { t } = useTranslation();
 
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
@@ -41,7 +43,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
     return (
         <div className='create-groups-app-container'>
             <div className='friends-list'>
-                <span className='create-group-title'>邀请好友加入群聊</span>
+                <span className='create-group-title'>{t('group.inviteFriendsTitle')}</span>
                 {contacts && contacts.map((contact, index) => (
                     <div key={index} className='friend-item'
                         onClick={() => {
@@ -62,7 +64,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
                 ))}
             </div>
             <div className='create-group-form'>
-                <span className='create-group-title'>选择好友</span>
+                <span className='create-group-title'>{t('group.selectFriends')}</span>
                 {checkedContacts && checkedContacts.map((contact, index) => (
                     <div key={index} className='selected-contact-item'>
                         <div key={index} className='friend-item'>
@@ -80,14 +82,14 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
                         }}
                         style={{ marginTop: 12, color: 'var(--text-color)' }}
                     >
-                        邀请
+                        {t('group.invite')}
                     </Button>
                     <Button
                         type='primary'
                         onClick={onClose}
                         style={{ marginTop: 12 }}
                     >
-                        取消
+                        {t('common.cancel')}
                     </Button>
                 </div>
             </div>
