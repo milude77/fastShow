@@ -1445,10 +1445,21 @@ ipcMain.on('save-invite-information-list', async (event, inviteInformation) => {
                         create_time: timestamp,
                         update_time: timestamp
                     });
-
-                // 向渲染进程发送新邀请接收信号
-                event.sender.send('receive-new-invite');
             }
+            else {
+                await db('invite_information')
+                    .where('id', inviteInformation.id)
+                    .update({
+                        group_id: inviteInformation.groupId,
+                        group_name: inviteInformation.groupName,
+                        inviter_id: inviteInformation.inviterId,
+                        inviter_name: inviteInformation.inviterName,
+                        is_group_invite: true,
+                        status: 'pending',
+                        update_time: Date.now()
+                    })
+            }
+            event.sender.send('receive-new-invite');
         } else {
             // 检查是否已存在该好友邀请
             const existingInvite = await db('invite_information')
@@ -1465,12 +1476,22 @@ ipcMain.on('save-invite-information-list', async (event, inviteInformation) => {
                         inviter_name: inviteInformation.inviterName,
                         is_group_invite: false,
                         create_time: timestamp,
-                        update_time: timestamp
+                        update_time: timestamp,
                     });
-
-                // 向渲染进程发送新邀请接收信号
-                event.sender.send('receive-new-invite');
             }
+            else {
+                await db('invite_information')
+                    .where('id', inviteInformation.id)
+                    .update({
+                        inviter_id: inviteInformation.inviterId,
+                        inviter_name: inviteInformation.inviterName,
+                        is_group_invite: false,
+                        update_time: Date.now(),
+                        status: 'pending',
+                    })
+            }
+            // 向渲染进程发送新邀请接收信号
+            event.sender.send('receive-new-invite');
         }
     } catch (error) {
         console.error('保存邀请信息失败:', error);
@@ -1533,6 +1554,31 @@ ipcMain.on('accept-friend-request', async (event, requestId) => {
     }
 });
 
+ipcMain.on('decline-friend-request', async (event, requestId) => {
+    if (!db) {
+        return { success: false, error: '数据库未连接' };
+    }
+    await db('invite_information')
+        .where('id', requestId)
+        .update({
+            status: 'decline',
+            update_time: Date.now()
+        });
+});
+
+ipcMain.on('decline-group-invite', async (event, requestId) => {
+    if (!db) {
+        return { success: false, error: '数据库未连接' };
+    }
+    await db('invite_information')
+        .where('id', requestId)
+        .update({
+            status: 'decline',
+            update_time: Date.now()
+        });
+    event.sender.send('group-invite-declined', { requestId });
+});
+
 ipcMain.on('accept-group-invite', async (event, requestId) => {
     if (!db) {
         return { success: false, error: '数据库未连接' };
@@ -1555,6 +1601,11 @@ ipcMain.on('accept-group-invite', async (event, requestId) => {
                 .onConflict('id')
                 .merge()
             await db('invite_information')
+                .where('group_id', gruopInformation.groupId)
+                .update({
+                    status: 'accept',
+                    update_time: timestamp
+                })
             event.sender.send('group-invite-accepted', { requestId });
             event.sender.send('groups-list-updated');
         }
@@ -1578,12 +1629,14 @@ ipcMain.handle('get-contact-list', async () => {
         return [];
     }
     let friends = await db('friends')
+        .where('isFriend', true)
         .select('id', 'userName as username', 'lastMessage')
     friends = friends.map(item => ({
         ...item,
         type: 'friend'
     }));
     let groups = await db('groups')
+        .where('isMember', true)
         .select('id', 'groupName as username', 'lastMessage')
     groups = groups.map(item => ({
         ...item,

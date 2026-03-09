@@ -1,5 +1,5 @@
 // ContactItem.jsx
-import React, { useCallback, useRef } from 'react'
+import React, { useCallback } from 'react'
 import { Badge } from 'antd';
 import { UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
@@ -11,7 +11,6 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
     const [lastMessage, setLastMessage] = useState({});
     const [draft, setDraft] = useState('');
     const [newMessageCount, setNewMessageCount] = useState(0);
-    const newMessageCountRef = useRef(newMessageCount);
 
     // 节流函数
     const throttle = (fn, delay) => {
@@ -57,10 +56,15 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
 
     const throttledGetLastMessage = throttle(getLastMessage, 300)
 
+    const getUnreadMessageCount = useCallback(async (contactId) => {
+        const isGroup = contact.type === 'group';
+        const count = await window.electronAPI.getUnreadMessageCount(contactId, isGroup);
+        setNewMessageCount(count);
+    },[])
 
     useEffect(() => {
-        newMessageCountRef.current = newMessageCount;
-    }, [newMessageCount]);
+        getUnreadMessageCount(contact.id);
+    }, [contact.id, getUnreadMessageCount]);
 
     useEffect(() => {
         getDraft(contact.id);
@@ -72,7 +76,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
 
     const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
-            setNewMessageCount(newMessageCountRef.current + 1);
+            setNewMessageCount(prevCount => prevCount + 1);
             throttledGetLastMessage(contactId);
         }
     }, [contact.id, contact.type, throttledGetLastMessage]);
@@ -96,7 +100,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
             window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', handleNewMessage);
             window.electronAPI.ipcRenderer.removeListener('send-new-meaage', handleSendNewMessage);
         };
-    }, [handleNewMessage, handleSendNewMessage]);
+    }, []);
 
     const changeSelectedContact = useCallback((contact) => {
         if (contact.id === selectedContact?.id) {

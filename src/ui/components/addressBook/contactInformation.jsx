@@ -4,7 +4,7 @@ import { DashOutlined } from '@ant-design/icons';
 import './css/contactInformation.css';
 import { Modal } from 'antd';
 
-const ContactInformation = ({ contactInformation, toSendMessage, deleteContact }) => {
+const ContactInformation = ({ contactInformation, toSendMessage }) => {
     const [modal, modalContextHolder] = Modal.useModal();
 
     //服务器地址
@@ -15,10 +15,14 @@ const ContactInformation = ({ contactInformation, toSendMessage, deleteContact }
         setServerUrl(url);
     }
 
+    const deleteContact = async (contactId) => {
+        await window.electronAPI.deleteContact(contactId);
+    }
+
     useEffect(() => {
         handleServerUrlChange();
     }, []);
-    const handleDeleteContact = (contactId) => {
+    const handleDeleteContact = async(contactId) => {
         modal.confirm({
             zIndex: 2000,
             title: '删除好友',

@@ -137,7 +137,7 @@ const VoiceApp = () => {
 
     getLocalVoiceStream();
 
-    if (callerId) {
+    if (callerId && callerId !== 'null' && callerId !== 'undefined') {
       console.log('接听呼叫:', callerId);
       handleCallRequest({ callerId });
     }
@@ -156,7 +156,7 @@ const VoiceApp = () => {
       socket.off("call-request", handleCallRequest);
       closeCall();
     };
-  }, [socket, roomId]);
+  }, [socket]);
 
   // 发起呼叫：只发通知，等待对端accept
   const startCall = () => {

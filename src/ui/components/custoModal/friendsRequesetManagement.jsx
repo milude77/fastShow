@@ -25,9 +25,9 @@ const FriendsRequestManagement = () => {
     }, []);
 
 
-    const handleAcceptRequest = (requesterId,isGroupInvite) => {
+    const handleAcceptRequest = (requesterId, isGroupInvite) => {
         if (socket) {
-            if (isGroupInvite){
+            if (isGroupInvite) {
                 socket.emit('accept-group-invite', requesterId);
                 window.electronAPI.acceptGroupInvite(requesterId);
                 setInviteInformationList(prev => ({
@@ -53,9 +53,9 @@ const FriendsRequestManagement = () => {
         }
     };
 
-    const handleDeclineRequest = (requesterId,isGroupInvite) => {
+    const handleDeclineRequest = (requesterId, isGroupInvite) => {
         if (socket) {
-            if (isGroupInvite){
+            if (isGroupInvite) {
                 socket.emit('decline-group-invite', requesterId);
                 window.electronAPI.declineGroupInvite(requesterId);
                 setInviteInformationList(prev => ({
@@ -85,20 +85,20 @@ const FriendsRequestManagement = () => {
             case 'pending':
                 return (
                     <div>
-                        <button onClick={() => handleAcceptRequest(id,isGroupInvite)}>接受</button>
-                        <button onClick={() => handleDeclineRequest(id,isGroupInvite)}>拒绝</button>
+                        <button onClick={() => handleAcceptRequest(id, isGroupInvite)}>接受</button>
+                        <button onClick={() => handleDeclineRequest(id, isGroupInvite)}>拒绝</button>
                     </div>
                 );
             case 'accept':
                 return (
                     <div>
-                        <span>已接受</span>
+                        <span>{`${isGroupInvite ? '已加入群聊' : '已接受好友请求'}`}</span>
                     </div>
                 );
             case 'declined':
                 return (
                     <div>
-                        <span>已拒绝</span>
+                        <span> {`${isGroupInvite ? '已拒绝群邀请' : '已拒绝好友请求'}`}</span>
                     </div>
                 );
             default:

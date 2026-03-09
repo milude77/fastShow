@@ -61,6 +61,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getContactList: () => ipcRenderer.invoke('get-contact-list'),
   acceptGroupInvite: (requesterId) => ipcRenderer.send('accept-group-invite', requesterId),
   acceptFriendRequest: (requesterId) => ipcRenderer.send('accept-friend-request', requesterId),
+  declineGroupInvite: (requesterId) => ipcRenderer.send('decline-group-invite', requesterId),
+  declineFriendRequest: (requesterId) => ipcRenderer.send('decline-friend-request', requesterId),
   getInviteinformationList: () => ipcRenderer.invoke('get-invite-information-list'),
   saveInviteinformationList: (credentials) => ipcRenderer.send('save-invite-information-list', credentials),
 

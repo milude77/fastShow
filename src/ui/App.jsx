@@ -248,7 +248,6 @@ function App() {
 
 
   useEffect(() => {
-
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
     window.electronAPI.ipcRenderer.on('send-new-meaage', sortContactList);
@@ -262,8 +261,7 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', sortContactList);
       window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
     }
-
-  }, [handleChatHistoryDeleted, sortContactList, getContactList])
+  }, [])
 
   const handleCallRequest = useCallback(async ({ callerId }) => {
     await window.electronAPI.receivedCallRequest(callerId)
@@ -303,7 +301,7 @@ function App() {
       socket.off('strong-logout-warning', handleStrongLogoutWarning);
       socket.off('call-request', handleCallRequest)
     };
-  }, [socket, handleLoginSuccess, handleNewMessage, handleFriendsList, friendsRequestAccepted, handleConnect, handleDisconnect, handleReconnecting, handleSendMessageStatus, handleNewGroup, handleLeaveGroupSuccess, handleNewFriendRequests, handleNewGroupInvite, handleNotificationMessage, handleStrongLogoutWarning]);
+  }, [socket]);
 
 
   const handleAddressBookSelectContact = useCallback((contact) => {
@@ -379,7 +377,6 @@ function App() {
           <ContactInformation
             contactInformation={contacts.filter(contact => { return contact.id === selectedContactInformation && contact.type === 'friend' })[0]}
             toSendMessage={handleToSendMessage}
-            deleteContact={handleDeleteContact}
           />);
       }
       else {

@@ -566,9 +566,14 @@ io.on('connection', (socket) => {
     });
 
     socket.on('get-contacts', async () => {
-        const friends = await getFriendsList(socket);
-        const groups = await getGroupsList(socket);
-        socket.emit('contacts-list', [...friends, ...groups]);
+        try {
+            const friends = await getFriendsList(socket);
+            const groups = await getGroupsList(socket);
+            socket.emit('contacts-list', [...friends, ...groups]);
+        }
+        catch (error) {
+            console.error('Error getting friends list:', error);
+        }
     });
 
     // 搜索用户
@@ -592,6 +597,8 @@ io.on('connection', (socket) => {
     socket.on('add-friend', async (friendId) => {
         const senderInfo = await getOnlineUser(socket.id);
 
+        console.log(`添加好友: ${friendId}`);
+
 
         if (!friendId) {
             socket.emit('add-friends-msg', { success: false, message: '好友id不可为空' });
@@ -613,7 +620,7 @@ io.on('connection', (socket) => {
                 .where('id', friendshipId)
                 .first();
 
-            if (existingFriendship) {
+            if (existingFriendship && !existingFriendship.is_deleted) {
                 socket.emit('add-friends-msg', { success: false, message: '已经是好友或已发送请求' });
                 return;
             }
@@ -655,7 +662,7 @@ io.on('connection', (socket) => {
         try {
             await db('friendships')
                 .where('id', friendshipId)
-                .del();
+                .update({ status: 'deleted', is_deleted: true });
 
             socket.emit('contact-deleted', { friendId });
         } catch (error) {
@@ -741,6 +748,29 @@ io.on('connection', (socket) => {
             console.error('Error accepting group invite:', error);
         }
     })
+
+    socket.on('decline-group-invite', async (requesterId) => {
+        try {
+            await db('group_invitations')
+                .where({ id: requesterId, status: 'pending' })
+                .update({ status: 'declined' });
+        }
+        catch (error) {
+            console.error('Error declining group invite:', error);
+        }
+    });
+
+    socket.on('decline-friend-request', async (requesterId) => {
+        try {
+            await db('friendships')
+                .where({ id: requesterId, status: 'pending' })
+                .update({ status: 'declined' });
+        }
+        catch (error) {
+            console.error('Error declining friend request:', error);
+        }
+    });
+
 
     socket.on('create-group', async ({ checkedContacts }) => {
         const senderInfo = await getOnlineUser(socket.id);
@@ -929,13 +959,12 @@ io.on('connection', (socket) => {
         console.log(`${userInfo.username} 加入房间 ${roomId}`);
     });
 
-    socket.on('call-request', async({ roomId, contactId }) => {
-        // 如果指定了目标用户，只发送给该用户
+    socket.on('call-request', async ({ roomId, contactId }) => {
         const targetId = await getOnlineUserId(contactId);
         if (targetId) {
             socket.to(targetId.socketId).emit('call-request', { callerId: socket.id });
-        } else {
-            // 否则发送给房间内所有其他用户
+        }
+        else {
             socket.to(roomId).emit('call-request', { callerId: socket.id });
         }
     });
