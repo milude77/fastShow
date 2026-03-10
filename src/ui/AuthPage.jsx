@@ -4,12 +4,13 @@ import { Button, Select, Modal } from 'antd';
 import './css/authPage.css'
 import Avatar from './components/avatar.jsx';
 import { useUserAvatar } from './hooks/useAvatar.js';
-import { useGlobalMessage } from './hooks/useGlobalMessage';
 import { FaGithub } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 
 // 用户登录中
 const LoginLoading = ({ credentials }) => {
   const { getAvatarUrl } = useUserAvatar();
+  const { t } = useTranslation();
 
   return (
     <div className="login-loading-container">
@@ -20,7 +21,7 @@ const LoginLoading = ({ credentials }) => {
           </div>
           <Avatar size={100} src={getAvatarUrl(credentials.userId)} alt="头像" />
         </div>
-        <div className="title">欢迎，{credentials.userName}</div>
+        <div className="title">{t('auth.welcome', { userName: credentials.userName })}</div>
       </div>
     </div>
   )
@@ -30,6 +31,7 @@ const LoginLoading = ({ credentials }) => {
 const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) => {
 
   const { getAvatarUrl } = useUserAvatar();
+  const { t } = useTranslation();
   const [curCredentials, setCurCredentials] = useState(credentials)
   const [allUserCredentials, setAllUserCredentials] = useState([])
 
@@ -42,7 +44,7 @@ const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) =>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'white', padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', width: '300px' }}>
-      <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>快速登录</span>
+      <span style={{ transform: 'translateY(-50%)', textAlign: 'center', fontSize: '24px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>{t('auth.quickLogin')}</span>
       <Avatar
         size={100}
         src={getAvatarUrl(curCredentials.userId)}
@@ -71,9 +73,9 @@ const LastLoginUser = ({ credentials, onLogin, message, handleNewUserLogin }) =>
         style={{ marginTop: '20px' }}
         onClick={() => { onLogin(curCredentials); }}
       >
-        登录
+        {t('auth.login')}
       </Button>
-      <span style={{ marginTop: '10px', color: '#666' }} onClick={() => handleNewUserLogin()}>新账号登录</span>
+      <span style={{ marginTop: '10px', color: '#666' }} onClick={() => handleNewUserLogin()}>{t('auth.newAccountLogin')}</span>
       {message && <span style={{ color: 'red', marginTop: '10px' }}>{message}</span>}
     </div >
   )
@@ -92,7 +94,7 @@ const AuthPage = () => {
   const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(false);
   const [lastLoginUser, setLastLoginUser] = useState(null);
   const [modal, modalContextHolder] = Modal.useModal();
-  const { messageApi } = useGlobalMessage();
+  const { t } = useTranslation();
 
   const socket = useSocket();
 
@@ -105,18 +107,18 @@ const AuthPage = () => {
     };
 
     const handleDisconnect = () => {
-      setMessage('已断开与服务器的连接');
+      setMessage(t('auth.disconnected'));
     };
 
     const handleReconnecting = () => {
-      setMessage('正在重新连接到服务器...');
+      setMessage(t('auth.reconnecting'));
     };
 
     // 立即检查当前连接状态
     const checkInitialStatus = async () => {
       const isConnected = await window.electronAPI.getSocketStatus();
       if (!isConnected) {
-        setMessage('错误: 无法连接服务器');
+        setMessage(t('auth.serverConnectionError'));
       } else {
         setMessage(''); // 如果已连接，清除任何旧的错误信息
       }
@@ -144,7 +146,7 @@ const AuthPage = () => {
           setShowAttemptAutoLogin(true);
         }
         if (!socket) {
-          setMessage('错误: 无法连接服务器');
+          setMessage(t('auth.serverConnectionError'));
         }
       };
     }
@@ -161,9 +163,9 @@ const AuthPage = () => {
       setEmail('');
       setConfirmPassword('');
       modal.success({
-        title: '注册成功',
-        content: `您的账号ID为: ${data.userId}`,
-        okText: '确定'
+        title: t('auth.registerSuccess'),
+        content: `${t('auth.yourAccountIdIs')}: ${data.userId}`,
+        okText: t('common.ok')
       });
     };
 
@@ -174,25 +176,25 @@ const AuthPage = () => {
     return () => {
       socket.off('user-registered', handleRegisterSuccess);
     }
-  }, [socket, messageApi, modal, isRegistering, username, password, email, confirmPassword]);
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (socket == null) {
-      setMessage('错误: 无法连接服务器');
+      setMessage(t('auth.serverConnectionError'));
     }
 
     if (isRegistering && email.trim() === '') {
-      setMessage('请输入有效的邮箱地址');
+      setMessage(t('auth.invalidEmail'));
     }
 
     if (username.trim() === '' || password.trim() === '') {
-      setMessage('用户名和密码不能为空。');
+      setMessage(t('auth.usernamePasswordRequired'));
       return;
     }
 
     if (isRegistering && password !== confirmPassword) {
-      setMessage('两次输入的密码不一致。');
+      setMessage(t('auth.passwordMismatch'));
       return;
     }
 
@@ -217,9 +219,9 @@ const AuthPage = () => {
   useEffect(() => {
     const handleStrongLogoutWaring = (event, message) => {
       modal.info({
-        title: '强制下线通知',
+        title: t('auth.forceLogoutNotice'),
         content: `${message}`,
-        okText: '确定'
+        okText: t('common.ok')
       });
     }
 
@@ -227,24 +229,31 @@ const AuthPage = () => {
       socket.emit('login-with-token', token);
     }
 
+    socket.on('login-success', handleLoginSuccess);
     window.electronAPI.ipcRenderer.on('strong-logout-waring', handleStrongLogoutWaring)
     window.electronAPI.ipcRenderer.on('oauth-success', handleOauthSuccess)
 
     return () => {
+      socket.off('login-success', handleLoginSuccess);
       window.electronAPI.ipcRenderer.removeListener('strong-logout-waring', handleStrongLogoutWaring)
       window.electronAPI.ipcRenderer.removeListener('oauth-success', handleOauthSuccess)
     }
   }, [modal, socket]);
 
+  const handleLoginSuccess = (data) => {
+    const { userId, username, token, email } = data;
+    const credentials = { userId, userName: username, token, email };
+    setLogincredentials(credentials);
+    setIsLoggingIn(true);
+  }
+
   const userLoginOption = (credentials) => {
     setLogincredentials(credentials)
     setIsLoggingIn(true)
-    setTimeout(() => {
-      socket.emit('login-with-token', credentials.token)
-    }, 2000) 
+    socket.emit('login-with-token', credentials.token)
   };
 
-  if(isLoggingIn && logincredentials){
+  if (isLoggingIn && logincredentials) {
     return <LoginLoading credentials={logincredentials} />
   }
 
@@ -255,21 +264,21 @@ const AuthPage = () => {
         ?
         <LastLoginUser
           credentials={lastLoginUser}
-          onLogin={userLoginOption} 
+          onLogin={userLoginOption}
           message={message}
           handleNewUserLogin={handleNewUserLogin}
         />
         :
         <div style={{ padding: '40px', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)', backgroundColor: 'white', width: '300px' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#333' }}>
-            {isRegistering ? '用户注册' : '用户登录'}
+            {isRegistering ? t('auth.userRegister') : t('auth.userLogin')}
           </h2>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {isRegistering ? (
               <>
                 <input
                   type="text"
-                  placeholder="邮箱"
+                  placeholder={t('auth.email')}
                   value={email}
                   maxLength={30}
                   onChange={(e) => setEmail(e.target.value)}
@@ -278,7 +287,7 @@ const AuthPage = () => {
                 <input
                   type="text"
                   maxLength={20}
-                  placeholder="用户名"
+                  placeholder={t('auth.username')}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
@@ -288,7 +297,7 @@ const AuthPage = () => {
             ) : (
               <input
                 type="text"
-                placeholder="用户id / 邮箱"
+                placeholder={t('auth.userIdOrEmail')}
                 value={username}
                 maxLength={20}
                 onChange={(e) => setUsername(e.target.value)}
@@ -297,14 +306,14 @@ const AuthPage = () => {
             )}
             <input
               type="password"
-              placeholder="密码"
+              placeholder={t('auth.password')}
               maxLength={20}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className='input-box'
             />
             {isRegistering && (<input type="password"
-              placeholder="确认密码"
+              placeholder={t('auth.confirmPassword')}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className='input-box'
@@ -314,17 +323,17 @@ const AuthPage = () => {
               type="submit"
 
             >
-              登录
+              {t('auth.login')}
             </button>
             <button className='login-btn git-btn' type="button" onClick={() => { window.electronAPI.githubOAuth() }}>
               <span>
                 <FaGithub size={20} />
-                使用GitHub登录/注册
+                {t('auth.githubLoginRegister')}
               </span>
             </button>
           </form>
           <p style={{ textAlign: 'center', marginTop: '20px', color: '#666' }}>
-            {isRegistering ? '已有账号？' : '没有账号？'}
+            {isRegistering ? t('auth.haveAccount') : t('auth.noAccount')}
             <span
               onClick={() => {
                 setIsRegistering(!isRegistering);
@@ -335,7 +344,7 @@ const AuthPage = () => {
               }}
               style={{ color: '#007bff', cursor: 'pointer', marginLeft: '5px' }}
             >
-              {isRegistering ? '去登录' : '去注册'}
+              {isRegistering ? t('auth.goToLogin') : t('auth.goToRegister')}
             </span>
           </p>
           {message && <p style={{ textAlign: 'center', marginTop: '15px', color: 'red' }}>{message}</p>}

@@ -11,7 +11,8 @@
     "search": "Search",
     "close": "Close",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "ok": "OK"
   },
   "voice": {
     "incomingCall": "Incoming Call",
@@ -42,6 +43,10 @@
     "zh": "中文",
     "en": "English",
     "ru": "Русский"
+  },
+  "languageChange": {
+    "title": "Switch language to {{language}}",
+    "content": "Some modules require restart to take effect"
   },
   "avatarUploader": {
     "uploadSuccess": "Avatar uploaded successfully",
@@ -169,5 +174,32 @@
     "createGroupTitle": "Create Group Chat",
     "create": "Create",
     "cancel": "Cancel"
+  },
+  "auth": {
+    "welcome": "Welcome, {{userName}}",
+    "quickLogin": "Quick Login",
+    "login": "Login",
+    "newAccountLogin": "Login with new account",
+    "disconnected": "Disconnected from server",
+    "reconnecting": "Reconnecting to server...",
+    "serverConnectionError": "Server connection error",
+    "registerSuccess": "Registration Successful",
+    "yourAccountIdIs": "Your account ID is",
+    "invalidEmail": "Invalid email address",
+    "usernamePasswordRequired": "Username and password are required",
+    "passwordMismatch": "Passwords do not match",
+    "forceLogoutNotice": "Force Logout Notice",
+    "userRegister": "User Registration",
+    "userLogin": "User Login",
+    "email": "Email",
+    "username": "Username",
+    "userIdOrEmail": "User ID or Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "githubLoginRegister": "Login/Register with GitHub",
+    "haveAccount": "Already have an account?",
+    "noAccount": "Don't have an account?",
+    "goToLogin": "Go to Login",
+    "goToRegister": "Go to Register"
   }
 }

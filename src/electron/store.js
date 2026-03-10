@@ -33,7 +33,7 @@ const schema = {
       enableEmoji: true,
       enableMarkdown: true,
       serverTimeout: 30000,
-      language: 'zh-CN',
+      language: 'zh',
       autoStart: false
     }
   },
@@ -289,30 +289,7 @@ export const themeManager = {
   }
 };
 
-// 初始化默认设置
-export const initializeDefaultSettings = () => {
-  const defaultSettings = {
-    autoLogin: true,
-    showNotifications: true,
-    theme: 'light',
-    maxChatHistory: 1000,
-    uploadLimitMB: 50,
-    autoCheckUpdate: true,
-    enableAutoReply: false,
-    autoReplyMessage: '我现在不在，稍后回复您。'
-  };
 
-  // 只设置尚未存在的设置
-  for (const [key, value] of Object.entries(defaultSettings)) {
-    if (!store.has(`settings.${key}`)) {
-      store.set(`settings.${key}`, value);
-    }
-  }
 
-  // 设置应用首次运行标志
-  if (!store.has('appConfig.firstRun')) {
-    store.set('appConfig.firstRun', true);
-  }
-};
 
 export default store;

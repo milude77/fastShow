@@ -11,7 +11,8 @@
     "search": "搜索",
     "close": "关闭",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "ok": "确定"
   },
   "voice": {
     "incomingCall": "来电",
@@ -42,6 +43,10 @@
     "zh": "中文",
     "en": "English",
     "ru": "Русский"
+  },
+  "languageChange": {
+    "title": "切换语言为 {{language}}",
+    "content": "部分模块需要重启后生效"
   },
   "avatarUploader": {
     "uploadSuccess": "头像上传成功",
@@ -169,5 +174,36 @@
     "createGroupTitle": "创建群聊",
     "create": "创建",
     "cancel": "取消"
+  },
+  "auth": {
+    "welcome": "欢迎，{{userName}}",
+    "quickLogin": "快速登录",
+    "login": "登录",
+    "newAccountLogin": "使用新账号登录",
+    "disconnected": "与服务器断开连接",
+    "reconnecting": "正在重新连接服务器...",
+    "serverConnectionError": "服务器连接错误",
+    "registerSuccess": "注册成功",
+    "yourAccountIdIs": "您的账号 ID 是",
+    "invalidEmail": "无效的邮箱地址",
+    "usernamePasswordRequired": "用户名和密码不能为空",
+    "passwordMismatch": "两次输入的密码不一致",
+    "forceLogoutNotice": "强制下线通知",
+    "userRegister": "用户注册",
+    "userLogin": "用户登录",
+    "email": "邮箱",
+    "username": "用户名",
+    "userIdOrEmail": "用户 ID 或邮箱",
+    "password": "密码",
+    "confirmPassword": "确认密码",
+    "githubLoginRegister": "使用 GitHub 登录/注册",
+    "haveAccount": "已有账号？",
+    "noAccount": "还没有账号？",
+    "goToLogin": "去登录",
+    "goToRegister": "去注册"
+  },
+  "yourFeature": {
+    "title": "功能标题",
+    "description": "功能描述"
   }
 }

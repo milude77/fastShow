@@ -1,23 +1,22 @@
 
 .settings-area {
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  box-sizing: border-box;
+  width: 100vw;
   padding: 15px;
   background-color: var(--background-color);
   color: var(--text-color);
+  height: 100vh;
 }
 
 .tool-bar{
   display: flex;
   height: 100%;
   width: 150px;
-  justify-content: space-between;
   flex-direction: column;
   gap: 10px;
   background-color: var(--background-color);
   color: var(--text-color);
+  border-right: 1px solid var(--border-color);
 }
 
 .tool-bar-item.active{
@@ -43,3 +42,4 @@
   right: 20px; 
   bottom: 20px; 
 }
+

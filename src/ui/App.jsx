@@ -19,11 +19,9 @@ import { useGlobalMessage } from './hooks/useGlobalMessage';
 import { useGlobalModal } from './hooks/useModalManager';
 import { useMessageList } from './hooks/useMessageList';
 import { useUserAvatar } from './hooks/useAvatar';
+import i18n from '../i18n/index.js';
 import { useTranslation } from 'react-i18next';
-
 import titleImage from './assets/title.png';
-
-
 
 const SearchBar = ({ currentUser, onCreateGroup }) => {
   const { t } = useTranslation();
@@ -134,26 +132,30 @@ function App() {
     }
   }, [darkMode]);
 
-  const getContactList = async () => {
+  const getContactList = useCallback(async () => {
     const contactList = await window.electronAPI.getContactList();
     setContacts(contactList);
-  }
-
+  }, [setContacts]);
 
   const handleLoginSuccess = useCallback((data) => {
     const { userId, username, token, email } = data;
-    window.electronAPI.loginSuccess({ userId, token });
+    window.electronAPI.loginSuccess({ userId, username, token, email });
     window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token });
     window.electronAPI.saveUserListCredentials({ userId, userName: username, token });
-    setUserId(userId);
     localStorage.setItem('token', token);
     localStorage.setItem('currentUser', JSON.stringify({
       userId: userId,
       username: username
     }));
-    setCurrentUser({ userId, username, email, token });
-    getContactList();
-  }, [setCurrentUser, setUserId]);
+  }, []);
+
+  const handleDbInitializedSuccess = useCallback(({ userId, username, token, email }) => {
+    setTimeout(() => {
+      setUserId(userId);
+      setCurrentUser({ userId, username, email, token });
+      getContactList()
+    }, 1000)
+  }, [setCurrentUser, setUserId, getContactList])
 
   const handleFriendsList = useCallback((friendsWithGroups) => {
     setContacts(friendsWithGroups);
@@ -247,7 +249,9 @@ function App() {
     });
   }, []);
 
-
+  const handleLanguageUpdated = useCallback((event, language) => {
+    i18n.changeLanguage(language);
+  }, []);
 
   useEffect(() => {
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
@@ -255,6 +259,8 @@ function App() {
     window.electronAPI.ipcRenderer.on('send-new-meaage', sortContactList);
     window.electronAPI.ipcRenderer.on('revived-new-chat-message', sortContactList);
     window.electronAPI.ipcRenderer.on('contacts-list-updated', getContactList);
+    window.electronAPI.ipcRenderer.on('db-initialized-success', handleDbInitializedSuccess);
+    window.electronAPI.ipcRenderer.on('language-updated', handleLanguageUpdated);
 
     return () => {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
@@ -262,6 +268,8 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('send-new-meaage', sortContactList);
       window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', sortContactList);
       window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
+      window.electronAPI.ipcRenderer.removeListener('db-initialized-success', handleDbInitializedSuccess);
+      window.electronAPI.ipcRenderer.removeListener('friends-list', handleLanguageUpdated);
     }
   }, [])
 

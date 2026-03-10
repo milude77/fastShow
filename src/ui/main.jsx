@@ -6,7 +6,8 @@ import { SocketProvider } from './context/SocketContext.jsx';
 import { ModalProvider } from './context/ModalContext.jsx';
 import { AntdMessageProvider } from './context/AntdMeaageContext.jsx';
 import { UserAvatarProvider } from './context/UserAvatarContext.jsx';
-import i18n from '../i18n/index.js';
+
+
 
 createRoot(document.getElementById('root')).render(
   <AuthProvider>

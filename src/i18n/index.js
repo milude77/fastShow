@@ -7,31 +7,36 @@ import en from './locales/en.json';
 import ru from './locales/ru.json';
 
 const resources = {
-  zh: { 
+  zh: {
     translation: zh,
   },
-  en: { 
+  en: {
     translation: en,
   },
-  ru: { 
+  ru: {
     translation: ru,
   }
 };
 
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    resources,
-    lng:'zh',
-    debug: false,
-    interpolation: {
-      escapeValue: false
-    },
-    detection: {
-      order: ['localStorage', 'navigator'],
-      caches: ['localStorage']
-    }
-  });
+const getSettingsLanguage = async () => {
+  const language = await window.electronAPI.getSettingsValue('language');
+  i18n
+    .use(LanguageDetector)
+    .use(initReactI18next)
+    .init({
+      resources,
+      lng: language,
+      debug: false,
+      interpolation: {
+        escapeValue: false
+      },
+      detection: {
+        order: ['localStorage', 'navigator'],
+        caches: ['localStorage']
+      }
+    });
+}
+
+getSettingsLanguage();
 
 export default i18n;

@@ -11,7 +11,8 @@
     "search": "Поиск",
     "close": "Закрыть",
     "yes": "Да",
-    "no": "Нет"
+    "no": "Нет",
+    "ok": "OK"
   },
   "voice": {
     "incomingCall": "Входящий звонок",
@@ -42,6 +43,10 @@
     "zh": "中文",
     "en": "English",
     "ru": "Русский"
+  },
+  "languageChange": {
+    "title": "Переключить язык на {{language}}",
+    "content": "Некоторые модули требуют перезапуска для вступления в силу"
   },
   "avatarUploader": {
     "uploadSuccess": "Аватар загружен успешно",
@@ -169,5 +174,32 @@
     "createGroupTitle": "Создать групповой чат",
     "create": "Создать",
     "cancel": "Отмена"
+  },
+  "auth": {
+    "welcome": "Добро пожаловать, {{userName}}",
+    "quickLogin": "Быстрый вход",
+    "login": "Войти",
+    "newAccountLogin": "Войти с новым аккаунтом",
+    "disconnected": "Отключено от сервера",
+    "reconnecting": "Переподключение к серверу...",
+    "serverConnectionError": "Ошибка подключения к серверу",
+    "registerSuccess": "Регистрация успешна",
+    "yourAccountIdIs": "Ваш ID аккаунта",
+    "invalidEmail": "Неверный адрес электронной почты",
+    "usernamePasswordRequired": "Требуется имя пользователя и пароль",
+    "passwordMismatch": "Пароли не совпадают",
+    "forceLogoutNotice": "Уведомление о принудительном выходе",
+    "userRegister": "Регистрация пользователя",
+    "userLogin": "Вход пользователя",
+    "email": "Электронная почта",
+    "username": "Имя пользователя",
+    "userIdOrEmail": "ID пользователя или электронная почта",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердить пароль",
+    "githubLoginRegister": "Войти/зарегистрироваться через GitHub",
+    "haveAccount": "Уже есть аккаунт?",
+    "noAccount": "Нет аккаунта?",
+    "goToLogin": "Перейти ко входу",
+    "goToRegister": "Перейти к регистрации"
   }
 }

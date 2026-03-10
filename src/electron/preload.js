@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 
   //用户数据配置相关
-  loginSuccess: ({ userId, token }) => ipcRenderer.send('login-success', { userId, token }),
+  loginSuccess: ({ userId, username, token, email }) => ipcRenderer.send('login-success', { userId, username, token, email }),
   saveCurrentUserCredentials: (credentials) => ipcRenderer.send('save-current-user-credentials', credentials),
   getCurrentUserCredentials: () => ipcRenderer.invoke('get-current-user-credentials'),
   getContactList: () => ipcRenderer.invoke('get-contact-list'),
@@ -78,6 +78,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   videoCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'video' }),
   receivedCallRequest: (callerId) => ipcRenderer.send('voice-call-to-contact', { callerId }),
   hangupCall: () => ipcRenderer.send('hangup-call'),
+
+  //设置相关
+  updateLanguage: (language) => ipcRenderer.send('update-language', language),
+  updateSettings: ({key, value}) => ipcRenderer.send('updata-settings', { key, value }),
+  getSettingsValue: (key) => ipcRenderer.invoke('get-settings-value', key),
 
   //github配置相关
   githubOAuth: () => ipcRenderer.invoke('github-oauth'),

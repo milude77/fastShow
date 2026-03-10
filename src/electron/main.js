@@ -15,7 +15,6 @@ import { decryptMessage, wrapSocket } from './aseOptions.js'
 import { v4 as uuidv4 } from 'uuid';
 
 import {
-    initializeDefaultSettings,
     userCredentialsManager,
     settingsManager,
     dbMigrationManager,
@@ -590,8 +589,6 @@ app.whenReady().then(async () => {
     connectSocket();
     // --- End Socket.IO Connection ---
 
-    initializeDefaultSettings();
-
     createMainWindow()
 
     loginMap.set(loginId, {
@@ -663,7 +660,7 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
     return false;
 });
 
-ipcMain.on('login-success', async (event, { userId, token }) => {
+ipcMain.on('login-success', async (event, { userId, username, token, email }) => {
     currentUserId = userId;
     currentUserToken = token;
     try {
@@ -695,6 +692,8 @@ ipcMain.on('login-success', async (event, { userId, token }) => {
         } catch (e) {
             console.error('User DB migration failed:', e);
         }
+
+        event.sender.send('db-initialized-success', { userId, username, token, email });
 
         const handleContactsList = async (payload) => {
             try {
@@ -977,6 +976,23 @@ ipcMain.on('switch-user', (event, switchUserID) => {
 
 ipcMain.on('delete-saved-user', (event, removeUserID) => {
     userCredentialsManager.deleteUser(removeUserID);
+});
+
+ipcMain.on('updata-settings', (event, { key, value }) => {
+    settingsManager.updateSetting(key, value);
+});
+
+ipcMain.handle('get-settings-value', (event, key) => {
+    return settingsManager.getSetting(key);
+});
+
+ipcMain.on('update-language', (event, language) => {
+    settingsManager.updateSetting('language', language);
+    BrowserWindow.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+            window.webContents.send('language-updated', language);
+        }
+    });
 });
 
 // --- End User Credentials IPC Handlers ---
