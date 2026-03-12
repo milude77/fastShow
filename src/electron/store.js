@@ -279,17 +279,6 @@ export const storageManager = {
   }
 };
 
-export const themeManager = {
-  getTheme: () => {
-    return store.get('settings.theme');
-  },
-
-  setTheme: (theme) => {
-    store.set('settings.theme', theme);
-  }
-};
-
-
 
 
 export default store;

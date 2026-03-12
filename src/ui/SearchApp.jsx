@@ -7,11 +7,13 @@ import { Button } from 'antd/es/radio';
 import { useUserAvatar } from './hooks/useAvatar.js';
 import Avatar from './components/avatar.jsx';
 import { useTranslation } from 'react-i18next';
+import './css/dark-mode.css';
 
 const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddFriend }) => {
   const { t } = useTranslation();
   const socket = useSocket();
   const [messageApi, contextHolder] = message.useMessage();
+  const [theme, setTheme] = useState('light');
 
   const { getAvatarUrl } = useUserAvatar();
 
@@ -23,6 +25,31 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
       messageApi.error(`${t('friendsRequest.sendFailed')}${message.message}`);
     }
   }, [messageApi, t])
+
+  const handleThemeUpdated = useCallback((event, theme) => {
+    setTheme(theme);
+  }, []);
+
+  useEffect(() => {
+    window.electronAPI.getSettingsValue('theme').then(setTheme);
+  }, []);
+
+  useEffect(() => {
+    window.electronAPI.ipcRenderer.on('theme-updated', handleThemeUpdated);
+
+    return () => {
+      window.electronAPI.ipcRenderer.removeListener('theme-updated', handleThemeUpdated);
+    };
+  }, []);
+
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [theme]);
 
 
 
@@ -43,7 +70,7 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
       {contextHolder}
       <form onSubmit={onSearch} style={{ display: 'flex', width: '100%', justifyContent: 'center', alignItems: 'center' }}>
         <input
-          style={{ width: '50%', alignItems: 'center', height: '30px' }}
+          style={{ width: '50%', alignItems: 'center', height: '30px', backgroundColor: 'var(--tool-bar-bg-color)', color:'var(--text-color)' }}
           type="search"
           placeholder={t('search.placeholder')}
           value={searchTerm}
@@ -52,7 +79,8 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
         <button
           type="submit"
           style={{
-            backgroundColor: '#ecececff',
+            backgroundColor: 'var(--tool-bar-bg-color)',
+            color:'var(--text-color)',
             height: '30px',
             borderRadius: '5px',
             margin: '0 10px',

@@ -73,7 +73,7 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
 
 function App() {
   const { t } = useTranslation();
-  const [darkMode, setDarkMode] = useState(false);
+  const [theme, setTheme] = useState('dark');
   const [selectFeatures, setSelectFeatures] = useState('message');
   const [selectedContact, setSelectedContact] = useState(null);
   const selectedContactRef = useRef(selectedContact);
@@ -98,25 +98,12 @@ function App() {
     selectedContactRef.current = selectedContact;
   }, [selectedContact]);
 
-  const toggleDarkMode = () => {
-    window.electronAPI.toggleTheme(darkMode === true ? 'light' : 'dark');
-    setDarkMode(!darkMode);
+  const toggleDarkMode = async () => {
+    const curTheme = await window.electronAPI.getSettingsValue('theme');
+    const newTheme = curTheme === 'dark' ? 'light' : 'dark';
+    await window.electronAPI.updateTheme(newTheme);
   };
 
-  useEffect(() => {
-    const fetchTheme = async () => {
-      const theme = await window.electronAPI.getCurTheme();
-      if (theme === 'dark' && currentUser) {
-        setDarkMode(true);
-        document.body.classList.add('dark-mode');
-      } else {
-        setDarkMode(false);
-        document.body.classList.remove('dark-mode');
-      }
-    };
-
-    fetchTheme();
-  }, [currentUser]);
 
   useEffect(() => {
     if (currentUser) {
@@ -125,12 +112,15 @@ function App() {
   }, [currentUser]);
 
   useEffect(() => {
-    if (darkMode) {
+    window.electronAPI.getSettingsValue('theme').then((savedTheme) => {
+      setTheme(savedTheme);
+    })
+    if (theme === 'dark') {
       document.body.classList.add('dark-mode');
     } else {
       document.body.classList.remove('dark-mode');
     }
-  }, [darkMode]);
+  }, [theme]);
 
   const getContactList = useCallback(async () => {
     const contactList = await window.electronAPI.getContactList();
@@ -253,6 +243,10 @@ function App() {
     i18n.changeLanguage(language);
   }, []);
 
+  const handleThemeUpdated = useCallback((event, theme) => {
+    setTheme(theme);
+  }, []);
+
   useEffect(() => {
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
@@ -261,6 +255,9 @@ function App() {
     window.electronAPI.ipcRenderer.on('contacts-list-updated', getContactList);
     window.electronAPI.ipcRenderer.on('db-initialized-success', handleDbInitializedSuccess);
     window.electronAPI.ipcRenderer.on('language-updated', handleLanguageUpdated);
+    window.electronAPI.ipcRenderer.on('friends-list', handleFriendsList);
+    window.electronAPI.ipcRenderer.on('theme-updated', handleThemeUpdated);
+
 
     return () => {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
@@ -269,7 +266,9 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', sortContactList);
       window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
       window.electronAPI.ipcRenderer.removeListener('db-initialized-success', handleDbInitializedSuccess);
-      window.electronAPI.ipcRenderer.removeListener('friends-list', handleLanguageUpdated);
+      window.electronAPI.ipcRenderer.removeListener('language-updated', handleLanguageUpdated);
+      window.electronAPI.ipcRenderer.removeListener('friends-list', handleFriendsList);
+      window.electronAPI.ipcRenderer.removeListener('theme-updated', handleThemeUpdated);
     }
   }, [])
 
@@ -385,7 +384,7 @@ function App() {
       if (selectedContactInformation !== 'friendsRequest') {
         return (
           <ContactInformation
-            contactInformation={contacts.filter(contact => { return contact.id === selectedContactInformation && contact.type === 'friend' })[0]}
+            contactInformation={selectedContactInformation}
             toSendMessage={handleToSendMessage}
           />);
       }
@@ -420,7 +419,7 @@ function App() {
             <ToolBar
               selectFeatures={selectFeatures}
               setSelectFeatures={setSelectFeatures}
-              isDarkMode={darkMode}
+              theme={theme}
               toggleDarkMode={toggleDarkMode}
             />
           </div>

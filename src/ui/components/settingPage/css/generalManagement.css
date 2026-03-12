@@ -1,5 +1,18 @@
-.language-management{
+.general-settings-managerment{
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     background-color: var(--background-color);
+    display: inline-block;
+    width: 100%;
+}
+
+.general-settings-item{
+    display: flex;
+    user-select: none;
+    justify-content: space-between;
+    padding-bottom: 0.7rem;
+}
+
+.select-bar{
+    width: 7rem;
 }

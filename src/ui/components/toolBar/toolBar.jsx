@@ -7,7 +7,7 @@ import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlin
 import { useGlobalModal } from '../../hooks/useModalManager.js'
 import { useTranslation } from 'react-i18next';
 
-const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, isDarkMode, toggleDarkMode }) => {
+const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, theme, toggleDarkMode }) => {
     const { t } = useTranslation();
     const { avatarSrc } = useUserAvatar();
     const [hasNewInvite, setHasNewInvite] = useState(false);
@@ -57,7 +57,7 @@ const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, isDarkMode, tog
                 </Badge>
             </div>
             <div className='change-theme-bar'>
-                <Button style={{ color: 'var(--text-color)' }} type='link' icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />} onClick={() => toggleDarkMode()}></Button>
+                <Button style={{ color: 'var(--text-color)' }} type='link' icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />} onClick={() => toggleDarkMode()}></Button>
             </div>
             <div className='setting-bth'>
                 <Button style={{ color: 'var(--text-color)' }} type="link" title={t('nav.settings')} icon={<SettingOutlined />} onClick={() => window.electronAPI.openSettingsWindow()}></Button>

@@ -18,7 +18,6 @@ import {
     userCredentialsManager,
     settingsManager,
     dbMigrationManager,
-    themeManager,
     unreadMessageManager,
     userAssetsManager,
     userMessageDraftManager
@@ -926,13 +925,6 @@ ipcMain.handle('get-server-url', () => {
     return SOCKET_SERVER_URL;
 });
 
-ipcMain.handle('get-cur-theme', () => {
-    return themeManager.getTheme();
-})
-
-ipcMain.on('toggle-theme', (event, theme) => {
-    themeManager.setTheme(theme);
-})
 
 ipcMain.on('open-search-window', (event, { userId, selectInformation }) => {
     createSearchWindow(userId, selectInformation);
@@ -994,6 +986,15 @@ ipcMain.on('update-language', (event, language) => {
         }
     });
 });
+
+ipcMain.on('update-theme', (event, theme) => {
+    settingsManager.updateSetting('theme', theme);
+    BrowserWindow.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+            window.webContents.send('theme-updated', theme);
+        }
+    });
+})
 
 // --- End User Credentials IPC Handlers ---
 

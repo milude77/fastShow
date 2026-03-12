@@ -625,12 +625,19 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            await db('friendships').insert({
-                id: friendshipId,
-                user_id: senderInfo.userId,
-                friend_id: friendId,
-                status: 'pending'
-            });
+            if (!existingFriendship) {
+                await db('friendships').insert({
+                    id: friendshipId,
+                    user_id: senderInfo.userId,
+                    friend_id: friendId,
+                    status: 'pending'
+                });
+            }
+            else {
+                await db('friendships').update({
+                    status: 'pending'
+                }).where('id', friendshipId);
+            }
 
             // 查找对方是否在线，以便发送实时通知
             const targetSocketId = await getOnlineUserId(friendId);

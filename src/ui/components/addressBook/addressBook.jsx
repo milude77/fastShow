@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from'react';
 import { Collapse } from 'antd';
 import { UserOutlined, TeamOutlined, CaretRightOutlined, UsergroupAddOutlined } from '@ant-design/icons';
 import './css/addressBook.css';
@@ -8,11 +9,23 @@ import { useTranslation } from 'react-i18next';
 const { Panel } = Collapse;
 
 const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
 
   const handleSelectContact = (contactId) => {
     onSelectContact(contactId);
   };
+
+  // 服务器地址
+  const [serverUrl, setServerUrl] = useState('');
+
+  useEffect(() => {
+    const fetchServerUrl = async () => {
+      const url = await window.electronAPI.getServerUrl();
+      setServerUrl(url);
+    };
+    fetchServerUrl();
+  }, []);
+
 
   const { getAvatarUrl } = useUserAvatar();
 
@@ -43,7 +56,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
         >
           {friendsList && friendsList.length > 0 ? (
             friendsList.map((contact) => (
-              <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact.id) }}>
+              <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact) }}>
                 <Avatar
                   src={getAvatarUrl(contact.id)}
                   size={40}
@@ -65,7 +78,14 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
           {/* 这里可以放置群聊列表 */}
           {groupList && groupList.length > 0 ? (
             groupList.map(group => (
-              <div key={group.id} className="address-book-item">
+              <div className={`address-book-item ${group.id === selectedContact ? 'active' : 'inactive'}`} key={group.id} onClick={() => { handleSelectContact(group) }} >
+                <Avatar
+                  icon={<TeamOutlined />}
+                  src={`${serverUrl}/api/avatar/${group.id}/group?t=${new Date().getTime()}`}
+                  alt='avatar'
+                  size={40}
+                >
+                </Avatar>
                 <span className='contact-username' >{group.username}</span>
               </div>
             ))

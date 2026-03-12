@@ -81,6 +81,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   //设置相关
   updateLanguage: (language) => ipcRenderer.send('update-language', language),
+  updateTheme: (theme) => ipcRenderer.send('update-theme', theme),
   updateSettings: ({key, value}) => ipcRenderer.send('updata-settings', { key, value }),
   getSettingsValue: (key) => ipcRenderer.invoke('get-settings-value', key),
 
@@ -94,8 +95,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resizeWindow: (width, height) => ipcRenderer.send('resize-window', { width, height }),
   toggleAlwaysOnTop: () => ipcRenderer.send('toggle-always-on-top'),
   getInitialIsPinned: () => ipcRenderer.invoke('get-initial-always-on-top'),
-  getCurTheme: () => ipcRenderer.invoke('get-cur-theme'),
-  toggleTheme: (theme) => ipcRenderer.send('toggle-theme', theme),
 
   ipcRenderer: {
     on: (channel, listener) => {

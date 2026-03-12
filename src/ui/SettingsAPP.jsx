@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useState } from 'react';
 import './css/SettingsAPP.css'
+import './css/dark-mode.css';
 import UserManagement from './components/settingPage/userManagement.jsx';
 import GeneralManagement from './components/settingPage/generalManagement.jsx';
 import AppHeaderBar from './components/appHeaderBar.jsx';
@@ -25,14 +26,40 @@ function UserManagementPage({ handleLogout }) {
     )
 }
 
+
 function SettingsAPP() {
     const { t } = useTranslation();
 
     const [tooBarState, setToolBarState] = useState('userManagement');
+    const [theme, setTheme] = useState('light');
 
     const handleLogout = () => {
         window.electronAPI.logout();
     }
+
+    const handleThemeUpdated = useCallback((event, theme) => {
+        setTheme(theme);
+    }, []);
+
+    useEffect(() => {
+        window.electronAPI.ipcRenderer.on('theme-updated', handleThemeUpdated);
+
+        return () => {
+            window.electronAPI.ipcRenderer.removeListener('theme-updated', handleThemeUpdated);
+        };
+    }, [handleThemeUpdated]);
+
+
+    useEffect(() => {
+        window.electronAPI.getSettingsValue('theme').then((theme) => {
+            if (theme === 'dark') {
+                document.body.classList.add('dark-mode');
+            } else {
+                document.body.classList.remove('dark-mode');
+            }
+            setTheme(theme);
+        });
+    }, [theme]);
 
     const handleSwitchToolBarItem = (item) => {
         switch (item) {
