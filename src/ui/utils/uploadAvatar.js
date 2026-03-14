@@ -1,7 +1,7 @@
 import apiClient from './api.js'
 import axios from 'axios';
 
-const handleAvatarUpload = async (blob) => {
+export const avatarUpload = async (blob) => {
     try {
         const arrayBuffer = await blob.arrayBuffer();
 
@@ -9,7 +9,9 @@ const handleAvatarUpload = async (blob) => {
         await window.electronAPI.saveAvatarLocally(arrayBuffer);
 
         const serverUrl = await window.electronAPI.getServerUrl();
-        const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`);
+        const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`, {
+            isGroupAvatar: false
+        });
         const { presignedUrl, objectName } = initiateResponse.data;
 
         await axios.put(presignedUrl, blob, {
@@ -18,7 +20,7 @@ const handleAvatarUpload = async (blob) => {
             },
         });
 
-        const result =  await apiClient.post(`${serverUrl}/api/avatar/complete`, {
+        const result = await apiClient.post(`${serverUrl}/api/avatar/complete`, {
             objectName,
         });
 
@@ -29,4 +31,29 @@ const handleAvatarUpload = async (blob) => {
     }
 };
 
-export default handleAvatarUpload;
+export const groupAvatarUpload = async (blob, groupId) => {
+    try {
+        const serverUrl = await window.electronAPI.getServerUrl();
+        const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`, {
+            isGroupAvatar: true,
+            groupId: groupId
+        });
+        const { presignedUrl, objectName } = initiateResponse.data;
+
+        await axios.put(presignedUrl, blob, {
+            headers: {
+                'Content-Type': 'image/jpg',
+            },
+        });
+
+        const result = await apiClient.post(`${serverUrl}/api/avatar/complete`, {
+            objectName,
+        });
+
+        return result;
+    }
+    catch (e) {
+        console.error(e)
+    }
+}
+

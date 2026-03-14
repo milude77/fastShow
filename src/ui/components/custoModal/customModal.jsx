@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import CreateGoupsApp from './CreateGoupsApp.jsx';
 import InviteFriendsJoinGroup from './inviteFriends.jsx';
 import AvatarUploader from './AvatarUploader.jsx'
-import handleAvatarUpload from '../../utils/uploadAvatar.js'
+import UserInformation from './userInformation.jsx'
 import './css/CustomModal.css';
 
 
@@ -23,7 +23,15 @@ const CustomModal = ({ isModalOpen, modalType, modalProps, closeModal }) => {
       case 'avatarUploader':
         return (
           <AvatarUploader
-            onAvatarUpload={handleAvatarUpload}
+            onClose={closeModal}
+            imgSrc={modalProps.imgSrc}
+            isGroupAvatarUpload={modalProps.isGroupAvatarUpload}
+            groupId={modalProps.groupId}
+          />
+        )
+      case 'userInformation':
+        return (
+          <UserInformation
             onClose={closeModal}
           />
         )

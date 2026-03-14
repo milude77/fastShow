@@ -44,7 +44,7 @@ const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, theme, toggleDa
             <Avatar
                 size={35}
                 className='user-avatar'
-                onClick={() => openModal('avatarUploader')}
+                onClick={() => openModal('userInformation')}
                 src={avatarSrc}
                 alt="User Avatar" />
 

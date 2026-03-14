@@ -1193,9 +1193,19 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
 // --- 新的基于HTTP的头像上传流程 ---
 
 // 1. 初始化上传，获取预签名URL
-app.post('/api/avatar/initiate', authenticateToken, (req, res) => {
+app.post('/api/avatar/initiate', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    const objectName = `user-${userId}/avatar.jpg`; // 固定文件名，方便覆盖
+    const { isGroupAvatar, groupId } = req.body;
+    let objectName
+    if (!isGroupAvatar) objectName = `user-${userId}/avatar.jpg`;
+    else {
+        const userRole = await db('group_members').where({ group_id: groupId, user_id: userId }).first();
+        if (userRole.role !== 'owner') {
+            res.status(403).json({ error: '权限不足' });
+            return;
+        }
+        objectName = `group-${groupId}/avatar.jpg`;
+    };
 
     // 生成一个有效期为5分钟的预签名URL，用于PUT操作
     minioClient.presignedPutObject(bucketName, objectName, 5 * 60, (err, presignedUrl) => {

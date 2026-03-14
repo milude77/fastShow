@@ -706,26 +706,36 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
                     else remoteGroups.push(contact);
                 }
 
+                remoteGroups.map(async (g) => {
+                    await db('groups').where('id', g.id).update({
+                        my_role: g.myRole
+                    })
+                })
+
                 const remoteFriendIds = new Set(remoteFriend.map(f => String(f.id)));
                 const remoteGroupIds = new Set(remoteGroups.map(g => String(g.id)));
 
-                const localFriends = await db('friends').select('id');
+                const localFriends = await db('friends').select('id', 'isFriend');
                 const localFriendIds = new Set(localFriends.map(f => String(f.id)));
 
-                const localGroups = await db('groups').select('id');
+                const localGroups = await db('groups').select('id', 'isMember');
                 const localGroupIds = new Set(localGroups.map(g => String(g.id)));
 
-                const groupsToAdd = remoteGroups.filter(g => !localGroupIds.has(String(g.id)))
-                const friendsToAdd = remoteFriend.filter(f => !localFriendIds.has(String(f.id)));
+                const groupsToAdd = remoteGroups.filter(g => !localGroupIds.has(String(g.id) && !g.isMember))
+                const friendsToAdd = remoteFriend.filter(f => !localFriendIds.has(String(f.id) && !f.isFriend));
 
                 if (friendsToAdd.length > 0) {
                     const rows = friendsToAdd.map(f => ({
                         id: String(f.id),
                         userName: String(f.username || f.userName || ''),
                         addTime: f.created_at ? new Date(f.created_at) : new Date(),
-                        nickName: f.nickName ? String(f.nickName) : null
+                        nickName: f.nickName ? String(f.nickName) : null,
                     }));
                     await db('friends').insert(rows).onConflict('id').ignore();
+
+                    if (friendsToAdd.length > 0) {
+                        await db('friends').whereIn('id', friendsToAdd.map(f => String(f.id))).update({ isFriend: true, is_deleted: false });
+                    }
                 }
 
                 if (groupsToAdd.length > 0) {
@@ -735,6 +745,9 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
                         addTime: g.created_at ? new Date(g.joinedAt) : new Date(),
                     }));
                     await db('groups').insert(rows).onConflict('id').ignore();
+                    if (groupsToAdd.length > 0) {
+                        await db('groups').whereIn('id', groupsToAdd.map(g => String(g.id))).update({ isMember: true, is_deleted: false });
+                    }
                 }
 
                 const friendsToDelete = [...localFriendIds].filter(id => !remoteFriendIds.has(id));
@@ -1654,7 +1667,7 @@ ipcMain.handle('get-contact-list', async () => {
     }));
     let groups = await db('groups')
         .where('isMember', true)
-        .select('id', 'groupName as username', 'lastMessage')
+        .select('id', 'groupName as username', 'lastMessage', 'my_role as myRole')
     groups = groups.map(item => ({
         ...item,
         type: 'group'

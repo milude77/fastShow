@@ -77,6 +77,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
     }, [contact.id, getLastMessage]);
 
     const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
+        console.log('收到新消息通知:', { contactId, isGroup });
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
             setNewMessageCount(prevCount => prevCount + 1);
             throttledGetLastMessage(contactId);

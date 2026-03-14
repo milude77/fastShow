@@ -2,6 +2,7 @@ import axios from 'axios';
 import { userCredentialsManager } from './store.js';
 
 const apiClient = axios.create({
+  timeout: 5000,
 });
 
 apiClient.interceptors.request.use(
@@ -17,5 +18,6 @@ apiClient.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
 
 export default apiClient;

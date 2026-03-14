@@ -101,15 +101,46 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
         });
     };
 
+    const onSelectFile = (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const reader = new FileReader();
+            reader.addEventListener('load', () =>
+                openModal('avatarUploader', { imgSrc: reader.result.toString(), isGroupAvatarUpload : true, groupId: contact.id })
+            );
+            reader.readAsDataURL(e.target.files[0]);
+        }
+    };
+
     return (
         <div ref={optionRef} className={`contact-option ${openContactOptions ? 'visible' : ''}`} >
             {modalContextHolder}
             {contact.type === 'group' &&
                 <div className="contact-option-header" >
-                    <Avatar
-                        size={50}
-                        src={`${serverUrl}/api/avatar/${contact.id}/group`}
-                        alt="群聊头像" />
+                    {contact.myRole !== 'member' ? (
+                        <label htmlFor="file-upload">
+                            <Avatar
+                                style={{ cursor: 'pointer' }}
+                                size={50}
+                                src={`${serverUrl}/api/avatar/${contact.id}/group`}
+                                alt="群聊头像" />
+                        </label>
+                    ) : (
+                        <div>
+                            <Avatar
+                                size={50}
+                                src={`${serverUrl}/api/avatar/${contact.id}/group`}
+                                alt="群聊头像" />
+                        </div>
+                    )}
+                    {contact.myRole !== 'member' && (
+                        <input
+                            type="file"
+                            id="file-upload"
+                            accept="image/*"
+                            onChange={onSelectFile}
+                            style={{ display: 'none' }}
+                        />
+                    )}
                     <div style={{ display: 'flex', flexDirection: 'column' }} >
                         <strong>{contact.username}</strong>
                         <h4>id:{contact.id}</h4>

@@ -120,7 +120,7 @@ export async function migrateUserDb(db, userId, dbPath) {
     const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 10;
+    const targetVer = 11;
     // 若版本已满足，直接返回
     if (currentDbVersion >= targetVer) {
       return;
@@ -244,8 +244,12 @@ export async function migrateUserDb(db, userId, dbPath) {
       console.log("Added 'lastMessage' column to 'groups' table.");
     }
 
-
-
+    const hasMyRoleColumn = await db.schema.hasColumn('groups', 'my_role');
+    if (!hasMyRoleColumn) {
+      await db.schema.table('groups', (table) => {
+        table.string('my_role').nullable().defaultTo('member');
+      });
+    }
 
     // 为 friends 表添加索引（如果不存在）
     const indexesToAdd = [

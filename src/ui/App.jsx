@@ -80,6 +80,10 @@ function App() {
   const [selectedContactInformation, setSelectedContactInformation] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [contacts, setContacts] = useState([]);
+  // 新增：LRU 缓存，存储联系人 ID 的访问顺序
+  const contactLruOrderRef = useRef([]);
+  // 新增：联系人 Map，用于快速查找
+  const contactMapRef = useRef(new Map());
   const { messageApi } = useGlobalMessage();
   const { setUserId } = useUserAvatar();
   const { currentUser, setCurrentUser } = useAuth();
@@ -149,19 +153,41 @@ function App() {
 
   const handleFriendsList = useCallback((friendsWithGroups) => {
     setContacts(friendsWithGroups);
+    // 同步更新 LRU 缓存和 Map
+    const newLruOrder = [];
+    const newMap = new Map();
+    friendsWithGroups.forEach(c => {
+      const key = `${c.id}-${c.type === 'group' ? 'group' : 'friend'}`;
+      newLruOrder.push(key);
+      newMap.set(key, c);
+    });
+    contactLruOrderRef.current = newLruOrder;
+    contactMapRef.current = newMap;
   }, [setContacts]);
 
   const friendsRequestAccepted = useCallback((data) => {
     setContacts(prevContacts => [...prevContacts, data]);
+    // 更新 LRU 缓存
+    const key = `${data.id}-${data.type === 'group' ? 'group' : 'friend'}`;
+    contactLruOrderRef.current.unshift(key);
+    contactMapRef.current.set(key, data);
   }, []);
 
   const handleNewGroup = useCallback((data) => {
     setContacts(prevContacts => [...prevContacts, data]);
+    // 更新 LRU 缓存
+    const key = `${data.id}-${data.type === 'group' ? 'group' : 'friend'}`;
+    contactLruOrderRef.current.unshift(key);
+    contactMapRef.current.set(key, data);
   }, []);
 
   const handleLeaveGroupSuccess = useCallback((groupId) => {
     messageApi.success(t('app.leaveGroupSuccess'));
     setContacts(prevContacts => prevContacts.filter(contact => contact.type !== 'group' || contact.id !== groupId));
+    // 从 LRU 缓存中移除
+    const key = `${groupId}-group`;
+    contactLruOrderRef.current = contactLruOrderRef.current.filter(k => k !== key);
+    contactMapRef.current.delete(key);
     setSelectedContact(null)
   }, [messageApi]);
 
@@ -213,30 +239,50 @@ function App() {
   }, [messageApi]);
 
   const sortContactList = useCallback((event, { contactId, isGroup }) => {
+    // 优化 1: 使用 LRU 缓存记录访问顺序
+    const lruOrder = contactLruOrderRef.current;
+    const contactMap = contactMapRef.current;
+    
+    // 优化 2: 构造查找键
+    const lookupKey = `${contactId}-${isGroup ? 'group' : 'friend'}`;
+    
+    // 优化 3: 从 LRU 中移除该联系人（如果已存在）
+    const existingIndex = lruOrder.indexOf(lookupKey);
+    if (existingIndex > -1) {
+      lruOrder.splice(existingIndex, 1);
+    }
+    
+    // 优化 4: 将联系人添加到 LRU 顶部
+    lruOrder.unshift(lookupKey);
+    
+    // 优化 5: 更新 contacts 状态，根据 LRU 顺序重新排列
     setContacts(prev => {
-      const targetIndex = prev.findIndex(c =>
-        c.id === contactId &&
-        (isGroup ? c.type === 'group' : c.type === 'friend')
-      );
-
-      if (targetIndex === -1) {
-        console.warn('Contact not found for message:', contactId);
-        return prev;
-      }
-
-      // 1. 获取目标联系人（保持引用稳定）
-      const targetContact = prev[targetIndex];
-
-
-      // 3. 构造新数组：移除原位置，插入顶部
-      const newContacts = [
-        targetContact,
-        ...prev.slice(0, targetIndex),
-        ...prev.slice(targetIndex + 1)
-      ];
-
-      return newContacts;
+      // 更新 Map
+      const newMap = new Map();
+      prev.forEach(c => {
+        const key = `${c.id}-${c.type === 'group' ? 'group' : 'friend'}`;
+        newMap.set(key, c);
+        contactMap.set(key, c);
+      });
+      
+      // 根据 LRU 顺序重新排列
+      const sortedContacts = lruOrder
+        .map(key => contactMap.get(key))
+        .filter(Boolean);
+      
+      // 添加不在 LRU 中的联系人（新联系人）
+      prev.forEach(c => {
+        const key = `${c.id}-${c.type === 'group' ? 'group' : 'friend'}`;
+        if (!lruOrder.includes(key)) {
+          sortedContacts.push(c);
+        }
+      });
+      
+      return sortedContacts;
     });
+    
+    // 更新 ref
+    contactLruOrderRef.current = lruOrder;
   }, []);
 
   const handleLanguageUpdated = useCallback((event, language) => {
@@ -333,6 +379,10 @@ function App() {
       const newContacts = prevContacts.filter(contact => { return (contact.id !== contactId || contact.type !== 'friend') });
       return newContacts;
     });
+    // 从 LRU 缓存中移除
+    const key = `${contactId}-friend`;
+    contactLruOrderRef.current = contactLruOrderRef.current.filter(k => k !== key);
+    contactMapRef.current.delete(key);
     messageApi.success(t('app.deleteFriendSuccess'));
   }, [setSelectedContactInformation, setSelectedContact, setContacts, messageApi]);
 
