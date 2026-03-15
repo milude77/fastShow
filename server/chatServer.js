@@ -203,6 +203,7 @@ async function getGroupsList(socket) {
     return payload;
 }
 async function handleSendDisconnectMessage(socket, user) {
+
     // 使用 JOIN 查询一次性获取未送达的私聊消息和发送者信息
     const undeliveredMessages = await db('messages as m')
         .join('users as u', 'm.sender_id', 'u.id')
@@ -223,6 +224,7 @@ async function handleSendDisconnectMessage(socket, user) {
 
 
     // 使用 JOIN 查询一次性获取未送达的群聊消息和发送者信息
+    console.log(user.userId, typeof user.userId)
     const undeliveredGroupMessages = await db('group_message_read_status as gmrs')
         .join('group_messages as gm', 'gm.message_id', 'gmrs.group_message_id')
         .join('users as u', 'gm.sender_id', 'u.id')
@@ -402,8 +404,7 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            const formattedId = String(user.id).padStart(6, '0');
-            await handleSendDisconnectMessage(socket, { userId: formattedId, username: user.username });
+            await handleSendDisconnectMessage(socket, { userId: user.id, username: user.username });
             await handleGetFriendRequests(socket);
         } catch (error) {
             console.error('处理 initial-data-success 时出错:', error);

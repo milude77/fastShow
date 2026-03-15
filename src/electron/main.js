@@ -845,7 +845,9 @@ ipcMain.on('new-chat-message', async (event, { contactId, msg }) => {
     await writeChatHistory(contactId, msg);
     socket.emit('confirm-message-received', { messageId, isGroup });
     unreadMessageManager.incrementUnreadMessageCount(currentUserId, contactId, isGroup)
-    event.sender.send('revived-new-chat-message', { contactId, isGroup });
+    BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('revived-new-chat-message', { contactId, isGroup });
+    })
 });
 
 function getNewMessageId() {

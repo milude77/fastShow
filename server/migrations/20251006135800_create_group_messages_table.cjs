@@ -14,6 +14,7 @@ exports.up = function(knex) {
     table.bigInteger('file_size').nullable();
     table.string('mime_type', 100).nullable();
     table.string('file_id', 100).nullable();
+    table.string('message_id', 255).unique();
 
     table.timestamps(true, true); // created_at and updated_at
 

@@ -6,16 +6,18 @@ const path = require('path');
  */
 module.exports = {
   development: {
-    client: 'sqlite3',
+    client: 'postgresql',
     connection: {
-      filename: path.join(__dirname, 'dev.sqlite3')
+      database: 'fastShow',
+      user: 'postgres',
+      password: 'your_password'
     },
-    useNullAsDefault: true,
+    pool: {
+      min: 2,
+      max: 10
+    },
     migrations: {
-      directory: './migrations'
-    },
-    seeds: {
-      directory: './seeds'
+      tableName: 'knex_migrations'
     }
   },
 

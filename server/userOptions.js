@@ -24,9 +24,12 @@ export const registerUser = async (socket, data) => {
         let formattedId;
 
         await db.transaction(async (trx) => {
-            // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
             const maxIdResult = await trx('users')
                 .max('id as maxId')
+                .first();
+
+            await trx('users')
+                .where('id', maxIdResult.maxId)
                 .first()
                 .forUpdate();
 

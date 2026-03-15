@@ -8,7 +8,7 @@ import './css/contactItem.css';
 import { formatTime } from '../../utils/timeFormatter.js';
 import { useTranslation } from 'react-i18next';
 
-const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact, serverUrl }) => {
+const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl }) => {
     const { t } = useTranslation();
     const [lastMessage, setLastMessage] = useState({});
     const [draft, setDraft] = useState('');
@@ -62,7 +62,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
         const isGroup = contact.type === 'group';
         const count = await window.electronAPI.getUnreadMessageCount(contactId, isGroup);
         setNewMessageCount(count);
-    },[])
+    }, [ contact.type ])
 
     useEffect(() => {
         getUnreadMessageCount(contact.id);
@@ -77,7 +77,6 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
     }, [contact.id, getLastMessage]);
 
     const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
-        console.log('收到新消息通知:', { contactId, isGroup });
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
             setNewMessageCount(prevCount => prevCount + 1);
             throttledGetLastMessage(contactId);
@@ -89,7 +88,7 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
             if (draft) {
                 setDraft('');
                 getLastMessage(contactId);
-                return ;
+                return;
             }
             throttledGetLastMessage(contactId);
         }
@@ -98,12 +97,12 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
     useEffect(() => {
         window.electronAPI.ipcRenderer.on('revived-new-chat-message', handleNewMessage);
         window.electronAPI.ipcRenderer.on('send-new-meaage', handleSendNewMessage);
-        
+
         return () => {
             window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', handleNewMessage);
             window.electronAPI.ipcRenderer.removeListener('send-new-meaage', handleSendNewMessage);
         };
-    }, []);
+    }, [handleNewMessage, handleSendNewMessage]);
 
     const changeSelectedContact = useCallback((contact) => {
         if (contact.id === selectedContact?.id) {
@@ -114,8 +113,8 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
     }, [selectedContact?.id, handleSelectCurContact]);
 
     return (
-        <div 
-            className={`contact-item ${contact.id === selectedContact?.id ? 'selected' : ''}`} 
+        <div
+            className={`contact-item ${contact.id === selectedContact?.id ? 'selected' : ''}`}
             onClick={() => changeSelectedContact(contact)}
         >
             <Avatar
@@ -148,20 +147,6 @@ const ContactItem = React.memo(({ contact, selectedContact, handleSelectContact,
             </div>
         </div>
     );
-}, (prevProps, nextProps) => {
-    // 只有在 contact 相关数据或 selectedContact 的影响发生改变时才重新渲染
-    const isContactEqual = prevProps.contact.id === nextProps.contact.id &&
-                           prevProps.contact.username === nextProps.contact.username &&
-                           prevProps.contact.type === nextProps.contact.type &&
-                           prevProps.contact.lastMessageTime === nextProps.contact.lastMessageTime;
-    
-    const isSelectedChanged = (prevProps.selectedContact?.id === prevProps.contact.id) !== 
-                             (nextProps.selectedContact?.id === nextProps.contact.id);
-    
-    const isOtherPropsEqual = prevProps.serverUrl === nextProps.serverUrl;
-    
-    // 只有当联系人数据、选中状态或服务器 URL 改变时才重新渲染
-    return !isSelectedChanged && isContactEqual && isOtherPropsEqual;
-});
+}
 
 export default ContactItem;
