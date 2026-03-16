@@ -845,9 +845,7 @@ ipcMain.on('new-chat-message', async (event, { contactId, msg }) => {
     await writeChatHistory(contactId, msg);
     socket.emit('confirm-message-received', { messageId, isGroup });
     unreadMessageManager.incrementUnreadMessageCount(currentUserId, contactId, isGroup)
-    BrowserWindow.getAllWindows().forEach(window => {
-        window.webContents.send('revived-new-chat-message', { contactId, isGroup });
-    })
+    event.sender.send('received-new-chat-message', { contactId, isGroup });
 });
 
 function getNewMessageId() {
@@ -869,7 +867,7 @@ ipcMain.on('send-private-message', async (event, { receiverId, message, messageI
 
     await writeChatHistory(receiverId, fullMessage);
     socket.emit('send-private-message', fullMessage);
-    event.sender.send('send-new-meaage', { contactId: receiverId, isGroup: false });
+    event.sender.send('sent-new-message', { contactId: receiverId, isGroup: false });
 });
 
 ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) => {
@@ -882,7 +880,7 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
     };
     await writeChatHistory(groupId, fullMessage);
     socket.emit('send-group-message', fullMessage);
-    event.sender.send('send-new-meaage', { contactId: groupId, isGroup: true });
+    event.sender.send('sent-new-message', { contactId: groupId, isGroup: true });
 });
 
 
@@ -1113,7 +1111,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         await writeChatHistory(receiverId, saveMessage)
 
         event.sender.send('file-upload-complete', { messageId });
-        event.sender.send('send-new-meaage', { contactId: receiverId, isGroup });
+        event.sender.send('sent-new-message', { contactId: receiverId, isGroup });
 
         return { success: true, messageData: returnedData, messageId };
 

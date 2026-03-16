@@ -62,7 +62,7 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
         const isGroup = contact.type === 'group';
         const count = await window.electronAPI.getUnreadMessageCount(contactId, isGroup);
         setNewMessageCount(count);
-    }, [ contact.type ])
+    }, [contact.type])
 
     useEffect(() => {
         getUnreadMessageCount(contact.id);
@@ -95,12 +95,12 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
     }, [contact.id, contact.type, throttledGetLastMessage, getLastMessage, draft]);
 
     useEffect(() => {
-        window.electronAPI.ipcRenderer.on('revived-new-chat-message', handleNewMessage);
-        window.electronAPI.ipcRenderer.on('send-new-meaage', handleSendNewMessage);
+        window.electronAPI.ipcRenderer.on('received-new-chat-message', handleNewMessage);
+        window.electronAPI.ipcRenderer.on('sent-new-message', handleSendNewMessage);
 
         return () => {
-            window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', handleNewMessage);
-            window.electronAPI.ipcRenderer.removeListener('send-new-meaage', handleSendNewMessage);
+            window.electronAPI.ipcRenderer.removeListener('received-new-chat-message', handleNewMessage);
+            window.electronAPI.ipcRenderer.removeListener('sent-new-message', handleSendNewMessage);
         };
     }, [handleNewMessage, handleSendNewMessage]);
 

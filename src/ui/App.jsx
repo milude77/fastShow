@@ -296,8 +296,8 @@ function App() {
   useEffect(() => {
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
-    window.electronAPI.ipcRenderer.on('send-new-meaage', sortContactList);
-    window.electronAPI.ipcRenderer.on('revived-new-chat-message', sortContactList);
+    window.electronAPI.ipcRenderer.on('sent-new-message', sortContactList);
+    window.electronAPI.ipcRenderer.on('received-new-chat-message', sortContactList);
     window.electronAPI.ipcRenderer.on('contacts-list-updated', getContactList);
     window.electronAPI.ipcRenderer.on('db-initialized-success', handleDbInitializedSuccess);
     window.electronAPI.ipcRenderer.on('language-updated', handleLanguageUpdated);
@@ -308,8 +308,8 @@ function App() {
     return () => {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
       window.electronAPI.ipcRenderer.removeListener('message-history-deleted', handleChatHistoryDeleted);
-      window.electronAPI.ipcRenderer.removeListener('send-new-meaage', sortContactList);
-      window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', sortContactList);
+      window.electronAPI.ipcRenderer.removeListener('sent-new-message', sortContactList);
+      window.electronAPI.ipcRenderer.removeListener('received-new-chat-message', sortContactList);
       window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
       window.electronAPI.ipcRenderer.removeListener('db-initialized-success', handleDbInitializedSuccess);
       window.electronAPI.ipcRenderer.removeListener('language-updated', handleLanguageUpdated);
