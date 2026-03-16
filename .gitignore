@@ -30,5 +30,4 @@ release
 server/uploads/*
 config.json
 *.env
-server/knexfile.cjs
 
