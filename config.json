@@ -1,0 +1,9 @@
+{
+  "DEV_SERVER_URL": "http://localhost:3001",
+  "SOCKET_SERVER_URL": "http://192.168.31.98:3001",
+  "SOCKET_VOICE_SERVER_URL": "localhost:3478",
+  "NODE_ENV": "development",
+  "ENCRYPTION_KEY": "12345678901234567890123456789012",
+  "ENCRYPTION_IV": "1234567890123456",
+  "CLINEID": "your_client_id"
+}
