@@ -28,4 +28,6 @@ dist-ssr
 release
 
 server/uploads/*
+config.json
+*.env
 
