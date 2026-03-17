@@ -13,6 +13,7 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
     const [lastMessage, setLastMessage] = useState({});
     const [draft, setDraft] = useState('');
     const [newMessageCount, setNewMessageCount] = useState(0);
+    const [isReadyToReceive, setIsReadyToReceive] = useState(false);
 
     // 节流函数
     const throttle = (fn, delay) => {
@@ -58,14 +59,26 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
 
     const throttledGetLastMessage = throttle(getLastMessage, 300)
 
-    const getUnreadMessageCount = useCallback(async (contactId) => {
+    const getUnreadMessageCount = useCallback((contactId = contact.id) => {
         const isGroup = contact.type === 'group';
-        const count = await window.electronAPI.getUnreadMessageCount(contactId, isGroup);
-        setNewMessageCount(count);
-    }, [contact.type])
+        window.electronAPI.getUnreadMessageCount(contactId, isGroup).then(count => {
+            setNewMessageCount(count);
+        });
+    }, [contact.type, contact.id]);
 
     useEffect(() => {
+
         getUnreadMessageCount(contact.id);
+
+        const handleDisconnectComplete = () => {
+            getUnreadMessageCount(contact.id);
+            setIsReadyToReceive(true);
+        };
+
+        window.electronAPI.ipcRenderer.on('disconnect-message-send-comple', handleDisconnectComplete);
+        return () => {
+            window.electronAPI.ipcRenderer.removeListener('disconnect-message-send-comple', handleDisconnectComplete);
+        }
     }, [contact.id, getUnreadMessageCount]);
 
     useEffect(() => {
@@ -95,6 +108,8 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
     }, [contact.id, contact.type, throttledGetLastMessage, getLastMessage, draft]);
 
     useEffect(() => {
+        if (!isReadyToReceive) return;
+
         window.electronAPI.ipcRenderer.on('received-new-chat-message', handleNewMessage);
         window.electronAPI.ipcRenderer.on('sent-new-message', handleSendNewMessage);
 
@@ -102,7 +117,7 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
             window.electronAPI.ipcRenderer.removeListener('received-new-chat-message', handleNewMessage);
             window.electronAPI.ipcRenderer.removeListener('sent-new-message', handleSendNewMessage);
         };
-    }, [handleNewMessage, handleSendNewMessage]);
+    }, [handleNewMessage, handleSendNewMessage, isReadyToReceive]);
 
     const changeSelectedContact = useCallback((contact) => {
         if (contact.id === selectedContact?.id) {
@@ -130,20 +145,18 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
                     {draft ? `[${t('contactItem.draft')}]${draft}` : (lastMessage.username ? `${lastMessage?.username}: ${lastMessage?.text}` : '')}
                 </span>
                 {lastMessage?.timestamp && (<span className="contact-timestamp">{formatTime(lastMessage?.timestamp)}</span>)}
-                {newMessageCount > 0 && (
-                    <Badge
-                        size="small"
-                        className="message-badge"
-                        count={newMessageCount}
-                        style={{
-                            position: 'absolute',
-                            bottom: '5px',
-                            right: '5px',
-                            backgroundColor: '#ff4d4f',
-                            color: 'white'
-                        }}
-                    />
-                )}
+                <Badge
+                    size="small"
+                    className="message-badge"
+                    count={newMessageCount}
+                    style={{
+                        position: 'absolute',
+                        bottom: '5px',
+                        right: '5px',
+                        backgroundColor: '#ff4d4f',
+                        color: 'white'
+                    }}
+                />
             </div>
         </div>
     );

@@ -193,7 +193,9 @@ export const appConfigManager = {
 
 export const unreadMessageManager = {
   getUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
+    console.log('getUnreadMessageCount', userId, contactId, isGroup);
     const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
+    console.log('key', key);
     return store.get(key) || 0;
   },
 
@@ -220,14 +222,14 @@ export const unreadMessageManager = {
   clearUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
     const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
     const count = store.get(key) || 0;
-    const allCount = this.getAllUnreadMessageCount(userId);  // ✅ 现在可以使用 this
+    const allCount = this.getAllUnreadMessageCount(userId);
     const allKey = `unreadMessageCount.${userId}.count`;
 
     store.set(key, 0);
-    store.set(allKey, Math.max(0, allCount - count));  // 防止负数
+    store.set(allKey, Math.max(0, allCount - count));
   },
 
-  clearAllUserUnreadMessages: function (userId) {  // 使用 function
+  clearAllUserUnreadMessages: function (userId) {
     const key = `unreadMessageCount.${userId}.count`;
     store.delete(key);
   }

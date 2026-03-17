@@ -9,6 +9,7 @@ import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
+import { handleContactsList } from './userDataOptions.js';
 import { protocol } from 'electron';
 import { decryptMessage, wrapSocket } from './aseOptions.js'
 
@@ -659,6 +660,10 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
     return false;
 });
 
+const revicedContactList = async (payload) => {
+    await handleContactsList(db, payload);
+}
+
 ipcMain.on('login-success', async (event, { userId, username, token, email }) => {
     currentUserId = userId;
     currentUserToken = token;
@@ -692,93 +697,22 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
             console.error('User DB migration failed:', e);
         }
 
-        event.sender.send('db-initialized-success', { userId, username, token, email });
-
-        const handleContactsList = async (payload) => {
-            try {
-                const contacts = Array.isArray(payload) ? payload : Object.values(payload || {});
-
-                let remoteFriend = new Array()
-                let remoteGroups = new Array()
-
-                for (const contact of contacts) {
-                    if (contact.type == 'friend') remoteFriend.push(contact);
-                    else remoteGroups.push(contact);
-                }
-
-                remoteGroups.map(async (g) => {
-                    await db('groups').where('id', g.id).update({
-                        my_role: g.myRole
-                    })
-                })
-
-                const remoteFriendIds = new Set(remoteFriend.map(f => String(f.id)));
-                const remoteGroupIds = new Set(remoteGroups.map(g => String(g.id)));
-
-                const localFriends = await db('friends').select('id', 'isFriend');
-                const localFriendIds = new Set(localFriends.map(f => String(f.id)));
-
-                const localGroups = await db('groups').select('id', 'isMember');
-                const localGroupIds = new Set(localGroups.map(g => String(g.id)));
-
-                const groupsToAdd = remoteGroups.filter(g => !localGroupIds.has(String(g.id) && !g.isMember))
-                const friendsToAdd = remoteFriend.filter(f => !localFriendIds.has(String(f.id) && !f.isFriend));
-
-                if (friendsToAdd.length > 0) {
-                    const rows = friendsToAdd.map(f => ({
-                        id: String(f.id),
-                        userName: String(f.username || f.userName || ''),
-                        addTime: f.created_at ? new Date(f.created_at) : new Date(),
-                        nickName: f.nickName ? String(f.nickName) : null,
-                    }));
-                    await db('friends').insert(rows).onConflict('id').ignore();
-
-                    if (friendsToAdd.length > 0) {
-                        await db('friends').whereIn('id', friendsToAdd.map(f => String(f.id))).update({ isFriend: true, is_deleted: false });
-                    }
-                }
-
-                if (groupsToAdd.length > 0) {
-                    const rows = groupsToAdd.map(g => ({
-                        id: String(g.id),
-                        groupName: String(g.username),
-                        addTime: g.created_at ? new Date(g.joinedAt) : new Date(),
-                    }));
-                    await db('groups').insert(rows).onConflict('id').ignore();
-                    if (groupsToAdd.length > 0) {
-                        await db('groups').whereIn('id', groupsToAdd.map(g => String(g.id))).update({ isMember: true, is_deleted: false });
-                    }
-                }
-
-                const friendsToDelete = [...localFriendIds].filter(id => !remoteFriendIds.has(id));
-                const groupsToDelete = [...localGroupIds].filter(id => !remoteGroupIds.has(id));
-
-                if (groupsToDelete.length > 0) {
-                    await db('groups').whereIn('id', groupsToDelete).update({ isMember: false });
-                }
-                if (friendsToDelete.length > 0) {
-                    await db('friends').whereIn('id', friendsToDelete).update({ isFriend: false });
-                }
-
-                event.sender.send('contacts-list-updated');
-
-            } catch (e) {
-                console.error('Friends sync error:', e);
-            }
-        }
-
 
         if (await db.schema.hasTable('friends')) {
-            if (socket && handleContactsList) {
-                socket.off('contacts-list', handleContactsList);
+            if (socket && revicedContactList) {
+                socket.off('contacts-list', revicedContactList);
             }
-            socket.on('contacts-list', handleContactsList);
+            socket.on('contacts-list', revicedContactList);
         }
-        socket.on('disconnect-message-send-comple', () => event.sender.send('disconnect-message-send-comple'))
+        socket.on('disconnect-message-send-comple', (userId) => {
+            event.sender.send('disconnect-message-send-comple', userId);
+            socket.off('disconnect-message-send-comple');
+        })
         // 创建托盘 - 同样需要更新托盘图标路径
         createTray(mainWindow);
-        socket.emit('initial-data-success', { userId });
-        socket.emit('get-contacts');
+        socket.on('new-message', handleNewMessage)
+        event.sender.send('db-initialized-success', { userId, username, token, email });
+        event.sender.send('start-revice-message');
 
         await downLoadUserAvatar();
     }
@@ -793,6 +727,11 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
             bindings: error.bindings
         });
     }
+})
+
+ipcMain.on('start-revice-message', (event, userId) => {
+    socket.emit('initial-data-success', { userId });
+    socket.emit('get-contacts');
 })
 
 ipcMain.handle('get-user-avatar-path', () => {
@@ -835,7 +774,8 @@ ipcMain.handle('save-avatar-locally', async (event, avatarArrayBuffer) => {
 });
 
 
-ipcMain.on('new-chat-message', async (event, { contactId, msg }) => {
+
+const saveNewMessage = async ({ contactId, msg }) => {
     const [messageId, isGroup] = [msg.id, msg.type === 'group']
     if (!msg) {
         console.error('Received chat-message with undefined msg object.');
@@ -845,8 +785,34 @@ ipcMain.on('new-chat-message', async (event, { contactId, msg }) => {
     await writeChatHistory(contactId, msg);
     socket.emit('confirm-message-received', { messageId, isGroup });
     unreadMessageManager.incrementUnreadMessageCount(currentUserId, contactId, isGroup)
-    event.sender.send('received-new-chat-message', { contactId, isGroup });
-});
+}
+
+const handleNewMessage = async (msg) => {
+    // Safety check: Do not process messages if the user is not logged in.
+
+    const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
+    const messageId = msg.message_id;
+
+    const newMessage = {
+        id: messageId,
+        text: msg.content,
+        sender: 'other',
+        sender_id: msg.senderId,
+        timestamp: new Date(msg.timestamp),
+        username: msg.username,
+        fileName: msg.fileName,
+        messageType: msg.messageType,
+        type: msg.type,
+        fileUrl: msg.fileUrl,
+        fileSize: msg.fileSize,
+    }
+
+    await saveNewMessage({ contactId, msg: newMessage });
+    BrowserWindow.getAllWindows().forEach(win => {
+        win.webContents.send('received-new-chat-message', { contactId, isGroup: msg.type === 'group' });
+    })
+}
+
 
 function getNewMessageId() {
     return snowflake.nextId().toString();
@@ -1704,8 +1670,9 @@ ipcMain.handle('get-last-message', async (event, { contactId, isGroup }) => {
     };
 })
 
-ipcMain.handle('get-unread-message-count', async ({ contactId, isGroup }) => {
-    return unreadMessageManager.getUnreadMessageCount(currentUserId, contactId, isGroup);
+ipcMain.handle('get-unread-message-count', async (event, { contactId, isGroup }) => {
+    const unreadMEssageCount = unreadMessageManager.getUnreadMessageCount(currentUserId, contactId, isGroup);
+    return unreadMEssageCount;
 });
 
 ipcMain.on('clear-unread-message-count', async (event, { contactId, isGroup }) => {

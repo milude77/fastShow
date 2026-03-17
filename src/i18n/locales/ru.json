@@ -80,7 +80,8 @@
     "reconnecting": "Переподключение...",
     "leaveGroupSuccess": "Успешный выход из группы",
     "deleteFriendSuccess": "Друг успешно удален",
-    "defaultList": "Список по умолчанию"
+    "defaultList": "Список по умолчанию",
+    "startReviceMessage": "Получение сообщений..."
   },
   "search": {
     "placeholder": "Поиск по имени пользователя/id",
@@ -179,6 +180,7 @@
     "welcome": "Добро пожаловать, {{userName}}",
     "quickLogin": "Быстрый вход",
     "login": "Войти",
+    "register": "Зарегистрироваться",
     "newAccountLogin": "Войти с новым аккаунтом",
     "disconnected": "Отключено от сервера",
     "reconnecting": "Переподключение к серверу...",

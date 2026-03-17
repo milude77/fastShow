@@ -80,7 +80,8 @@
     "reconnecting": "Reconnecting...",
     "leaveGroupSuccess": "Left group successfully",
     "deleteFriendSuccess": "Friend deleted successfully",
-    "defaultList": "Default List"
+    "defaultList": "Default List",
+    "startReviceMessage": "receiving messages..."
   },
   "search": {
     "placeholder": "Search by username/id",
@@ -179,6 +180,7 @@
     "welcome": "Welcome, {{userName}}",
     "quickLogin": "Quick Login",
     "login": "Login",
+    "register": "Register",
     "newAccountLogin": "Login with new account",
     "disconnected": "Disconnected from server",
     "reconnecting": "Reconnecting to server...",

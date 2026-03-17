@@ -223,8 +223,6 @@ async function handleSendDisconnectMessage(socket, user) {
         .orderBy('m.timestamp', 'asc');
 
 
-    // 使用 JOIN 查询一次性获取未送达的群聊消息和发送者信息
-    console.log(user.userId, typeof user.userId)
     const undeliveredGroupMessages = await db('group_message_read_status as gmrs')
         .join('group_messages as gm', 'gm.message_id', 'gmrs.group_message_id')
         .join('users as u', 'gm.sender_id', 'u.id')
@@ -279,7 +277,7 @@ async function handleSendDisconnectMessage(socket, user) {
         });
     }
 
-    socket.emit('disconnect-message-send-comple')
+    socket.emit('disconnect-message-send-comple', user.userId)
 }
 
 async function handleGetFriendRequests(socket) {
@@ -370,6 +368,7 @@ io.on('connection', (socket) => {
     socket.on('login-with-token', async (data) => userLoginWithToken(socket, data));
 
     socket.on('initial-data-success', async (data) => {
+        console.log('Initial data success:', data);
         let userId;
         // 检查 data 是否为对象以及是否包含 userId
         if (data && typeof data === 'object' && 'userId' in data) {

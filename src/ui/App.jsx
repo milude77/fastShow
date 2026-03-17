@@ -143,13 +143,14 @@ function App() {
     }));
   }, []);
 
-  const handleDbInitializedSuccess = useCallback(({ userId, username, token, email }) => {
+  const handleDbInitializedSuccess = useCallback((event, { userId, username, token, email }) => {
     setTimeout(() => {
       setUserId(userId);
       setCurrentUser({ userId, username, email, token });
       getContactList()
+      window.electronAPI.startReviceMessage(userId)
     }, 1000)
-  }, [setCurrentUser, setUserId, getContactList])
+  }, [setCurrentUser, setUserId, getContactList]);
 
   const handleFriendsList = useCallback((friendsWithGroups) => {
     setContacts(friendsWithGroups);
@@ -242,19 +243,19 @@ function App() {
     // 优化 1: 使用 LRU 缓存记录访问顺序
     const lruOrder = contactLruOrderRef.current;
     const contactMap = contactMapRef.current;
-    
+
     // 优化 2: 构造查找键
     const lookupKey = `${contactId}-${isGroup ? 'group' : 'friend'}`;
-    
+
     // 优化 3: 从 LRU 中移除该联系人（如果已存在）
     const existingIndex = lruOrder.indexOf(lookupKey);
     if (existingIndex > -1) {
       lruOrder.splice(existingIndex, 1);
     }
-    
+
     // 优化 4: 将联系人添加到 LRU 顶部
     lruOrder.unshift(lookupKey);
-    
+
     // 优化 5: 更新 contacts 状态，根据 LRU 顺序重新排列
     setContacts(prev => {
       // 更新 Map
@@ -264,12 +265,12 @@ function App() {
         newMap.set(key, c);
         contactMap.set(key, c);
       });
-      
+
       // 根据 LRU 顺序重新排列
       const sortedContacts = lruOrder
         .map(key => contactMap.get(key))
         .filter(Boolean);
-      
+
       // 添加不在 LRU 中的联系人（新联系人）
       prev.forEach(c => {
         const key = `${c.id}-${c.type === 'group' ? 'group' : 'friend'}`;
@@ -277,10 +278,10 @@ function App() {
           sortedContacts.push(c);
         }
       });
-      
+
       return sortedContacts;
     });
-    
+
     // 更新 ref
     contactLruOrderRef.current = lruOrder;
   }, []);
@@ -293,6 +294,14 @@ function App() {
     setTheme(theme);
   }, []);
 
+  const handleReceivedMessageComple = useCallback(() => {
+    setConnectionStatus('');
+  }, [])
+
+  const handleStartReviceMessage = useCallback(() => {
+    setConnectionStatus('start-revice-message');
+  }, [])
+
   useEffect(() => {
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
@@ -303,6 +312,8 @@ function App() {
     window.electronAPI.ipcRenderer.on('language-updated', handleLanguageUpdated);
     window.electronAPI.ipcRenderer.on('friends-list', handleFriendsList);
     window.electronAPI.ipcRenderer.on('theme-updated', handleThemeUpdated);
+    window.electronAPI.ipcRenderer.on('disconnect-message-send-comple', handleReceivedMessageComple);
+    window.electronAPI.ipcRenderer.on('start-revice-message', handleStartReviceMessage);
 
 
     return () => {
@@ -315,6 +326,8 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('language-updated', handleLanguageUpdated);
       window.electronAPI.ipcRenderer.removeListener('friends-list', handleFriendsList);
       window.electronAPI.ipcRenderer.removeListener('theme-updated', handleThemeUpdated);
+      window.electronAPI.ipcRenderer.removeListener('disconnect-message-send-comple', handleReceivedMessageComple);
+      window.electronAPI.ipcRenderer.removeListener('start-revice-message', handleStartReviceMessage);
     }
   }, [])
 
@@ -417,6 +430,9 @@ function App() {
     }
     if (connectionStatus === 'reconnecting') {
       return <Alert message={t('app.reconnecting')} type="warning" showIcon />;
+    }
+    if (connectionStatus === 'start-revice-message') {
+      return <Alert message={t('app.startReviceMessage')} type="info" showIcon />;
     }
     return null;
   };

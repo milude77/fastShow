@@ -80,7 +80,8 @@
     "reconnecting": "正在重新连接...",
     "leaveGroupSuccess": "退出群聊成功",
     "deleteFriendSuccess": "删除好友成功",
-    "defaultList": "默认列表"
+    "defaultList": "默认列表",
+    "startReviceMessage": "收取中..."
   },
   "search": {
     "placeholder": "按 用户名/id 搜索",
@@ -179,6 +180,7 @@
     "welcome": "欢迎，{{userName}}",
     "quickLogin": "快速登录",
     "login": "登录",
+    "register": "注册",
     "newAccountLogin": "使用新账号登录",
     "disconnected": "与服务器断开连接",
     "reconnecting": "正在重新连接服务器...",

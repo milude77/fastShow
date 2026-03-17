@@ -321,9 +321,8 @@ const AuthPage = () => {
             <button
               className='login-btn'
               type="submit"
-
             >
-              {t('auth.login')}
+              {isRegistering ? t('auth.register') : t('auth.login')}
             </button>
             <button className='login-btn git-btn' type="button" onClick={() => { window.electronAPI.githubOAuth() }}>
               <span>

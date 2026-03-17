@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import './css/toolBar.css';
-import { Button, Badge, Space } from 'antd';
+import { Button, Badge } from 'antd';
 import Avatar from '../avatar.jsx';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { useGlobalModal } from '../../hooks/useModalManager.js'
 import { useTranslation } from 'react-i18next';
 
-const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, theme, toggleDarkMode }) => {
+const ToolBar = ({ selectFeatures, setSelectFeatures, theme, toggleDarkMode }) => {
     const { t } = useTranslation();
     const { avatarSrc } = useUserAvatar();
     const [hasNewInvite, setHasNewInvite] = useState(false);
     const [newMessageCount, setNewMessageCount] = useState(0);
     const { openModal } = useGlobalModal();
+    const [isReadyToReceive, setIsReadyToReceive] = useState(false);
 
     const handleNewInvite = () => {
         setHasNewInvite(true);
@@ -28,7 +29,19 @@ const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, theme, toggleDa
     };
 
     useEffect(() => {
+        const handleDisconnectComplete = () => {
+            handleClearUnreadMessageCount();
+            setIsReadyToReceive(true);
+        };
 
+        window.electronAPI.ipcRenderer.on('disconnect-message-send-comple', handleDisconnectComplete);
+        return () => {
+            window.electronAPI.ipcRenderer.removeListener('disconnect-message-send-comple', handleDisconnectComplete);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!isReadyToReceive) return;
         window.electronAPI.ipcRenderer.on('receive-new-invite', handleNewInvite);
         window.electronAPI.ipcRenderer.on('revived-new-chat-message', handleNewMessage);
         window.electronAPI.ipcRenderer.on('unread-message-count-cleared', handleClearUnreadMessageCount);
@@ -37,7 +50,7 @@ const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, theme, toggleDa
             window.electronAPI.ipcRenderer.removeListener('revived-new-chat-message', handleNewMessage);
             window.electronAPI.ipcRenderer.removeListener('unread-message-count-cleared', handleClearUnreadMessageCount);
         };
-    }, []);
+    }, [isReadyToReceive]);
 
     return (
         <div className='tool-bar'>
@@ -64,6 +77,6 @@ const ToolBar = React.memo(({ selectFeatures, setSelectFeatures, theme, toggleDa
             </div>
         </div>
     );
-});
+};
 
 export default ToolBar;

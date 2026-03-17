@@ -1,7 +1,6 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  newChatMessage: (contactId, msg) => ipcRenderer.send('new-chat-message', { contactId, msg }),
   getNewMessageId: () => ipcRenderer.invoke('get-new-message-id'),
   sendPrivateMessage: ({ receiverId, message, messageId }) => ipcRenderer.send('send-private-message', { receiverId, message, messageId }),
   sendGroupMessage: ({ groupId, message, messageId }) => ipcRenderer.send('send-group-message', { groupId, message, messageId }),
@@ -65,6 +64,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   declineFriendRequest: (requesterId) => ipcRenderer.send('decline-friend-request', requesterId),
   getInviteinformationList: () => ipcRenderer.invoke('get-invite-information-list'),
   saveInviteinformationList: (credentials) => ipcRenderer.send('save-invite-information-list', credentials),
+  startReviceMessage: (userId) => ipcRenderer.send('start-revice-message', userId),
 
   saveUserListCredentials: (credentials) => ipcRenderer.send('save-user-credentials-list', credentials),
   getUserListCredentials: () => ipcRenderer.invoke('get-user-credentials-list'),

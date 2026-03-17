@@ -212,10 +212,10 @@ const MessageList = ({ contact, messageListHook }) => {
     }
 
     useEffect(() => {
-        window.electronAPI.ipcRenderer.on('send-new-meaage', handleSendNewMessage);
+        window.electronAPI.ipcRenderer.on('sent-new-message', handleSendNewMessage);
 
         return () => {
-            window.electronAPI.ipcRenderer.removeListener('send-new-meaage', handleSendNewMessage);
+            window.electronAPI.ipcRenderer.removeListener('sent-new-message', handleSendNewMessage);
         }
     })
 
