@@ -10,12 +10,15 @@ export async function initializeDatabase(db) {
     let groupMessageExists;
     let groupTableExists;
     let inviteInformationExists;
+    let groupMemberExists;
     try {
       privateMessageExists = await db.schema.hasTable('messages');
       friendTableExists = await db.schema.hasTable('friends');
       groupTableExists = await db.schema.hasTable('groups');
       groupMessageExists = await db.schema.hasTable('group_messages');
       inviteInformationExists = await db.schema.hasTable('invite_information');
+      groupMemberExists = await db.schema.hasTable('group_member_event');
+
     } catch (error) {
       console.error('Error checking if messages table exists:', error.message);
       privateMessageExists = false;
@@ -27,9 +30,9 @@ export async function initializeDatabase(db) {
         table.string('userName').notNullable();
         table.string('nickName').nullable().defaultTo(null);
         table.timestamp('addTime').defaultTo(db.fn.now());
-        table.boolean('isFriend').defaultTo(true);
         table.integer('version').notNullable().defaultTo(0);
         table.timestamp('lastMessage').nullable().defaultTo(null);
+        table.string('status').notNullable().defaultTo('normal')
       })
     }
 
@@ -38,9 +41,9 @@ export async function initializeDatabase(db) {
         table.string('id').primary();
         table.string('groupName').notNullable();
         table.timestamp('addTime').defaultTo(db.fn.now());
-        table.boolean('isMember').defaultTo(true);
         table.integer('version').notNullable().defaultTo(0);
         table.timestamp('lastMessage').nullable().defaultTo(null);
+        table.string('status').notNullable().defaultTo('normal')
       })
     }
 
@@ -94,6 +97,16 @@ export async function initializeDatabase(db) {
         table.timestamp('update_time').defaultTo(db.fn.now());
       })
     }
+
+    if (!groupMemberExists) {
+      await db.schema.createTable('group_member', (table) => {
+        table.string('id').primary();
+        table.string('group_id').notNullable();
+        table.string('member_id').notNullable();
+        table.string('member_name').notNullable();
+        table.timestamp('join_time').defaultTo(db.fn.now());
+      })
+    }
   } catch (error) {
     console.error('Failed to initialize database:', error);
     console.error('Error details:', {
@@ -120,7 +133,7 @@ export async function migrateUserDb(db, userId, dbPath) {
     const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 11;
+    const targetVer = 14;
     // 若版本已满足，直接返回
     if (currentDbVersion >= targetVer) {
       return;
@@ -202,11 +215,24 @@ export async function migrateUserDb(db, userId, dbPath) {
     }
 
     const hasIsDeletedColumn = await db.schema.hasColumn('friends', 'is_deleted');
-    if (!hasIsDeletedColumn) {
+    if (hasIsDeletedColumn) {
       await db.schema.table('friends', (table) => {
-        table.boolean('is_deleted').notNullable().defaultTo(false);
+        table.dropColumn('is_deleted');
       });
-      console.log("Added 'is_deleted' column to 'friends' table.");
+    }
+
+    const hasIsFriendColumn = await db.schema.hasColumn('friends', 'is_friend');
+    if (hasIsFriendColumn) {
+      await db.schema.table('friends', (table) => {
+        table.dropColumn('is_friend')
+      });
+    }
+
+    const hasFrinendStatusColumn = await db.schema.hasColumn('friends', 'status');
+    if (!hasFrinendStatusColumn) {
+      await db.schema.table('friends', (table) => {
+        table.string('status').defaultTo('normal');
+      });
     }
 
     const hasIsExitFriendLatestColumn = await db.schema.hasColumn('friends', 'lastMessage');
@@ -216,6 +242,13 @@ export async function migrateUserDb(db, userId, dbPath) {
         table.timestamp('lastMessage').nullable().defaultTo(null);
       });
       console.log("Added 'lastMessage' column to 'friends' table.");
+    }
+
+    const hasIsExitFriendVersionColumn = await db.schema.hasColumn('friends', 'version');
+    if (!hasIsExitFriendVersionColumn) {
+      await db.schema.table('friends', (table) => {
+        table.integer('version').notNullable().defaultTo(0);
+      });
     }
 
     // 为 groups 表补充 is_exit 和 version 列
@@ -228,11 +261,27 @@ export async function migrateUserDb(db, userId, dbPath) {
     }
 
     const hasIsExitColumn = await db.schema.hasColumn('groups', 'is_exit');
-    if (!hasIsExitColumn) {
+    if (hasIsExitColumn) {
       await db.schema.table('groups', (table) => {
-        table.boolean('is_exit').notNullable().defaultTo(false);
+        table.dropColumn('is_exit');
       });
-      console.log("Added 'is_exit' column to 'groups' table.");
+      console.log("Dropped 'is_exit' column from 'groups' table.");
+    }
+
+    const hasisMemberColumn = await db.schema.hasColumn('groups', 'isMember');
+    if (hasisMemberColumn) {
+      await db.schema.table('groups', (table) => {
+        table.dropColumn('isMember');
+      });
+      console.log("Dropped 'isMember' column from 'groups' table.");
+    }
+
+    const hasGroupStatusColumn = await db.schema.hasColumn('groups', 'status');
+    if (!hasGroupStatusColumn) {
+      await db.schema.table('groups', (table) => {
+        table.string('status').defaultTo('normal');
+        console.log("Added 'status' column to 'groups' table.");
+      });
     }
 
     const hasIsExitLatestColumn = await db.schema.hasColumn('groups', 'lastMessage');
