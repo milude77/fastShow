@@ -17,7 +17,7 @@ export async function initializeDatabase(db) {
       groupTableExists = await db.schema.hasTable('groups');
       groupMessageExists = await db.schema.hasTable('group_messages');
       inviteInformationExists = await db.schema.hasTable('invite_information');
-      groupMemberExists = await db.schema.hasTable('group_member_event');
+      groupMemberExists = await db.schema.hasTable('group_member');
 
     } catch (error) {
       console.error('Error checking if messages table exists:', error.message);
@@ -42,8 +42,10 @@ export async function initializeDatabase(db) {
         table.string('groupName').notNullable();
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.integer('version').notNullable().defaultTo(0);
+        table.integer('member_version').notNullable().defaultTo(0);
         table.timestamp('lastMessage').nullable().defaultTo(null);
         table.string('status').notNullable().defaultTo('normal')
+        table.string('my_role').nullable().defaultTo('member');
       })
     }
 
@@ -133,7 +135,7 @@ export async function migrateUserDb(db, userId, dbPath) {
     const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 14;
+    const targetVer = 16;
     // 若版本已满足，直接返回
     if (currentDbVersion >= targetVer) {
       return;
@@ -221,10 +223,10 @@ export async function migrateUserDb(db, userId, dbPath) {
       });
     }
 
-    const hasIsFriendColumn = await db.schema.hasColumn('friends', 'is_friend');
+    const hasIsFriendColumn = await db.schema.hasColumn('friends', 'isFriend');
     if (hasIsFriendColumn) {
       await db.schema.table('friends', (table) => {
-        table.dropColumn('is_friend')
+        table.dropColumn('isFriend')
       });
     }
 
@@ -298,6 +300,13 @@ export async function migrateUserDb(db, userId, dbPath) {
       await db.schema.table('groups', (table) => {
         table.string('my_role').nullable().defaultTo('member');
       });
+    }
+
+    const hasGroupMemberVersionColumn = await db.schema.hasColumn('groups', 'member_version');
+    if (!hasGroupMemberVersionColumn) {
+      await db.schema.table('groups', (table) => {
+        table.integer('member_version').notNullable().defaultTo(0);
+      })
     }
 
     // 为 friends 表添加索引（如果不存在）

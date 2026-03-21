@@ -14,6 +14,7 @@ import axios from 'axios';
 
 import { decryptMessage, encryptMessage } from './aseOptions.js';
 import { registerUser, userLogin, userLoginWithToken } from './userOptions.js';
+import { compareContactInformation } from './userContactCompare.js';
 import {
     getOnlineUser,
     getAllOnlineUsers,
@@ -138,6 +139,21 @@ const authenticateToken = (req, res, next) => {
         next();
     });
 };
+
+//更新用户联系人列表版本
+async function updateUserContactVersion(userId) {
+    // 使用数据库的自增功能来增加版本号
+    await db('users')
+        .where('id', userId)
+        .increment('contact_list_version', 1);
+}
+
+//更新群成员版本
+async function updateGroupMemberVersion(groupId) {
+    await db('groups')
+        .where('id', groupId)
+        .increment('member_version', 1);
+}
 // Fetches and emits the friends list for a given socket
 async function getFriendsList(socket) {
     const senderInfo = await getOnlineUser(socket.id)
@@ -153,17 +169,22 @@ async function getFriendsList(socket) {
 
         const friendIds = friendships.map(f => f.user_id === senderInfo.userId ? f.friend_id : f.user_id);
 
-        const friends = await db('users').whereIn('id', friendIds).select('id', 'username');
+        const friends = await db('users').whereIn('id', friendIds).select('id', 'username', 'inf_version');
         const onlineUserIds = await getAllOnlineUserIds();
 
         const friendsWithStatus = friends.map(friend => ({
             id: friend.id,
             username: friend.username,
             isOnline: onlineUserIds.has(friend.id),
-            type: 'friend'
+            type: 'friend',
+            version: friend.inf_version
         }));
 
-        return friendsWithStatus;
+        const contactVersion = await db('users')
+            .where('id', senderInfo.userId)
+            .first('contact_list_version');
+
+        return { friendsWithStatus, contactVersion: contactVersion.contact_list_version };
     } catch (error) {
         console.error('Error fetching friends:', error);
         socket.emit('notification', { status: 'error', message: '获取好友列表失败' });
@@ -187,7 +208,8 @@ async function getGroupsList(socket) {
             'gm.role as myRole',
             'gm.created_at as joinedAt',
             'g.created_at',
-            'g.updated_at'
+            'g.updated_at',
+            'g.version'
         )
         .orderBy('g.updated_at', 'desc');
 
@@ -198,8 +220,10 @@ async function getGroupsList(socket) {
         myName: g.myName,
         myRole: g.myRole,
         joinedAt: g.joinedAt,
-        type: 'group'
+        type: 'group',
+        version: g.version
     }));
+
     return payload;
 }
 async function handleSendDisconnectMessage(socket, user) {
@@ -554,27 +578,25 @@ io.on('connection', (socket) => {
     });
 
 
-    // 获取好友列表
-    socket.on('get-friends-list', async () => {
-        const friends = await getFriendsList(socket);
-        socket.emit('friends-list', friends);
-    });
-
-    socket.on('get-groups-list', async () => {
-        const groups = await getGroupsList(socket);
-        socket.emit('group-list', groups);
-    });
-
-    socket.on('get-contacts', async () => {
+    socket.on('sync-contacts-list', async ({ version }) => {
         try {
-            const friends = await getFriendsList(socket);
-            const groups = await getGroupsList(socket);
-            socket.emit('contacts-list', [...friends, ...groups]);
+            const senderInfo = await getOnlineUser(socket.id);
+            if (version === 0) {
+                const result = await getFriendsList(socket);
+                const groupResult = await getGroupsList(socket);
+                result.groupResult = groupResult;
+                socket.emit('const-list', result);
+            }
+            else {
+                const result = await compareContactInformation(senderInfo.userId, version)
+                if (result) socket.emit('contact-compare-result', result);
+            }
         }
         catch (error) {
             console.error('Error getting friends list:', error);
         }
     });
+
 
     // 搜索用户
     socket.on('search-users', async (searchTerm) => {
@@ -596,8 +618,6 @@ io.on('connection', (socket) => {
     // 添加好友
     socket.on('add-friend', async (friendId) => {
         const senderInfo = await getOnlineUser(socket.id);
-
-        console.log(`添加好友: ${friendId}`);
 
 
         if (!friendId) {
@@ -641,14 +661,22 @@ io.on('connection', (socket) => {
 
             // 查找对方是否在线，以便发送实时通知
             const targetSocketId = await getOnlineUserId(friendId);
+            await db('user_event').insert({
+                user_id: friendId,
+                action: 'friend_request',
+                event_data: JSON.stringify({
+                    data: {
+                        id: friendshipId,
+                        inviterId: senderInfo.userId,
+                        inviterName: senderInfo.username,
+                        createdTime: new Date()
+                    }
+                })
+            });
+            await updateUserContactVersion(friendId);
 
             if (targetSocketId) {
-                // 发送完整的用户信息（ID和用户名）
-                io.to(targetSocketId.socketId).emit('new-friend-request', {
-                    id: friendshipId,
-                    inviterId: senderInfo.userId,
-                    inviterName: senderInfo.username
-                });
+                io.to(targetSocketId.socketId).emit('contact-update');
             }
 
             socket.emit('add-friends-msg', { success: true });
@@ -670,6 +698,18 @@ io.on('connection', (socket) => {
             await db('friendships')
                 .where('id', friendshipId)
                 .update({ status: 'deleted', is_deleted: true });
+            await db('user_event').insert({
+                user_id: friendId,
+                action: 'friend_deleted',
+                event_data: JSON.stringify({
+                    friendId: senderInfo.userId,
+                })
+            });
+            await updateUserContactVersion(friendId);
+            const targetSocketId = await getOnlineUserId(friendId);
+            if (targetSocketId) {
+                io.to(targetSocketId.socketId).emit('contact-update');
+            }
 
             socket.emit('contact-deleted', { friendId });
         } catch (error) {
@@ -694,15 +734,18 @@ io.on('connection', (socket) => {
                     .join('users', 'friendships.user_id', 'users.id')
                     .select('users.id', 'users.username')
                     .first();
+                await db('user_event').insert({
+                    user_id: friendInformation.id,
+                    action: 'friend_add',
+                    event_data: JSON.stringify({
+                        status: 'accepted',
+                        friend_id: senderInfo.userId,
+                    })
+                });
 
                 const targetSocketId = await getOnlineUserId(friendInformation.id);
                 if (targetSocketId) {
-                    io.to(targetSocketId.socketId).emit('friend-request-accepted', {
-                        id: senderInfo.userId,
-                        username: senderInfo.username,
-                        type: 'friend',
-                        isOnline: true
-                    });
+                    io.to(targetSocketId.socketId).emit('contact-update');
                 }
                 socket.emit('friend-request-accepted', Object.assign(friendInformation, { type: 'friend', isOnline: targetSocketId }));
             }
@@ -736,6 +779,8 @@ io.on('connection', (socket) => {
                 role: 'member'
             }).onConflict(['group_id', 'user_id']).ignore();;
 
+            await updateGroupMemberVersion(newMemberInformation.groupId);
+
             const groupMembers = await db('group_invitations')
                 .where({ 'group_invitations.id': requesterId })
                 .join('group_members as gm', 'group_invitations.group_id', 'gm.group_id')
@@ -744,11 +789,7 @@ io.on('connection', (socket) => {
             const onlineUsersIds = await getAllOnlineUserIds();
             groupMembers.map(member => {
                 if (onlineUsersIds.get(member.id)) {
-                    io.to(onlineUsersIds.get(member.id)).socketId.emit('new-group-member', {
-                        id: newMemberInformation.userId,
-                        username: newMemberInformation.username,
-                        groupId: newMemberInformation.groupId,
-                    });
+                    io.to(onlineUsersIds.get(member.id)).socketId.emit('group-member-update');
                 }
             })
         } catch (error) {
@@ -794,7 +835,7 @@ io.on('connection', (socket) => {
         }
 
         if (checkedContacts.length > 2) {
-            groupName += `等人`;
+            groupName += `等人的群聊`;
         }
 
         try {
@@ -802,7 +843,7 @@ io.on('connection', (socket) => {
             const nextId = (+maxIdResult.maxId || 100000) + 1;
             const group = {
                 id: nextId,
-                name: groupName + '的群聊',
+                name: groupName,
                 created_at: new Date(),
                 updated_at: new Date(),
             };
@@ -821,6 +862,20 @@ io.on('connection', (socket) => {
                 },
             ]);
 
+            await db('user_event').insert({
+                user_id: senderInfo.userId,
+                action: 'group_added',
+                event_data: JSON.stringify({
+                    groupId: nextId,
+                    groupName,
+                    createdAt: nowDate,
+                    joinedAt: nowDate,
+                    type: 'group',
+                    role: 'owner'
+                })
+            })
+            await updateUserContactVersion(senderInfo.userId);
+
 
             for (const contact of checkedContacts) {
                 await db('group_members').insert({
@@ -831,6 +886,19 @@ io.on('connection', (socket) => {
                     updated_at: nowDate,
                     role: 'member'
                 });
+                await db('user_event').insert({
+                    user_id: contact.id,
+                    action: 'group_added',
+                    event_data: JSON.stringify({
+                        groupId: nextId,
+                        groupName,
+                        createdAt: nowDate,
+                        joinedAt: nowDate,
+                        type: 'group',
+                        role: 'member'
+                    })
+                })
+                await updateUserContactVersion(contact.id);
             }
 
             socket.emit('grops-create-success');
@@ -841,9 +909,10 @@ io.on('connection', (socket) => {
             const onlineMemberSockets = checkedContactIds
                 .map(id => onlineUsersIds.get(id)?.socketId)
 
+
             // 向所有在线群成员发送消息
             onlineMemberSockets.forEach(socketId => {
-                io.to(socketId).emit('new-group', { id: nextId, username: groupName, createdAt: nowDate, joinedAt: nowDate, type: 'group' });
+                io.to(socketId).emit('contact-update');
             });
         } catch (error) {
             console.error('Error creating group:', error);
@@ -860,6 +929,15 @@ io.on('connection', (socket) => {
                 .where({ group_id: groupId, user_id: userId })
                 .del();
 
+            await db('group_member_event').insert({
+                group_id: groupId,
+                user_id: userId,
+                action: 'left',
+                timestamp: new Date()
+            });
+
+            await db('groups').where({ id: groupId }).increment('member_version', 1);
+
             socket.emit('leave-group-success', groupId);
         } catch (error) {
             console.error('Error leaving group:', error);
@@ -874,6 +952,7 @@ io.on('connection', (socket) => {
 
 
         try {
+            const onlineUsersIds = await getAllOnlineUserIds();
             for (const contact of checkedContacts) {
                 const existingMember = await db('group_members')
                     .where({ group_id: groupId, user_id: contact.id })
@@ -895,28 +974,35 @@ io.on('connection', (socket) => {
                     continue; // 跳过当前联系人，继续处理下一个
                 }
 
-                const onlineUsersIds = await getAllOnlineUserIds();
+                await db('group_invitations').insert({
+                    id: invitationId,
+                    group_id: groupId,
+                    invited_user_id: contact.id,
+                    inviting_user_id: senderInfo.userId,
+                    status: 'pending',
+                    created_at: nowDate,
+                    updated_at: nowDate
+                });
+
+                await db('user_event').insert({
+                    user_id: contact.id,
+                    action: 'group_invited',
+                    event_data: JSON.stringify({
+                        id: invitationId,
+                        groupId,
+                        groupName,
+                        inviterId: senderInfo.userId,
+                        inviterName: senderInfo.username,
+                        invitedAt: nowDate
+                    })
+                });
+
+                await updateUserContactVersion(contact.id);
 
                 if (onlineUsersIds.has(contact.id)) {
                     // 在线用户直接发送邀请
                     const targetSocketId = onlineUsersIds.get(contact.id).socketId;
-                    io.to(targetSocketId).emit('group-invite', {
-                        groupId,
-                        groupName,
-                        inviterId: senderInfo.userId,
-                        inviterName: senderInfo.username
-                    });
-                } else {
-                    // 离线用户存入数据库
-                    await db('group_invitations').insert({
-                        id: invitationId,
-                        group_id: groupId,
-                        invited_user_id: contact.id,
-                        inviting_user_id: senderInfo.userId,
-                        status: 'pending',
-                        created_at: nowDate,
-                        updated_at: nowDate
-                    });
+                    io.to(targetSocketId).emit('contact-update');
                 }
             }
             socket.emit('notification', { status: 'success', message: `发送请求成功` });
@@ -931,7 +1017,7 @@ io.on('connection', (socket) => {
     socket.on('update-user-info', async (payload) => {
         const userId = (await getOnlineUser(socket.id))?.userId;
         const nowDate = new Date();
-        await db('users').where({ id: userId }).update(Object.assign(payload, { updated_at: nowDate }));
+        await db('users').where({ id: userId }).update(Object.assign(payload, { updated_at: nowDate })).increment('inf_version', 1);
     })
 
 
@@ -1022,6 +1108,19 @@ app.get('/api/health', async (req, res) => {
         status: 'ok',
         timestamp: new Date(),
         onlineUsersCount: onlineUsers.size,
+    });
+});
+
+app.get('/api/user-info', authenticateToken, async (req, res) => {
+    const { userId } = req.body;
+    const user = await db('users').where({ id: userId }).first();
+    if (!user) {
+        return res.status(404).json({ error: '用户不存在' });
+    }
+    res.json({
+        id: user.id,
+        username: user.username,
+        infoVersion: user.inf_version,
     });
 });
 

@@ -58,7 +58,7 @@ const schema = {
 const store = new Store({ schema });
 
 export const userMessageDraftManager = {
-  saveUserMessageDraft: (userId, contactId ,message, isGroup) => {
+  saveUserMessageDraft: (userId, contactId, message, isGroup) => {
     const key = `userMessageDrafts.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
 
     store.set(key, message);
@@ -66,7 +66,7 @@ export const userMessageDraftManager = {
   getUserMessageDraft: (userId, contactId, isGroup) => {
     const key = `userMessageDrafts.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
     const draft = store.get(key) || '';
-    return draft ;
+    return draft;
   },
   clearUserMessageDraft: (userId, contactId, isGroup) => {
     const key = `userMessageDrafts.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
@@ -117,6 +117,28 @@ export const userCredentialsManager = {
     const userList = store.get('userCredentials') || {};
     delete userList[removeUserID];
     store.set('userCredentials', userList);
+  },
+
+  //用户联系人信息版本
+  setUserContactListVersion: (userId, version) => {
+    const key = `userContactListVersion.${userId}`
+    store.set(key, version)
+  },
+
+  //用户群聊信息版本
+  setUserGroupListVersion: (userId, version) => {
+    const key = `userGroupListVersion.${userId}`
+    store.set(key, version)
+  },
+
+  getUserContactListVersion: (userId) => {
+    const key = `userContactListVersion.${userId}`
+    return store.get(key) || 0
+  },
+
+  getUserGroupListVersion: (userId) => {
+    const key = `userGroupListVersion.${userId}`
+    return store.get(key) || 0
   }
 };
 
@@ -132,7 +154,7 @@ export const userAssetsManager = {
     const assets = store.get('userAssets') || {};
     assets[userId] = assets[userId] || {};
     assets[userId][key] = value;
-    store.set('userAssets',  assets);
+    store.set('userAssets', assets);
   },
 };
 
@@ -193,9 +215,7 @@ export const appConfigManager = {
 
 export const unreadMessageManager = {
   getUnreadMessageCount: function (userId, contactId, isGroup) {  // 使用 function
-    console.log('getUnreadMessageCount', userId, contactId, isGroup);
     const key = `unreadMessageCount.${userId}.${contactId}${isGroup ? '.group' : 'friend'}`;
-    console.log('key', key);
     return store.get(key) || 0;
   },
 

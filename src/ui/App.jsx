@@ -152,36 +152,6 @@ function App() {
     }, 1000)
   }, [setCurrentUser, setUserId, getContactList]);
 
-  const handleFriendsList = useCallback((friendsWithGroups) => {
-    setContacts(friendsWithGroups);
-    // 同步更新 LRU 缓存和 Map
-    const newLruOrder = [];
-    const newMap = new Map();
-    friendsWithGroups.forEach(c => {
-      const key = `${c.id}-${c.type === 'group' ? 'group' : 'friend'}`;
-      newLruOrder.push(key);
-      newMap.set(key, c);
-    });
-    contactLruOrderRef.current = newLruOrder;
-    contactMapRef.current = newMap;
-  }, [setContacts]);
-
-  const friendsRequestAccepted = useCallback((data) => {
-    setContacts(prevContacts => [...prevContacts, data]);
-    // 更新 LRU 缓存
-    const key = `${data.id}-${data.type === 'group' ? 'group' : 'friend'}`;
-    contactLruOrderRef.current.unshift(key);
-    contactMapRef.current.set(key, data);
-  }, []);
-
-  const handleNewGroup = useCallback((data) => {
-    setContacts(prevContacts => [...prevContacts, data]);
-    // 更新 LRU 缓存
-    const key = `${data.id}-${data.type === 'group' ? 'group' : 'friend'}`;
-    contactLruOrderRef.current.unshift(key);
-    contactMapRef.current.set(key, data);
-  }, []);
-
   const handleLeaveGroupSuccess = useCallback((groupId) => {
     messageApi.success(t('app.leaveGroupSuccess'));
     setContacts(prevContacts => prevContacts.filter(contact => contact.type !== 'group' || contact.id !== groupId));
@@ -206,17 +176,6 @@ function App() {
     setSelectedContact(contact);
     await MessageListSelectContact(contact)
   }, [MessageListSelectContact]);
-
-  const handleNewFriendRequests = useCallback((data) => {
-    data.isGroup = false
-    window.electronAPI.saveInviteinformationList(data)
-  }, []);
-
-  const handleNewGroupInvite = useCallback((data) => {
-    data.isGroup = true
-    window.electronAPI.saveInviteinformationList(data)
-  }, []);
-
 
   const handleStrongLogoutWarning = useCallback(async (data) => {
     const message = data.message;
@@ -310,7 +269,6 @@ function App() {
     window.electronAPI.ipcRenderer.on('contacts-list-updated', getContactList);
     window.electronAPI.ipcRenderer.on('db-initialized-success', handleDbInitializedSuccess);
     window.electronAPI.ipcRenderer.on('language-updated', handleLanguageUpdated);
-    window.electronAPI.ipcRenderer.on('friends-list', handleFriendsList);
     window.electronAPI.ipcRenderer.on('theme-updated', handleThemeUpdated);
     window.electronAPI.ipcRenderer.on('disconnect-message-send-comple', handleReceivedMessageComple);
     window.electronAPI.ipcRenderer.on('start-revice-message', handleStartReviceMessage);
@@ -324,7 +282,6 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
       window.electronAPI.ipcRenderer.removeListener('db-initialized-success', handleDbInitializedSuccess);
       window.electronAPI.ipcRenderer.removeListener('language-updated', handleLanguageUpdated);
-      window.electronAPI.ipcRenderer.removeListener('friends-list', handleFriendsList);
       window.electronAPI.ipcRenderer.removeListener('theme-updated', handleThemeUpdated);
       window.electronAPI.ipcRenderer.removeListener('disconnect-message-send-comple', handleReceivedMessageComple);
       window.electronAPI.ipcRenderer.removeListener('start-revice-message', handleStartReviceMessage);
@@ -339,15 +296,11 @@ function App() {
     if (!socket) return;
     socket.on('login-success', handleLoginSuccess);
     socket.on('new-message', handleNewMessage);
-    socket.on('friend-request-accepted', friendsRequestAccepted);
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('reconnecting', handleReconnecting);
     socket.on('message-sent-success', handleSendMessageStatus)
-    socket.on('new-group', handleNewGroup)
     socket.on('leave-group-success', handleLeaveGroupSuccess);
-    socket.on('new-friend-request', handleNewFriendRequests);
-    socket.on('group-invite', handleNewGroupInvite);
     socket.on('notification', handleNotificationMessage);
     socket.on('strong-logout-warning', handleStrongLogoutWarning);
     socket.on('call-request', handleCallRequest)
@@ -356,15 +309,11 @@ function App() {
       socket.off('login-success', handleLoginSuccess);
       socket.off('user-registered', handleLoginSuccess);
       socket.off('new-message', handleNewMessage);
-      socket.off('friend-request-accepted', friendsRequestAccepted);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting);
       socket.off('message-sent-success', handleSendMessageStatus)
-      socket.off('new-group', handleNewGroup)
       socket.off('leave-group-success', handleLeaveGroupSuccess)
-      socket.off('new-friend-request', handleNewFriendRequests);
-      socket.off('group-invite', handleNewGroupInvite);
       socket.off('notification', handleNotificationMessage);
       socket.off('strong-logout-warning', handleStrongLogoutWarning);
       socket.off('call-request', handleCallRequest)

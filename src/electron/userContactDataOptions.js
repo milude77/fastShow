@@ -1,0 +1,172 @@
+import { BrowserWindow } from "electron";
+import apiClient from './api.js';
+import {
+    userCredentialsManager,
+} from './store.js';
+
+import { getDb, getCurUserId, SOCKET_SERVER_URL } from './main.js'
+
+
+
+export const handleContactsList = async (db, payload) => {
+    const { friendsWithStatus, contactVersion, groupResult } = payload;
+    const contactList = [...friendsWithStatus, ...groupResult]
+    const currentUserId = getCurUserId();
+    try {
+        const contacts = Array.isArray(contactList) ? contactList : Object.values(contactList || {});
+
+        let remoteFriend = new Array()
+        let remoteGroups = new Array()
+
+        for (const contact of contacts) {
+            if (contact.type == 'friend') remoteFriend.push(contact);
+            else remoteGroups.push(contact);
+        }
+
+        remoteGroups.map(async (g) => {
+            await db('groups').where('id', g.id).update({
+                my_role: g.myRole
+            })
+        })
+
+        const localFriends = await db('friends').select('id');
+        const localFriendIds = new Set(localFriends.map(f => String(f.id)));
+
+        const localGroups = await db('groups').select('id');
+        const localGroupIds = new Set(localGroups.map(g => String(g.id)));
+
+        const groupsToAdd = remoteGroups.filter(g => !localGroupIds.has(String(g.id)));
+        const friendsToAdd = remoteFriend.filter(f => !localFriendIds.has(String(f.id)));
+
+        if (friendsToAdd.length > 0) {
+            const rows = friendsToAdd.map(f => ({
+                id: String(f.id),
+                userName: String(f.username || f.userName || ''),
+                addTime: f.created_at ? new Date(f.created_at) : new Date(),
+                nickName: f.nickName ? String(f.nickName) : null,
+                version: f.version,
+            }));
+            await db('friends').insert(rows).onConflict('id').ignore();
+        }
+
+        if (groupsToAdd.length > 0) {
+            const rows = groupsToAdd.map(g => ({
+                id: String(g.id),
+                groupName: String(g.username),
+                addTime: g.created_at ? new Date(g.joinedAt) : new Date(),
+                version: g.version,
+            }));
+            await db('groups').insert(rows).onConflict('id').ignore();
+        }
+
+        userCredentialsManager.setUserContactListVersion(currentUserId, contactVersion);
+
+        BrowserWindow.getAllWindows().forEach(win => win.webContents.send('contacts-list-updated'));
+
+    } catch (e) {
+        console.error('Friends sync error:', e);
+    }
+}
+
+
+export const handleContactCompareResult = async (payload) => {
+    const { contactListChange, contactVersion } = payload;
+    const db = getDb();
+    const currentUserId = getCurUserId();
+    try {
+        contactListChange.forEach(async (change) => {
+            const { event_data, action } = change;
+
+            if (action === 'friend_add') {
+                const { friend_id: contact_id } = JSON.parse(event_data);
+                const contact_info = apiClient.get(`${SOCKET_SERVER_URL}/api/user-info`, {
+                    userId: contact_id
+                });
+                const { id, username, infoVersion } = contact_info;
+                await db('friends').insert({
+                    id,
+                    userName: username,
+                    version: infoVersion,
+                })
+            }
+            if (action === 'friend_request') {
+                const { id, inviterId, inviterName, createdTime } = JSON.parse(event_data);
+                await db('invite_information').insert({
+                    id,
+                    inviter_id: inviterId,
+                    inviter_name: inviterName,
+                    status: 'pending',
+                    create_time: createdTime,
+                });
+            }
+
+            if (action === 'friend_deleted') {
+                const { friend_id: contact_id } = JSON.parse(event_data);
+                await db('friends').where('id', contact_id).update({
+                    status: 'deleted'
+                })
+            }
+
+            if (action === 'group_added') {
+                const { groupId, groupName, role, joinedAt  } = JSON.parse(event_data);
+                await db('groups').insert({
+                    id: groupId,
+                    groupName,
+                    my_role: role,
+                    addTime: joinedAt ? new Date(joinedAt) : new Date(),
+                }).onConflict('id').ignore();
+            }
+
+            if (action === 'group_invited'){
+                const { id, groupId, groupName, inviterId, inviterName, createdTime } = JSON.parse(event_data);
+                await db('invite_information').insert({
+                    id: id,
+                    inviter_id: inviterId,
+                    inviter_name: inviterName,
+                    group_id: groupId,
+                    group_name: groupName,
+                    status: 'pending',
+                    create_time: createdTime,
+                });
+            }
+        })
+        userCredentialsManager.setUserContactListVersion(currentUserId, contactVersion);
+    }
+    catch (e) {
+        console.error('Contact compare failed:', e);
+    }
+}
+
+export const handleGroupCompareResult = async (payload) => {
+    const { groupListChange, groupVersion } = payload;
+    const db = getDb();
+    const currentUserId = getCurUserId();
+    try {
+        groupListChange.forEach(change => {
+            const { event_data, action } = change;
+            const { group_id: group_id, status } = event_data;
+            const group_info = apiClient.get(`${SOCKET_SERVER_URL}/api/group-info`, {
+                groupId: group_id
+            });
+            const { id, groupName, infoVersion } = group_info;
+            if (action === 'group_add') {
+                db('groups').insert({
+                    id,
+                    groupName,
+                    version: infoVersion,
+                })
+            }
+            if (action === 'update') {
+                db('groups').where('id', id).update({
+                    status,
+                    groupName,
+                    version: infoVersion,
+                })
+            }
+        })
+        userCredentialsManager.setUserGroupListVersion(currentUserId, groupVersion);
+    }
+    catch (e) {
+        console.error('Group compare failed:', e);
+    }
+}

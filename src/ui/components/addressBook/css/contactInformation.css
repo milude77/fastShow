@@ -10,11 +10,6 @@
   padding: 20px;
 }
 
-.contact-information-avatar{
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-}
 
 .contact-information-dropdown {
   position: absolute;

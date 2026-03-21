@@ -177,10 +177,27 @@ const MessageList = ({ contact, messageListHook }) => {
         const url = await window.electronAPI.getServerUrl();
         setServerUrl(url);
         if (contact.type === 'group') {
-            const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
-            setGroupMemberList(response.data);
+            // 尝试从本地缓存获取群成员列表
+            const cachedMembers = await window.electronAPI.getCache(`group_${contact.id}_members`);
+            
+            if (cachedMembers) {
+                setGroupMemberList(cachedMembers);
+            }
+            
+            try {
+                const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
+                // 更新缓存
+                await window.electronAPI.setCache(`group_${contact.id}_members`, response.data);
+                setGroupMemberList(response.data);
+            } catch (error) {
+                console.error('获取群成员列表失败:', error);
+                // 如果请求失败且没有缓存数据，则显示错误信息
+                if (!cachedMembers) {
+                    messageApi.error('无法获取群成员列表');
+                }
+            }
         }
-    }, [contact]);
+    }, [contact, messageApi]);
 
     useEffect(() => {
         getGroupMemberList();

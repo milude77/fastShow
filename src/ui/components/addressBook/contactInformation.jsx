@@ -3,6 +3,7 @@ import { Button, Dropdown, Menu } from 'antd';
 import { DashOutlined } from '@ant-design/icons';
 import './css/contactInformation.css';
 import { Modal } from 'antd';
+import Avatar from '../avatar.jsx';
 import { useTranslation } from 'react-i18next';
 
 const ContactInformation = ({ contactInformation, toSendMessage }) => {
@@ -24,7 +25,7 @@ const ContactInformation = ({ contactInformation, toSendMessage }) => {
     useEffect(() => {
         handleServerUrlChange();
     }, []);
-    const handleDeleteContact = async(contactId) => {
+    const handleDeleteContact = async (contactId) => {
         modal.confirm({
             zIndex: 2000,
             title: t('contact.delete'),
@@ -52,7 +53,11 @@ const ContactInformation = ({ contactInformation, toSendMessage }) => {
             <Dropdown className='contact-information-dropdown' overlay={MenuItem} trigger={['click']}>
                 <DashOutlined />
             </Dropdown>
-            <img src={`${serverUrl}/api/avatar/${contactInformation.id}/user`} alt='avatar' className='contact-information-avatar' />
+            <Avatar
+                size={150}
+                src={`${serverUrl}/api/avatar/${contactInformation.id}/${contactInformation.type === 'group' ? 'group' : 'user'}`}
+                alt="avatar"
+            />
             <p style={{ textAlign: 'center' }}>id: {contactInformation?.id}</p>
             <p style={{ textAlign: 'center' }}>Name: {contactInformation?.username}</p>
             <Button className='contact-information-button' type="primary" onClick={() => toSendMessage(contactInformation)} >{t('contact.sendMessage')}</Button>

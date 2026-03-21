@@ -9,7 +9,7 @@ import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
-import { handleContactsList } from './userDataOptions.js';
+import { handleContactsList, handleContactCompareResult, handleGroupCompareResult } from './userContactDataOptions.js';
 import { protocol } from 'electron';
 import { decryptMessage, wrapSocket } from './aseOptions.js'
 
@@ -23,6 +23,7 @@ import {
     userAssetsManager,
     userMessageDraftManager
 } from './store.js';
+import { version } from 'os';
 
 
 // ESM-compliant __dirname
@@ -38,7 +39,7 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 const isDev = config.NODE_ENV === "development"
 
 
-const SOCKET_SERVER_URL = (isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL) || 'http://localhost:3001';
+export const SOCKET_SERVER_URL = (isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL) || 'http://localhost:3001';
 let socket;
 let heartbeatInterval;
 let reconnectionTimer;
@@ -169,8 +170,16 @@ function connectSocket() {
 let dbPath;
 let db;
 
+export function getDb() {
+    if (!db) {
+        throw new Error('Database not initialized. Please initialize the database first.');
+    }
+    return db;
+}
 
-
+export function getCurUserId() {
+    return currentUserId;
+}
 
 // 读取指定联系人的聊天记录
 async function readChatHistory(
@@ -664,6 +673,8 @@ const revicedContactList = async (payload) => {
     await handleContactsList(db, payload);
 }
 
+
+
 ipcMain.on('login-success', async (event, { userId, username, token, email }) => {
     currentUserId = userId;
     currentUserToken = token;
@@ -698,12 +709,6 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
         }
 
 
-        if (await db.schema.hasTable('friends')) {
-            if (socket && revicedContactList) {
-                socket.off('contacts-list', revicedContactList);
-            }
-            socket.on('contacts-list', revicedContactList);
-        }
         socket.on('disconnect-message-send-comple', (userId) => {
             event.sender.send('disconnect-message-send-comple', userId);
             socket.off('disconnect-message-send-comple');
@@ -729,9 +734,29 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
     }
 })
 
-ipcMain.on('start-revice-message', (event, userId) => {
+const handleContactUpdate = async () => {
+    const userContactListVersion = userCredentialsManager.getUserContactListVersion(currentUserId);
+    socket.emit('sync-contacts-list', {
+        version: userContactListVersion,
+    });
+}
+
+ipcMain.on('start-revice-message', async (event, userId) => {
+    const userContactListVersion = userCredentialsManager.getUserContactListVersion(userId);
+
+    if (await db.schema.hasTable('friends')) {
+        if (socket && revicedContactList) {
+            socket.off('const-list', revicedContactList);
+        }
+        socket.on('const-list', revicedContactList);
+    }
+    socket.on('contact-update', handleContactUpdate)
+
+    socket.on('contact-compare-result', handleContactCompareResult)
+    socket.on('group-compare-result', handleGroupCompareResult)
+
     socket.emit('initial-data-success', { userId });
-    socket.emit('get-contacts');
+    socket.emit('sync-contacts-list', { version: userContactListVersion });
 })
 
 ipcMain.handle('get-user-avatar-path', () => {
@@ -1335,7 +1360,7 @@ ipcMain.handle('check-assest-file-exits', async (event, filePath) => {
 async function downloadFileToLocal(fileUrl, filePath) {
     try {
         if (!fs.existsSync(filePath)) {
-            fs.makdirSync(path.dirname(filePath), { recursive: true });
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
         }
 
         const response = await apiClient.get(fileUrl, {
@@ -1382,7 +1407,6 @@ ipcMain.handle('delete-contact', async (event, { contactId }) => {
         socket.emit('delete-contact', contactId);
         const deleted = await db('friends')
             .where('id', contactId)
-            .update({ isFriend: false });
         event.sender.send('contact-deleted', { contactId });
         return { success: true, deleted };
 
@@ -1625,14 +1649,12 @@ ipcMain.handle('get-contact-list', async () => {
         return [];
     }
     let friends = await db('friends')
-        .where('isFriend', true)
         .select('id', 'userName as username', 'lastMessage')
     friends = friends.map(item => ({
         ...item,
         type: 'friend'
     }));
     let groups = await db('groups')
-        .where('isMember', true)
         .select('id', 'groupName as username', 'lastMessage', 'my_role as myRole')
     groups = groups.map(item => ({
         ...item,
@@ -1696,6 +1718,14 @@ ipcMain.handle('get-message-draft', async (event, { contactId, isGroup }) => {
 ipcMain.on('clear-message-draft', async (event, { contactId, isGroup }) => {
     userMessageDraftManager.clearUserMessageDraft(currentUserId, contactId, isGroup)
 })
+
+ipcMain.on('update-user-contact-list-version', async (event, { userId, version }) => {
+    userCredentialsManager.setUserContactListVersion(userId, version);
+});
+
+ipcMain.on('update-user-group-list-version', async (event, { userId, version }) => {
+    userCredentialsManager.setUserGroupListVersion(userId, version);
+});
 
 ipcMain.handle('read-file', async (event, filePath) => {
     try {
