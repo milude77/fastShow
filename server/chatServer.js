@@ -14,7 +14,7 @@ import axios from 'axios';
 
 import { decryptMessage, encryptMessage } from './aseOptions.js';
 import { registerUser, userLogin, userLoginWithToken } from './userOptions.js';
-import { compareContactInformation } from './userContactCompare.js';
+import { compareContactInformation, compareGroupMemberVersion } from './userContactCompare.js';
 import {
     getOnlineUser,
     getAllOnlineUsers,
@@ -23,6 +23,8 @@ import {
     removeOnlineUserId,
     removeOnlineUser
 } from './redisClient.js';
+import { act } from 'react';
+import { version } from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -665,12 +667,10 @@ io.on('connection', (socket) => {
                 user_id: friendId,
                 action: 'friend_request',
                 event_data: JSON.stringify({
-                    data: {
-                        id: friendshipId,
-                        inviterId: senderInfo.userId,
-                        inviterName: senderInfo.username,
-                        createdTime: new Date()
-                    }
+                    id: friendshipId,
+                    inviterId: senderInfo.userId,
+                    inviterName: senderInfo.username,
+                    createdTime: new Date()
                 })
             });
             await updateUserContactVersion(friendId);
@@ -734,14 +734,18 @@ io.on('connection', (socket) => {
                     .join('users', 'friendships.user_id', 'users.id')
                     .select('users.id', 'users.username')
                     .first();
+                const infoVersion = await db('users').where({ id: senderInfo.userId }).first('inf_version');
                 await db('user_event').insert({
                     user_id: friendInformation.id,
                     action: 'friend_add',
                     event_data: JSON.stringify({
                         status: 'accepted',
                         friend_id: senderInfo.userId,
+                        username: senderInfo.username,
+                        infoVersion: infoVersion.inf_version
                     })
                 });
+                await updateUserContactVersion(friendInformation.id);
 
                 const targetSocketId = await getOnlineUserId(friendInformation.id);
                 if (targetSocketId) {
@@ -851,16 +855,15 @@ io.on('connection', (socket) => {
             // 存储群组到数据库（假设有一个 groups 表）
             await db('groups').insert(group);
 
-            await db('group_members').insert([
-                {
-                    group_id: nextId,
-                    user_id: senderInfo.userId,
-                    user_name: senderInfo.username,
-                    created_at: nowDate,
-                    updated_at: nowDate,
-                    role: 'owner'
-                },
-            ]);
+            await db('group_members').insert({
+                group_id: nextId,
+                user_id: senderInfo.userId,
+                user_name: senderInfo.username,
+                created_at: nowDate,
+                updated_at: nowDate,
+                role: 'owner'
+            },
+            );
 
             await db('user_event').insert({
                 user_id: senderInfo.userId,
@@ -933,7 +936,12 @@ io.on('connection', (socket) => {
                 group_id: groupId,
                 user_id: userId,
                 action: 'left',
-                timestamp: new Date()
+                created_at: new Date(),
+                event_data: JSON.stringify({
+                    groupId,
+                    userId,
+                    userName: senderInfo.username,
+                })
             });
 
             await db('groups').where({ id: groupId }).increment('member_version', 1);
@@ -968,6 +976,7 @@ io.on('connection', (socket) => {
                 // 检查是否已发送邀请
                 const existingInvite = await db('group_invitations')
                     .where('id', invitationId)
+                    .andWhere('status', 'pending')
                     .first();
                 if (existingInvite) {
                     socket.emit('notification', { status: 'error', message: `已邀请 ${contact.username}, 勿重复邀请` });
@@ -1480,20 +1489,34 @@ app.get('/api/avatar/:userId/:userType/download', async (req, res) => {
     }
 });
 
-app.get('/api/getGroupMember/:groupId', authenticateToken, async (req, res) => {
-    const { groupId } = req.params;
+app.post('/api/getGroupMember', authenticateToken, async (req, res) => {
+    const { groupId, memberVersion } = req.body;
 
-    const groupMembers = await db('group_members as m')
-        .where('m.group_id', groupId)
-        .select(
-            'm.user_id as userId',
-            'm.user_name as userName',
-            'm.role as role'
-        );
+    if (!groupId) {
+        return res.status(400).json({ error: '缺少必要参数' });
+    }
 
-    res.setHeader('Cache-Control', 'public, max-age=3600'); // 缓存1小时
+    if (memberVersion === 0) {
+        const groupMembers = await db('group_members as m')
+            .where('m.group_id', groupId)
+            .select(
+                'm.user_id',
+                'm.user_name',
+                'm.role',
+                'm.created_at as join_time'
+            );
+        const version = await db('groups').where({ id: groupId }).first('member_version');
 
-    res.json(groupMembers);
+
+        res.json({ groupMembers, version: version.member_version, action: 'get' });
+    }
+    else {
+        const groupMembersWithVersion = await compareGroupMemberVersion(groupId, memberVersion);
+        if (!groupMembersWithVersion) {
+            return res.status(200).json({ success: '已是最新版本' });
+        }
+        res.json({ groupMembers: groupMembersWithVersion.memberListChange, version: groupMembersWithVersion.memberVersion, action: 'update' });
+    }
 });
 
 async function githubCallback(req, res) {

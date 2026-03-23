@@ -273,7 +273,6 @@ function App() {
     window.electronAPI.ipcRenderer.on('disconnect-message-send-comple', handleReceivedMessageComple);
     window.electronAPI.ipcRenderer.on('start-revice-message', handleStartReviceMessage);
 
-
     return () => {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
       window.electronAPI.ipcRenderer.removeListener('message-history-deleted', handleChatHistoryDeleted);

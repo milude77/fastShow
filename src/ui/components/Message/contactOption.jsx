@@ -105,7 +105,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
         if (e.target.files && e.target.files.length > 0) {
             const reader = new FileReader();
             reader.addEventListener('load', () =>
-                openModal('avatarUploader', { imgSrc: reader.result.toString(), isGroupAvatarUpload : true, groupId: contact.id })
+                openModal('avatarUploader', { imgSrc: reader.result.toString(), isGroupAvatarUpload: true, groupId: contact.id })
             );
             reader.readAsDataURL(e.target.files[0]);
         }
@@ -155,9 +155,9 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
                             <div className="group-member" key={index}>
                                 <Avatar
                                     size={40}
-                                    src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`}
-                                    alt={member.userName} />
-                                <span className="group-member-name">{member.userName}</span>
+                                    src={`${serverUrl}/api/avatar/${member.member_id}/user?t=${member.member_id === currentUser.user_id ? currentUser.avatar_version : ''}`}
+                                    alt={member.member_name} />
+                                <span className="group-member-name">{member.member_name}</span>
                             </div>
                         )
                     })}

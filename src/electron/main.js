@@ -1782,6 +1782,84 @@ ipcMain.handle('get-invite-information-list', async () => {
     return inviteInformationList;
 });
 
+ipcMain.handle('get-group-member', async (event, groupId) => {
+    if (!db) {
+        return [];
+    }
+    const groupMemberList = await db('group_member')
+        .where('group_id', groupId)
+        .select('*')
+
+    return groupMemberList
+});
+
+ipcMain.handle('get-group-member-version', async (event, groupId) => {
+    const version = await db('groups')
+        .where('id', groupId)
+        .select('member_version')
+        .first();
+    return version.member_version || 0;
+});
+
+ipcMain.on('save-group-member', async (event, { groupId, version, groupMembers }) => {
+    groupMembers.forEach(async (groupMember) => {
+        await db('group_member')
+            .insert({
+                group_id: groupId,
+                member_id: groupMember.user_id,
+                member_name: groupMember.user_name,
+                role: groupMember.role,
+                join_time: groupMember.join_time
+            })
+            .onConflict(['group_id', 'member_id'])
+            .merge(
+                { role: groupMember.role, join_time: groupMember.join_time }
+            )
+    });
+
+    await db('groups')
+        .where('id', groupId)
+        .update({ member_version: version })
+    BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('group-member-updated', { groupId });
+    })
+})
+
+ipcMain.on('update-group-member-version', async (event, { groupId, version, groupMembers }) => {
+    groupMembers.forEach(async (groupMember) => {
+        const { user_id, action, event_data } = groupMember
+        if (action === 'add') {
+            const { role, nickname: username, created_at: join_time } = event_data
+            await db('group_member')
+                .insert({
+                    group_id: groupId,
+                    member_id: user_id,
+                    member_name: username,
+                    role,
+                    join_time
+                })
+                .onConflict(['group_id', 'member_id'])
+        }
+        if (action === 'left') {
+            await db('group_member')
+                .where('group_id', groupId)
+                .where('member_id', user_id)
+                .del()
+        }
+        if (action === 'update') {
+            return
+        }
+    })
+    await db('groups')
+        .where('id', groupId)
+        .update({ member_version: version })
+    BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('group-member-updated', { groupId });
+    })
+})
+
+
+
 const loginId = uuidv4();
 const loginMap = new Map();
 

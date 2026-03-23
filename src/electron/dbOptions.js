@@ -102,11 +102,12 @@ export async function initializeDatabase(db) {
 
     if (!groupMemberExists) {
       await db.schema.createTable('group_member', (table) => {
-        table.string('id').primary();
         table.string('group_id').notNullable();
         table.string('member_id').notNullable();
         table.string('member_name').notNullable();
         table.timestamp('join_time').defaultTo(db.fn.now());
+        table.string('role').notNullable().defaultTo('member');
+        table.primary(['group_id', 'member_id']);
       })
     }
   } catch (error) {
@@ -135,7 +136,7 @@ export async function migrateUserDb(db, userId, dbPath) {
     const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 16;
+    const targetVer = 17;
     // 若版本已满足，直接返回
     if (currentDbVersion >= targetVer) {
       return;
@@ -308,6 +309,14 @@ export async function migrateUserDb(db, userId, dbPath) {
         table.integer('member_version').notNullable().defaultTo(0);
       })
     }
+
+    const hasGroupMemberRoleColumn = await db.schema.hasColumn('group_member', 'role');
+    if (!hasGroupMemberRoleColumn) {
+      await db.schema.table('group_member', (table) => {
+        table.string('role').nullable().defaultTo('member');
+      })
+    }
+
 
     // 为 friends 表添加索引（如果不存在）
     const indexesToAdd = [

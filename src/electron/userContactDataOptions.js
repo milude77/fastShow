@@ -70,55 +70,58 @@ export const handleContactsList = async (db, payload) => {
 
 
 export const handleContactCompareResult = async (payload) => {
+    console.log('handleContactCompareResult', payload)
     const { contactListChange, contactVersion } = payload;
     const db = getDb();
     const currentUserId = getCurUserId();
     try {
         contactListChange.forEach(async (change) => {
             const { event_data, action } = change;
-
+            //处理新增好友
             if (action === 'friend_add') {
-                const { friend_id: contact_id } = JSON.parse(event_data);
-                const contact_info = apiClient.get(`${SOCKET_SERVER_URL}/api/user-info`, {
-                    userId: contact_id
-                });
-                const { id, username, infoVersion } = contact_info;
+                const { friend_id, username, infoVersion } = event_data;
+
                 await db('friends').insert({
-                    id,
+                    id: friend_id,
                     userName: username,
                     version: infoVersion,
-                })
+                }).onConflict('id').ignore();
             }
+            //处理新增好友请求信息
             if (action === 'friend_request') {
-                const { id, inviterId, inviterName, createdTime } = JSON.parse(event_data);
+                const { id, inviterId, inviterName, createdTime } = event_data;
                 await db('invite_information').insert({
                     id,
                     inviter_id: inviterId,
                     inviter_name: inviterName,
                     status: 'pending',
                     create_time: createdTime,
+                    is_group_invite: false,
                 });
+                BrowserWindow.getAllWindows().forEach(win => win.webContents.send('new-invite'));
             }
-
+            //处理被好友删除
             if (action === 'friend_deleted') {
-                const { friend_id: contact_id } = JSON.parse(event_data);
+                const { friend_id: contact_id } = event_data;
                 await db('friends').where('id', contact_id).update({
                     status: 'deleted'
                 })
+                BrowserWindow.getAllWindows().forEach(win => win.webContents.send('contacts-list-updated'));
             }
-
+            //处理新的群聊
             if (action === 'group_added') {
-                const { groupId, groupName, role, joinedAt  } = JSON.parse(event_data);
+                const { groupId, groupName, role, joinedAt } = event_data;
                 await db('groups').insert({
                     id: groupId,
                     groupName,
                     my_role: role,
                     addTime: joinedAt ? new Date(joinedAt) : new Date(),
                 }).onConflict('id').ignore();
+                BrowserWindow.getAllWindows().forEach(win => win.webContents.send('new-invite'));
             }
-
-            if (action === 'group_invited'){
-                const { id, groupId, groupName, inviterId, inviterName, createdTime } = JSON.parse(event_data);
+            //处理新的群聊邀请
+            if (action === 'group_invited') {
+                const { id, groupId, groupName, inviterId, inviterName, createdTime } = event_data;
                 await db('invite_information').insert({
                     id: id,
                     inviter_id: inviterId,
@@ -127,8 +130,10 @@ export const handleContactCompareResult = async (payload) => {
                     group_name: groupName,
                     status: 'pending',
                     create_time: createdTime,
+                    is_group_invite: true,
                 });
             }
+            BrowserWindow.getAllWindows().forEach(win => win.webContents.send('contacts-list-updated'));
         })
         userCredentialsManager.setUserContactListVersion(currentUserId, contactVersion);
     }
@@ -169,4 +174,4 @@ export const handleGroupCompareResult = async (payload) => {
     catch (e) {
         console.error('Group compare failed:', e);
     }
-}
+} 

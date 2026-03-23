@@ -13,9 +13,9 @@ const GroupMember = React.memo(({ members, serverUrl, currentUser }) => {
                     <div className="group-member" key={index}>
                         <Avatar
                             size={20}
-                            src={`${serverUrl}/api/avatar/${member.userId}/user?t=${member.userId === currentUser.userId ? currentUser.avatarVersion : ''}`}
-                            alt={member.userName} />
-                        <div className="group-member-name">{member.userName}</div>
+                            src={`${serverUrl}/api/avatar/${member.member_id}/user?t=${member.member_id === currentUser.user_id ? currentUser.avatar_version : ''}`}
+                            alt={member.member_name} />
+                        <div className="group-member-name">{member.member_name}</div>
                     </div>
                 )
             })}

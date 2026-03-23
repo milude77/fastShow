@@ -84,6 +84,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateTheme: (theme) => ipcRenderer.send('update-theme', theme),
   updateSettings: ({key, value}) => ipcRenderer.send('updata-settings', { key, value }),
   getSettingsValue: (key) => ipcRenderer.invoke('get-settings-value', key),
+  getGroupMember: (groupId) => ipcRenderer.invoke('get-group-member', groupId),
+  getGroupMemberVersion: (groupId) => ipcRenderer.invoke('get-group-member-version', groupId),
+  saveGroupMember: ({ groupId, version, groupMembers }) => ipcRenderer.send('save-group-member', { groupId, version, groupMembers }),
+  updateGroupMemberVersion: ({ groupId, version, groupMembers }) => ipcRenderer.send('update-group-member-version', { groupId, version, groupMembers }),
 
   //github配置相关
   githubOAuth: () => ipcRenderer.invoke('github-oauth'),

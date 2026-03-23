@@ -164,6 +164,22 @@ const MessageList = ({ contact, messageListHook }) => {
         }
     }, [messages]);
 
+    const handleGroupMemberListUpdate = useCallback((groupId) => {
+        if (contact.type === 'group' && contact.id === groupId) {
+            window.electronAPI.getGroupMember(contact.id).then((members) => {
+                setGroupMemberList(members);
+            });
+        };
+    }, [contact])
+
+    useEffect(() => {
+        window.electronAPI.ipcRenderer.on('group-member-updated', handleGroupMemberListUpdate)
+
+        return () => {
+            window.electronAPI.ipcRenderer.removeListener('group-member-updated', handleGroupMemberListUpdate)
+        }
+    }, [contact, handleGroupMemberListUpdate]);
+
     const scrollToBottom = useCallback((behavior = "auto") => {
         if (lastMessageRef.current) {
             lastMessageRef.current.scrollIntoView({
@@ -178,17 +194,26 @@ const MessageList = ({ contact, messageListHook }) => {
         setServerUrl(url);
         if (contact.type === 'group') {
             // 尝试从本地缓存获取群成员列表
-            const cachedMembers = await window.electronAPI.getCache(`group_${contact.id}_members`);
-            
+            const cachedMembers = await window.electronAPI.getGroupMember(contact.id);
+
             if (cachedMembers) {
                 setGroupMemberList(cachedMembers);
             }
-            
+
+            const memberVersion = await window.electronAPI.getGroupMemberVersion(contact.id)
+
             try {
-                const response = await apiClient.get(`${url}/api/getGroupMember/${contact.id}`);
-                // 更新缓存
-                await window.electronAPI.setCache(`group_${contact.id}_members`, response.data);
-                setGroupMemberList(response.data);
+                const response = await apiClient.post(`${url}/api/getGroupMember`, {
+                    groupId: contact.id,
+                    memberVersion
+                });
+                const { action, version, groupMembers } = response.data;
+                if (action === 'update') {
+                    await window.electronAPI.updateGroupMemberVersion({ groupId: contact.id, version, groupMembers })
+                }
+                else if (action === 'get') {
+                    await window.electronAPI.saveGroupMember({ groupId: contact.id, version, groupMembers })
+                }
             } catch (error) {
                 console.error('获取群成员列表失败:', error);
                 // 如果请求失败且没有缓存数据，则显示错误信息
