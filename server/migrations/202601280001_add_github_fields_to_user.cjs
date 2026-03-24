@@ -1,5 +1,5 @@
 
-exports.up = function(knex) {
+exports.up = function (knex) {
   return knex.schema.alterTable('users', table => {
     // GitHub 用户唯一 ID
     table
@@ -24,7 +24,7 @@ exports.up = function(knex) {
 /**
  * @param {import('knex').Knex} knex
  */
-exports.down = function(knex) {
+exports.down = function (knex) {
   return knex.schema.alterTable('user', table => {
     table.dropColumn('github_id');
     table.dropColumn('github_username');

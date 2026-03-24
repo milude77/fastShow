@@ -71,6 +71,7 @@ export const handleContactsList = async (db, payload) => {
 
 
 export const handleContactCompareResult = async (payload) => {
+    if (!payload) return 
     const { contactListChange, contactVersion } = payload;
     const db = getDb();
     const currentUserId = getCurUserId();
@@ -162,6 +163,7 @@ export const handleContactCompareResult = async (payload) => {
             BrowserWindow.getAllWindows().forEach(win => win.webContents.send('contacts-list-updated'));
         })
         userCredentialsManager.setUserContactListVersion(currentUserId, contactVersion);
+
     }
     catch (e) {
         console.error('Contact compare failed:', e);

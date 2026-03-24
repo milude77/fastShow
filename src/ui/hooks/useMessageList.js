@@ -48,12 +48,12 @@ export function useMessageList(curSelectedContact) {
                 };
 
                 // 返回新数组，不是包装在对象中的数组
-                return [...prev, newMessage];
+                return [...prev, newMessage].sort((a, b) => a.timestamp - b.timestamp);
             })
         }
     }, []);
 
-    const handleSendMessageStatus = useCallback(({ senderInfo, sendMessageId, receiverId, isGroup }) => {
+    const handleSendMessageStatus = useCallback(({ senderInfo, sendMessageId, receiverId, isGroup, versionId = null }) => {
         // 收到服务端成功回执，清除超时计时器
         let timer;
 
@@ -67,7 +67,7 @@ export function useMessageList(curSelectedContact) {
                 )
             );
         }
-        window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, isGroup);
+        window.electronAPI.sendMessageStatusChange(senderInfo, sendMessageId, isGroup, versionId);
     }, [])
 
     const handleChatHistoryDeleted = useCallback((event, { contactId, isGroup }) => {

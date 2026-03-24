@@ -29,7 +29,7 @@ import { initUpdater } from './updater.js';
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// --- Socket.IO Main Process Setup ---
+// --- Socket.IO Main Process Setup --
 
 
 const configPath = path.join(__dirname, '..', '..', 'config.json');
@@ -275,10 +275,22 @@ async function writeChatHistory(contactId, msg) {
             status: msg.status || 'fail',
         };
         if (msg.type == 'private') {
-            await db('messages').insert(messageData);
+            await db('messages').insert(messageData).onConflict('id').ignore();
         }
         else {
-            await db('group_messages').insert(messageData);
+            await db('group_messages').insert(messageData).onConflict('id').ignore();
+            if (msg.sender !== 'user') {
+                const messageVersion = await db('group_messages')
+                    .where('id', contactId)
+                    .first()
+                    .then(group => group ? group.message_version : 0);
+                const maxMessageVersion = Math.max(messageVersion, msg.versionId);
+                await db('groups')
+                    .where('id', contactId)
+                    .update({
+                        message_version: maxMessageVersion
+                    });
+            }
         }
 
         await updateContactLastMessagetimestamp(contactId, msg.type == 'group');
@@ -674,6 +686,13 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
 
 const revicedContactList = async (payload) => {
     await handleContactsList(db, payload);
+    const groupList = await db('groups').select('id', 'message_version')
+    groupList.forEach(group => {
+        socket.emit('sync-group-messages', {
+            groupId: group.id,
+            messageVersion: group.message_version || 0,
+        })
+    })
 }
 
 
@@ -744,6 +763,18 @@ const handleContactUpdate = async () => {
     });
 }
 
+const contactCompare = async (payload) => {
+    console.log('syne-contact-list')
+    await handleContactCompareResult(payload)
+    const groupList = await db('groups').select('id', 'message_version')
+    groupList.forEach(group => {
+        socket.emit('sync-group-messages', {
+            groupId: group.id,
+            messageVersion: group.message_version || 0,
+        })
+    })
+}
+
 ipcMain.on('start-revice-message', async (event, userId) => {
     const userContactListVersion = userCredentialsManager.getUserContactListVersion(userId);
 
@@ -755,7 +786,7 @@ ipcMain.on('start-revice-message', async (event, userId) => {
     }
     socket.on('contact-update', handleContactUpdate)
 
-    socket.on('contact-compare-result', handleContactCompareResult)
+    socket.on('contact-compare-result', contactCompare)
     socket.on('group-compare-result', handleGroupCompareResult)
 
     socket.emit('initial-data-success', { userId });
@@ -820,6 +851,7 @@ const handleNewMessage = async (msg) => {
 
     const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
     const messageId = msg.message_id;
+    const versionId = msg.version_id || null;
 
     const newMessage = {
         id: messageId,
@@ -833,6 +865,7 @@ const handleNewMessage = async (msg) => {
         type: msg.type,
         fileUrl: msg.fileUrl,
         fileSize: msg.fileSize,
+        versionId
     }
 
     await saveNewMessage({ contactId, msg: newMessage });
@@ -878,7 +911,7 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
 });
 
 
-ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, isGroup }) => {
+ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, isGroup, versionId }) => {
     try {
 
         const userDbPath = path.join(app.getPath('userData'), String(senderInfo?.userId || senderInfo));
@@ -906,6 +939,19 @@ ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, isG
             await senderDb('group_messages')
                 .where('id', sendMessageId)
                 .update({ status: 'success' });
+            const groupId = await senderDb('group_messages')
+                .where('id', sendMessageId)
+                .first()
+                .then(row => row.group_id);
+            // SQLite 不支持 raw 方法，改用直接计算最大值的方式
+            const currentVersion = await senderDb('groups')
+                .where('id', groupId)
+                .first('message_version')
+                .then(row => row?.message_version || 0);
+            const newVersion = Math.max(currentVersion, versionId);
+            await senderDb('groups')
+                .where('id', groupId)
+                .update({ message_version: newVersion });
         }
 
     } catch (error) {

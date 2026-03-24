@@ -43,6 +43,7 @@ export async function initializeDatabase(db) {
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.integer('version').notNullable().defaultTo(0);
         table.integer('member_version').notNullable().defaultTo(0);
+        table.integer('message_version').notNullable().defaultTo(0);
         table.timestamp('lastMessage').nullable().defaultTo(null);
         table.string('status').notNullable().defaultTo('normal')
         table.string('my_role').nullable().defaultTo('member');
@@ -136,7 +137,7 @@ export async function migrateUserDb(db, userId, dbPath) {
     const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
     // 目标版本
-    const targetVer = 17;
+    const targetVer = 18;
     // 若版本已满足，直接返回
     if (currentDbVersion >= targetVer) {
       return;
@@ -307,6 +308,13 @@ export async function migrateUserDb(db, userId, dbPath) {
     if (!hasGroupMemberVersionColumn) {
       await db.schema.table('groups', (table) => {
         table.integer('member_version').notNullable().defaultTo(0);
+      })
+    }
+
+    const hasGroupMessageVersion = await db.schema.hasColumn('groups', 'messsage_version')
+    if (!hasGroupMessageVersion) {
+      await db.schema.table('groups', (table) => {
+        table.integer('message_version').notNullable().defaultTo(0);
       })
     }
 

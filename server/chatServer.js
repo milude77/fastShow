@@ -1,5 +1,5 @@
 import express from 'express';
-import path, { join } from 'path';
+import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -145,15 +145,83 @@ async function updateUserContactVersion(userId, id) {
     // 使用数据库的自增功能来增加版本号
     await db('users')
         .where('id', userId)
-        .update('contact_list_version', id);
+        .update({
+            contact_list_version: db.raw(`GREATEST(contact_list_version, ?)`, [id])
+        });
 }
 
 //更新群成员版本
 async function updateGroupMemberVersion(groupId, id) {
     await db('groups')
         .where('id', groupId)
-        .update('member_version', id);
+        .update({
+            member_version: db.raw(`GREATEST(member_version, ?)`, [id])
+        });
 }
+
+//更新群消息版本
+async function updateGroupMessageVersion(groupId, id) {
+    await db('groups')
+        .where('id', groupId)
+        .update({
+            message_version: db.raw(`GREATEST(message_version, ?)`, [id])
+        });
+}
+
+// 同步群消息
+async function syncGroupMessages(socket, groupId, messageVersion) {
+    const senderInfo = await getOnlineUser(socket.id);
+    if (!senderInfo) {
+        socket.emit('notification', { status: 'error', message: '未登录或会话无效' });
+        return;
+    }
+
+    try {
+        // 查询messageVersion之后的所有群消息
+        const newGroupMessages = await db('group_messages as gm')
+            .join('users as u', 'gm.sender_id', 'u.id')
+            .where('gm.group_id', groupId)
+            .andWhere('gm.id', '>', messageVersion)
+            .select(
+                'gm.id',
+                'gm.message_id',
+                'gm.sender_id',
+                'gm.group_id as receiver_id',
+                'gm.content',
+                'gm.timestamp',
+                'gm.message_type',
+                'gm.file_name',
+                'gm.file_url',
+                'gm.file_size',
+                'u.username as sender_username'
+            )
+            .orderBy('gm.timestamp', 'asc');
+
+        // 发送群聊消息
+        for (const msg of newGroupMessages) {
+            socket.emit('new-message', {
+                version_id: msg.id,
+                message_id: msg.message_id,
+                username: msg.sender_username,
+                content: msg.content,
+                timestamp: msg.timestamp,
+                type: 'group',
+                senderId: msg.sender_id,
+                receiverId: msg.receiver_id,
+                messageType: msg.message_type,
+                fileName: msg.file_name,
+                fileUrl: msg.file_url,
+                fileSize: msg.file_size,
+                status: 'success'
+            });
+        }
+
+    } catch (error) {
+        console.error('Error syncing group messages:', error);
+        socket.emit('notification', { status: 'error', message: '同步群消息失败' });
+    }
+}
+
 // Fetches and emits the friends list for a given socket
 async function getFriendsList(socket) {
     const senderInfo = await getOnlineUser(socket.id)
@@ -245,43 +313,6 @@ async function handleSendDisconnectMessage(socket, user) {
             'u.username as sender_username'
         )
         .orderBy('m.timestamp', 'asc');
-
-
-    const undeliveredGroupMessages = await db('group_message_read_status as gmrs')
-        .join('group_messages as gm', 'gm.message_id', 'gmrs.group_message_id')
-        .join('users as u', 'gm.sender_id', 'u.id')
-        .where({ 'gmrs.user_id': user.userId, 'gmrs.status': 'sent' })
-        .select(
-            'gm.message_id',
-            'gm.sender_id',
-            'gm.group_id as receiver_id',
-            'gm.content',
-            'gm.timestamp',
-            'gm.message_type',
-            'gm.file_name',
-            'gm.file_url',
-            'gm.file_size',
-            'u.username as sender_username'
-        )
-        .orderBy('gm.timestamp', 'asc');
-
-    // 发送群聊消息
-    for (const msg of undeliveredGroupMessages) {
-        socket.emit('new-message', {
-            message_id: msg.message_id,
-            username: msg.sender_username,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            type: 'group',
-            senderId: msg.sender_id,
-            receiverId: msg.receiver_id,
-            messageType: msg.message_type,
-            fileName: msg.file_name,
-            fileUrl: msg.file_url,
-            fileSize: msg.file_size,
-            status: 'success'
-        });
-    }
 
     // 发送私聊消息
     for (const msg of undeliveredMessages) {
@@ -436,10 +467,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('confirm-message-received', async ({ messageId, isGroup }) => {
-        const user = await getOnlineUser(socket.id);
-
         if (isGroup) {
-            await db('group_message_read_status').where({ group_message_id: messageId }).andWhere({ user_id: user.userId }).update({ status: 'delivered' });
+            return
         } else {
             await db('messages').where({ message_id: messageId }).update({ status: 'delivered' });
         }
@@ -557,24 +586,20 @@ io.on('connection', (socket) => {
             status: 'success'
         };
 
-        // 存储消息到数据库
-        await db('group_messages').insert(newMessage);
+        const idResult = await db('group_messages').insert(newMessage).returning('id');
+        const id = idResult[0].id;
+
+        // 使用原子更新，确保 message_version 始终是最大的消息ID
+        await updateGroupMessageVersion(groupId, id)
+
+        socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, isGroup: true, versionId: id });
         const onlineUsersIds = await getAllOnlineUserIds();
         for (const member of groupMembers) {
             if (onlineUsersIds.has(member.user_id) && member.user_id !== senderInfo.userId) {
                 const targetSocketId = onlineUsersIds.get(member.user_id).socketId;
                 io.to(targetSocketId).emit('new-message', savedMessage);
             }
-            else if (member.user_id !== senderInfo.userId) {
-                await db('group_message_read_status').insert({
-                    group_message_id: sendMessageId,
-                    user_id: member.user_id,
-                    status: 'sent',
-                    timestamp: sendTimestamp,
-                });
-            }
         }
-        socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, isGroup: true });
     });
 
 
@@ -589,7 +614,7 @@ io.on('connection', (socket) => {
             }
             else {
                 const result = await compareContactInformation(senderInfo.userId, version)
-                if (result) socket.emit('contact-compare-result', result);
+                socket.emit('contact-compare-result', result);
             }
         }
         catch (error) {
@@ -1149,6 +1174,15 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('sync-group-messages', async ({ groupId, messageVersion }) => {
+        console.log({ groupId, messageVersion })
+        if (!groupId || messageVersion === undefined) {
+            socket.emit('notification', { status: 'error', message: '缺少必要参数' });
+            return;
+        }
+        await syncGroupMessages(socket, groupId, messageVersion);
+    });
+
 });
 
 // 静态文件服务（用于文件下载）
@@ -1297,7 +1331,10 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
 
         if (isGroup) {
             newMessage.group_id = receiverId;
-            await db('group_messages').insert(newMessage)
+            const idResult = await db('group_messages').insert(newMessage).returning('id');
+            const id = idResult[0].id;
+            await updateGroupMessageVersion(receiverId, id);
+
             savedMessage.receiverId = receiverId
             const groupMembers = await db('group_members')
                 .where({ group_id: receiverId })
@@ -1307,14 +1344,6 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
                 if (onlineUsersIds.has(member.user_id) && member.user_id !== senderId) {
                     const targetSocketId = onlineUsersIds.get(member.user_id)?.socketId;
                     io.to(targetSocketId).emit('new-message', savedMessage);
-                }
-                else if (member.user_id !== senderId) {
-                    await db('group_message_read_status').insert({
-                        group_message_id: messageId,
-                        user_id: member.user_id,
-                        status: 'sent',
-                        timestamp: timestamp,
-                    });
                 }
             }
         }

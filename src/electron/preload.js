@@ -4,7 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getNewMessageId: () => ipcRenderer.invoke('get-new-message-id'),
   sendPrivateMessage: ({ receiverId, message, messageId }) => ipcRenderer.send('send-private-message', { receiverId, message, messageId }),
   sendGroupMessage: ({ groupId, message, messageId }) => ipcRenderer.send('send-group-message', { groupId, message, messageId }),
-  sendMessageStatusChange: (senderInfo, sendMessageId, isGroup) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup }),
+  sendMessageStatusChange: (senderInfo, sendMessageId, isGroup, versionId) => ipcRenderer.send('message-sent-status', { senderInfo, sendMessageId, isGroup, versionId }),
   resendMessage: (messageId, isGroup) => ipcRenderer.invoke('resend-message', { messageId, isGroup }),
   getLastMessage: (contactId, isGroup) => ipcRenderer.invoke('get-last-message', { contactId, isGroup }),
   getUnreadMessageCount: (contactId, isGroup) => ipcRenderer.invoke('get-unread-message-count', { contactId, isGroup }),
