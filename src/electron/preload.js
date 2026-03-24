@@ -44,6 +44,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, pageSize, isGroup, beforeTimestamp) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, pageSize, isGroup, beforeTimestamp }),
   getServerUrl: () => ipcRenderer.invoke('get-server-url'),
+  // 添加检查更新的方法
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.send('download-update'),
+  quitAndInstall: () => ipcRenderer.send('quit-and-install'),
   getInviteInformationList: () => ipcRenderer.invoke('get-invite-information-list'),
   openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),

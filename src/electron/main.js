@@ -24,6 +24,7 @@ import {
     userMessageDraftManager
 } from './store.js';
 
+import { initUpdater } from './updater.js';
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -589,7 +590,7 @@ app.on('before-quit', () => {
 });
 
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
     protocol.registerFileProtocol('avatar', (request, callback) => {
         const filePath = decodeURI(request.url.replace('avatar://', ''));
         callback(filePath);
@@ -607,6 +608,7 @@ app.whenReady().then(async () => {
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
     })
+    initUpdater(mainWindow);
 })
 
 // IPC handlers for custom window controls
