@@ -164,7 +164,7 @@ const MessageList = ({ contact, messageListHook }) => {
         }
     }, [messages]);
 
-    const handleGroupMemberListUpdate = useCallback((groupId) => {
+    const handleGroupMemberListUpdate = useCallback((event, { groupId }) => {
         if (contact.type === 'group' && contact.id === groupId) {
             window.electronAPI.getGroupMember(contact.id).then((members) => {
                 setGroupMemberList(members);
@@ -442,10 +442,19 @@ const MessageList = ({ contact, messageListHook }) => {
     };
 
     const handleVoiceCallToContact = () => {
+        if (contact.type === 'group') {
+            messageApi.warning('群通话功能正在开发中，敬请期待');
+            return;
+        }
         window.electronAPI.voiceCallToContact(contact.id);
     };
 
     const handleVideoCallToContact = () => {
+        if (contact.type === 'group') {
+            messageApi.warning('群视频通话功能正在开发中，敬请期待');
+            return;
+        }
+
         window.electronAPI.videoCallToContact(contact.id);
     };
 

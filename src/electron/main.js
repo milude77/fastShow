@@ -23,7 +23,6 @@ import {
     userAssetsManager,
     userMessageDraftManager
 } from './store.js';
-import { version } from 'os';
 
 
 // ESM-compliant __dirname
@@ -1563,7 +1562,7 @@ ipcMain.on('accept-friend-request', async (event, requestId) => {
                 .insert(helloMessage)
             await db('invite_information')
             event.sender.send('friend-request-accepted', { requestId });
-            event.sender.send('friends-list-updated');
+            event.sender.send('contacts-list-updated');
         }
     } catch (error) {
         console.error('接受好友请求失败:', error);
@@ -1627,7 +1626,7 @@ ipcMain.on('accept-group-invite', async (event, requestId) => {
                     update_time: timestamp
                 })
             event.sender.send('group-invite-accepted', { requestId });
-            event.sender.send('groups-list-updated');
+            event.sender.send('contacts-list-updated');
         }
     } catch (error) {
         console.error('接受群组邀请失败:', error);

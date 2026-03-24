@@ -23,8 +23,6 @@ import {
     removeOnlineUserId,
     removeOnlineUser
 } from './redisClient.js';
-import { act } from 'react';
-import { version } from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -983,15 +981,22 @@ io.on('connection', (socket) => {
                     continue; // 跳过当前联系人，继续处理下一个
                 }
 
-                await db('group_invitations').insert({
-                    id: invitationId,
-                    group_id: groupId,
-                    invited_user_id: contact.id,
-                    inviting_user_id: senderInfo.userId,
-                    status: 'pending',
-                    created_at: nowDate,
-                    updated_at: nowDate
-                });
+                await db('group_invitations')
+                    .insert({
+                        id: invitationId,
+                        group_id: groupId,
+                        invited_user_id: contact.id,
+                        inviting_user_id: senderInfo.userId,
+                        status: 'pending',
+                        created_at: nowDate,
+                        updated_at: nowDate
+                    })
+                    .onConflict('id')
+                    .merge({
+                        status: 'pending',
+                        updated_at: nowDate
+                    })
+                    ;
 
                 await db('user_event').insert({
                     user_id: contact.id,

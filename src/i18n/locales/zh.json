@@ -102,7 +102,7 @@
     "sendFailed": "发送好友请求失败 错误原因："
   },
   "chat": {
-    "sendMessage": "发送消息",
+    "sendMessage": "发送",
     "messagePlaceholder": "输入消息...",
     "online": "在线",
     "offline": "离线",

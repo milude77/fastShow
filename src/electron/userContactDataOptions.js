@@ -70,7 +70,6 @@ export const handleContactsList = async (db, payload) => {
 
 
 export const handleContactCompareResult = async (payload) => {
-    console.log('handleContactCompareResult', payload)
     const { contactListChange, contactVersion } = payload;
     const db = getDb();
     const currentUserId = getCurUserId();
@@ -90,14 +89,26 @@ export const handleContactCompareResult = async (payload) => {
             //处理新增好友请求信息
             if (action === 'friend_request') {
                 const { id, inviterId, inviterName, createdTime } = event_data;
-                await db('invite_information').insert({
-                    id,
-                    inviter_id: inviterId,
-                    inviter_name: inviterName,
-                    status: 'pending',
-                    create_time: createdTime,
-                    is_group_invite: false,
-                });
+                await db('invite_information')
+                    .insert({
+                        id,
+                        inviter_id: inviterId,
+                        inviter_name: inviterName,
+                        status: 'pending',
+                        create_time: createdTime,
+                        is_group_invite: false,
+                    })
+                    .onConflict('id')
+                    .merge(
+                        {
+                            inviter_id: inviterId,
+                            inviter_name: inviterName,
+                            status: 'pending',
+                            create_time: createdTime,
+                            is_group_invite: false,
+                        }
+                    )
+                    ;
                 BrowserWindow.getAllWindows().forEach(win => win.webContents.send('new-invite'));
             }
             //处理被好友删除
@@ -122,16 +133,30 @@ export const handleContactCompareResult = async (payload) => {
             //处理新的群聊邀请
             if (action === 'group_invited') {
                 const { id, groupId, groupName, inviterId, inviterName, createdTime } = event_data;
-                await db('invite_information').insert({
-                    id: id,
-                    inviter_id: inviterId,
-                    inviter_name: inviterName,
-                    group_id: groupId,
-                    group_name: groupName,
-                    status: 'pending',
-                    create_time: createdTime,
-                    is_group_invite: true,
-                });
+                await db('invite_information')
+                    .insert({
+                        id: id,
+                        inviter_id: inviterId,
+                        inviter_name: inviterName,
+                        group_id: groupId,
+                        group_name: groupName,
+                        status: 'pending',
+                        create_time: createdTime,
+                        is_group_invite: true,
+                    })
+                    .onConflict('id')
+                    .merge(
+                        {
+                            inviter_id: inviterId,
+                            inviter_name: inviterName,
+                            group_id: groupId,
+                            group_name: groupName,
+                            status: 'pending',
+                            create_time: createdTime,
+                            is_group_invite: true,
+                        }
+                    )
+                    ;
             }
             BrowserWindow.getAllWindows().forEach(win => win.webContents.send('contacts-list-updated'));
         })
