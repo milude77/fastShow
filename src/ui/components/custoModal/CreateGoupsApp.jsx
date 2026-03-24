@@ -4,13 +4,15 @@ import './css/createGoupsApp.css';
 import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
 import { useTranslation } from 'react-i18next';
-
+import { useUserAvatar } from '../../hooks/useAvatar.js';
+import Avatar from '../avatar.jsx';
 const CreateGoupsApp = ({ onClose }) => {
     const { t } = useTranslation();
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
     const socket = useSocket();
     const [serverUrl, setServerUrl] = useState('');
+    const { getAvatarUrl } = useUserAvatar();
 
 
 
@@ -37,7 +39,7 @@ const CreateGoupsApp = ({ onClose }) => {
         return () => {
             socket.off('grops-create-success', handleGropCreateSuccess);
         }
-    }, [ onClose, socket ]);
+    }, [onClose, socket]);
 
 
     return (
@@ -68,7 +70,10 @@ const CreateGoupsApp = ({ onClose }) => {
                 {checkedContacts && checkedContacts.map((contact, index) => (
                     <div key={index} className='selected-contact-item'>
                         <div key={index} className='friend-item'>
-                            <img src={`${serverUrl}/api/avatar/${contact.id}/user`} alt='avatar' className='friend-avatar' />
+                            <Avatar
+                                src={getAvatarUrl(contact.id)}
+                                alt='avatar'
+                                className='friend-avatar' />
                             <span>{contact.username}</span>
                         </div>
                     </div>
@@ -80,7 +85,7 @@ const CreateGoupsApp = ({ onClose }) => {
                         onClick={() => {
                             socket.emit('create-group', { checkedContacts });
                         }}
-                        style={{ marginTop: 12, color:'var(--text-color)' }}
+                        style={{ marginTop: 12, color: 'var(--text-color)' }}
                     >
                         {t('createGroup.create')}
                     </Button>

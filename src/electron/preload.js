@@ -82,7 +82,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   //设置相关
   updateLanguage: (language) => ipcRenderer.send('update-language', language),
   updateTheme: (theme) => ipcRenderer.send('update-theme', theme),
-  updateSettings: ({key, value}) => ipcRenderer.send('updata-settings', { key, value }),
+  updateSettings: ({ key, value }) => ipcRenderer.send('updata-settings', { key, value }),
   getSettingsValue: (key) => ipcRenderer.invoke('get-settings-value', key),
   getGroupMember: (groupId) => ipcRenderer.invoke('get-group-member', groupId),
   getGroupMemberVersion: (groupId) => ipcRenderer.invoke('get-group-member-version', groupId),

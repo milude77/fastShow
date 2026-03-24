@@ -3,6 +3,9 @@ import { useSocket } from '../../hooks/useSocket';
 import './css/friendsRequesetManagement.css';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 import { useTranslation } from 'react-i18next';
+import { useUserAvatar } from '../../hooks/useAvatar.js';
+import Avatar from '../avatar.jsx';
+
 
 
 
@@ -14,6 +17,7 @@ const FriendsRequestManagement = () => {
     const { messageApi } = useGlobalMessage();
     const [inviteInformationList, setInviteInformationList] = useState({});
     const [serverUrl, setServerUrl] = useState('');
+    const { getAvatarUrl } = useUserAvatar();
 
 
     useEffect(() => {
@@ -135,8 +139,8 @@ const FriendsRequestManagement = () => {
                             </div>
                         ) : (
                             <div key={id} className='invite-item'>
-                                <img
-                                    src={`${serverUrl}/api/avatar/${req.inviter_id}/user`}
+                                <Avatar
+                                    src={getAvatarUrl(req.inviter_id)}
                                     alt="头像"
                                     className='invite-avatar'
                                 />

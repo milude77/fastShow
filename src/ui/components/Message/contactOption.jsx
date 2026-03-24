@@ -4,6 +4,7 @@ import './css/contactOption.css'
 import Avatar from '../avatar.jsx';
 import { useGlobalModal } from '../../hooks/useModalManager.js';
 import { useTranslation } from 'react-i18next';
+import { useUserAvatar } from '../../hooks/useAvatar.js';
 
 const ContactOption = ({ contact, currentUser, openContactOptions, onClose, groupMemberList, messageApi }) => {
     const { t } = useTranslation();
@@ -11,6 +12,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
     const [modal, modalContextHolder] = Modal.useModal();
     const [serverUrl, setServerUrl] = useState('');
     const { openModal } = useGlobalModal();
+    const { getAvatarUrl } = useUserAvatar();
 
 
     useEffect(() => {
@@ -155,7 +157,7 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
                             <div className="group-member" key={index}>
                                 <Avatar
                                     size={40}
-                                    src={`${serverUrl}/api/avatar/${member.member_id}/user?t=${member.member_id === currentUser.user_id ? currentUser.avatar_version : ''}`}
+                                    src={getAvatarUrl(member.member_id)}
                                     alt={member.member_name} />
                                 <span className="group-member-name">{member.member_name}</span>
                             </div>

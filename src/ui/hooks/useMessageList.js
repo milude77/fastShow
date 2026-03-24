@@ -238,7 +238,7 @@ export function useMessageList(curSelectedContact) {
             text: '',
             sender: 'user',
             sender_id: currentUser.userId,
-            timestamp: new Date(),
+            timestamp: Date.now(),
             username: currentUser.username,
             messageType: 'file',
             fileName: fileName,

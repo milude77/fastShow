@@ -4,6 +4,9 @@ import './css/createGoupsApp.css';
 import { Checkbox } from 'antd/lib/index.js';
 import { useSocket } from '../../hooks/useSocket';
 import { useTranslation } from 'react-i18next';
+import { useUserAvatar } from '../../hooks/useAvatar.js';
+import Avatar from '../avatar.jsx';
+
 
 const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
     const { t } = useTranslation();
@@ -11,14 +14,11 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
     const [contacts, setContacts] = useState([]);
     const [checkedContacts, setCheckedContacts] = useState([]);
     const socket = useSocket();
-    const [serverUrl, setServerUrl] = useState('');
+    const { getAvatarUrl } = useUserAvatar();
 
 
 
     useEffect(() => {
-        window.electronAPI.getServerUrl().then((url) => {
-            setServerUrl(url)
-        });
         window.electronAPI.getContactList().then((contacts) => {
             const friendsList = contacts.filter(contact => contact.type === 'friend').sort((a, b) => b.lastMessage - a.lastMessage);
             setContacts(friendsList);
@@ -58,7 +58,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
                             className='friend-checkbox'
                             checked={checkedContacts.some(c => c.id === contact.id)}
                         />
-                        <img src={`${serverUrl}/api/avatar/${contact.id}/user`} alt='avatar' className='friend-avatar' />
+                        <Avatar src={getAvatarUrl(contact.id)} alt='avatar' className='friend-avatar' />
                         {contact.username}
                     </div>
                 ))}
@@ -68,7 +68,7 @@ const InviteFriendsJoinGroup = ({ groupId, groupName, onClose }) => {
                 {checkedContacts && checkedContacts.map((contact, index) => (
                     <div key={index} className='selected-contact-item'>
                         <div key={index} className='friend-item'>
-                            <img src={`${serverUrl}/api/avatar/${contact.id}/user`} alt='avatar' className='friend-avatar' />
+                            <Avatar src={getAvatarUrl(contact.id)} alt='avatar' className='friend-avatar' />
                             <span>{contact.username}</span>
                         </div>
                     </div>

@@ -38,7 +38,7 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 const isDev = config.NODE_ENV === "development"
 
 
-export const SOCKET_SERVER_URL = (isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL) || 'http://localhost:3001';
+const SOCKET_SERVER_URL = (isDev ? config.DEV_SERVER_URL : config.SOCKET_SERVER_URL) || 'http://localhost:3001';
 let socket;
 let heartbeatInterval;
 let reconnectionTimer;
@@ -445,6 +445,7 @@ function createTray(mainWindow) {
             label: '退出',
             click: () => {
                 app.quitting = true;
+                socket.disconnect();
                 app.quit();
             }
         }
@@ -563,7 +564,7 @@ async function downLoadUserAvatar() {
             return avatarFilePath; // 返回文件路径
         }
 
-        const avatarUrl = `${SOCKET_SERVER_URL}/api/avatar/${currentUserId}/user`;
+        const avatarUrl = `api/avatar/${currentUserId}/user/download`;
 
         // 发起请求获取头像
         const response = await apiClient.get(avatarUrl, {
@@ -633,6 +634,7 @@ ipcMain.on('close-window', () => {
     const window = BrowserWindow.getFocusedWindow();
     if (window && !app.quitting) {
         if (window === mainWindow && !tray) {
+            socket.disconnect();
             app.quit();
         } else {
             window.close();
@@ -1039,7 +1041,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         const fileSize = fileStats.size;
 
         // --- 步骤 1: 从服务器获取预签名 URL ---
-        const initiateResponse = await apiClient.post(`${SOCKET_SERVER_URL}/api/upload/initiate`, {
+        const initiateResponse = await apiClient.post(`api/upload/initiate`, {
             fileName,
             senderId,
             isGroup,
@@ -1066,7 +1068,7 @@ ipcMain.handle('initiate-file-upload', async (event, { filePath, senderId, recei
         });
 
         // --- 步骤 3: 通知服务器上传完成 ---
-        const completeResponse = await apiClient.post(`${SOCKET_SERVER_URL}/api/upload/complete`, {
+        const completeResponse = await apiClient.post(`api/upload/complete`, {
             fileName,
             objectName,
             fileId,
@@ -1120,7 +1122,7 @@ ipcMain.handle('download-file', async (event, { messageId, fileUrl, fileName, is
         // 构建完整 URL
         let fullUrl = fileUrl;
         if (!fileUrl.startsWith('http')) {
-            fullUrl = `${SOCKET_SERVER_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+            fullUrl = `${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
         }
 
         // 下载路径
@@ -1827,8 +1829,9 @@ ipcMain.on('save-group-member', async (event, { groupId, version, groupMembers }
 ipcMain.on('update-group-member-version', async (event, { groupId, version, groupMembers }) => {
     groupMembers.forEach(async (groupMember) => {
         const { user_id, action, event_data } = groupMember
-        if (action === 'add') {
-            const { role, nickname: username, created_at: join_time } = event_data
+        if (action === 'group_member_add') {
+            const { role, username, join_time } = event_data
+            console.log('新用户加入群聊', groupId, user_id, username, role, join_time)
             await db('group_member')
                 .insert({
                     group_id: groupId,
@@ -1838,11 +1841,12 @@ ipcMain.on('update-group-member-version', async (event, { groupId, version, grou
                     join_time
                 })
                 .onConflict(['group_id', 'member_id'])
+                .ignore()
         }
         if (action === 'left') {
             await db('group_member')
                 .where('group_id', groupId)
-                .where('member_id', user_id)
+                .andWhere('member_id', user_id)
                 .del()
         }
         if (action === 'update') {
@@ -1991,16 +1995,17 @@ function handleProtocol(argv) {
 
 app.on('second-instance', (event, argv) => {
     handleProtocol(argv);
-
     if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
     }
-
 });
 
 app.on('window-all-closed', function () {
-    if (process.platform !== 'darwin') app.quit()
+    if (process.platform !== 'darwin') {
+        if (socket) socket.disconnect();
+        app.quit()
+    }
 })
 
 

@@ -1,4 +1,4 @@
-import apiClient from './api.js'
+import { apiClient } from './api.js'
 import axios from 'axios';
 
 export const avatarUpload = async (blob) => {
@@ -8,8 +8,7 @@ export const avatarUpload = async (blob) => {
         // 先保存到本地
         await window.electronAPI.saveAvatarLocally(arrayBuffer);
 
-        const serverUrl = await window.electronAPI.getServerUrl();
-        const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`, {
+        const initiateResponse = await apiClient.post(`api/avatar/initiate`, {
             isGroupAvatar: false
         });
         const { presignedUrl, objectName } = initiateResponse.data;
@@ -20,7 +19,7 @@ export const avatarUpload = async (blob) => {
             },
         });
 
-        const result = await apiClient.post(`${serverUrl}/api/avatar/complete`, {
+        const result = await apiClient.post(`api/avatar/complete`, {
             objectName,
         });
 
@@ -33,8 +32,7 @@ export const avatarUpload = async (blob) => {
 
 export const groupAvatarUpload = async (blob, groupId) => {
     try {
-        const serverUrl = await window.electronAPI.getServerUrl();
-        const initiateResponse = await apiClient.post(`${serverUrl}/api/avatar/initiate`, {
+        const initiateResponse = await apiClient.post(`api/avatar/initiate`, {
             isGroupAvatar: true,
             groupId: groupId
         });
@@ -46,7 +44,7 @@ export const groupAvatarUpload = async (blob, groupId) => {
             },
         });
 
-        const result = await apiClient.post(`${serverUrl}/api/avatar/complete`, {
+        const result = await apiClient.post(`api/avatar/complete`, {
             objectName,
         });
 

@@ -4,7 +4,7 @@ import {
     userCredentialsManager,
 } from './store.js';
 
-import { getDb, getCurUserId, SOCKET_SERVER_URL } from './main.js'
+import { getDb, getCurUserId } from './main.js'
 
 
 
@@ -55,6 +55,7 @@ export const handleContactsList = async (db, payload) => {
                 groupName: String(g.username),
                 addTime: g.created_at ? new Date(g.joinedAt) : new Date(),
                 version: g.version,
+                my_role: g.myRole,
             }));
             await db('groups').insert(rows).onConflict('id').ignore();
         }
@@ -175,7 +176,7 @@ export const handleGroupCompareResult = async (payload) => {
         groupListChange.forEach(change => {
             const { event_data, action } = change;
             const { group_id: group_id, status } = event_data;
-            const group_info = apiClient.get(`${SOCKET_SERVER_URL}/api/group-info`, {
+            const group_info = apiClient.get(`api/group-info`, {
                 groupId: group_id
             });
             const { id, groupName, infoVersion } = group_info;

@@ -7,7 +7,7 @@ import ContactOption from "./contactOption";
 import GroupMember from "./groupMember";
 import MessageInput from "./messageInput";
 import MessageItem from "./messageItem.jsx";
-import apiClient from '../../utils/api.js';
+import { apiClient } from '../../utils/api.js';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
 import { useGlobalMessage } from '../../hooks/useGlobalMessage.js';
 import { formatTime } from '../../utils/timeFormatter.js';
@@ -119,7 +119,6 @@ const MessageList = ({ contact, messageListHook }) => {
 
     const messageContainerRef = useRef(null);
     const lastMessageRef = useRef(null);
-    const LastMessageTimestamp = useRef(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const firstLoadRef = useRef(true);
     const [modal, modalContextHolder] = Modal.useModal();
@@ -130,8 +129,6 @@ const MessageList = ({ contact, messageListHook }) => {
     const [groupMemberListOpen, setGroupMemberListOpen] = useState(true)
     const [groupMemberListBtnDisplay, setGroupMemberListBtnDisplay] = useState(false)
 
-    //服务器地址
-    const [serverUrl, setServerUrl] = useState('');
 
     const [openContactOptions, setOpenContactOptions] = useState(false)
     const {
@@ -190,8 +187,6 @@ const MessageList = ({ contact, messageListHook }) => {
     }, []);
 
     const getGroupMemberList = useCallback(async () => {
-        const url = await window.electronAPI.getServerUrl();
-        setServerUrl(url);
         if (contact.type === 'group') {
             // 尝试从本地缓存获取群成员列表
             const cachedMembers = await window.electronAPI.getGroupMember(contact.id);
@@ -203,7 +198,7 @@ const MessageList = ({ contact, messageListHook }) => {
             const memberVersion = await window.electronAPI.getGroupMemberVersion(contact.id)
 
             try {
-                const response = await apiClient.post(`${url}/api/getGroupMember`, {
+                const response = await apiClient.post(`api/getGroupMember`, {
                     groupId: contact.id,
                     memberVersion
                 });
@@ -534,7 +529,7 @@ const MessageList = ({ contact, messageListHook }) => {
                     </div>
                 </div>
                 {contact.type === 'group' && groupMemberListOpen && (
-                    <GroupMember members={groupMemberList} serverUrl={serverUrl} currentUser={currentUser} />
+                    <GroupMember members={groupMemberList} />
                 )}
                 <ContactOption contact={contact} currentUser={currentUser} openContactOptions={openContactOptions} onClose={handleCloseContactOptions} groupMemberList={groupMemberList} messageApi={messageApi} />
             </div>

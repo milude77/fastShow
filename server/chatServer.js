@@ -1,5 +1,5 @@
 import express from 'express';
-import path from 'path';
+import path, { join } from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -141,18 +141,18 @@ const authenticateToken = (req, res, next) => {
 };
 
 //更新用户联系人列表版本
-async function updateUserContactVersion(userId) {
+async function updateUserContactVersion(userId, id) {
     // 使用数据库的自增功能来增加版本号
     await db('users')
         .where('id', userId)
-        .increment('contact_list_version', 1);
+        .update('contact_list_version', id);
 }
 
 //更新群成员版本
-async function updateGroupMemberVersion(groupId) {
+async function updateGroupMemberVersion(groupId, id) {
     await db('groups')
         .where('id', groupId)
-        .increment('member_version', 1);
+        .update('member_version', id);
 }
 // Fetches and emits the friends list for a given socket
 async function getFriendsList(socket) {
@@ -661,17 +661,20 @@ io.on('connection', (socket) => {
 
             // 查找对方是否在线，以便发送实时通知
             const targetSocketId = await getOnlineUserId(friendId);
-            await db('user_event').insert({
-                user_id: friendId,
-                action: 'friend_request',
-                event_data: JSON.stringify({
-                    id: friendshipId,
-                    inviterId: senderInfo.userId,
-                    inviterName: senderInfo.username,
-                    createdTime: new Date()
+            const idResult = await db('user_event')
+                .insert({
+                    user_id: friendId,
+                    action: 'friend_request',
+                    event_data: JSON.stringify({
+                        id: friendshipId,
+                        inviterId: senderInfo.userId,
+                        inviterName: senderInfo.username,
+                        createdTime: new Date()
+                    })
                 })
-            });
-            await updateUserContactVersion(friendId);
+                .returning('id');
+            const id = idResult[0].id;
+            await updateUserContactVersion(friendId, id);
 
             if (targetSocketId) {
                 io.to(targetSocketId.socketId).emit('contact-update');
@@ -696,14 +699,17 @@ io.on('connection', (socket) => {
             await db('friendships')
                 .where('id', friendshipId)
                 .update({ status: 'deleted', is_deleted: true });
-            await db('user_event').insert({
-                user_id: friendId,
-                action: 'friend_deleted',
-                event_data: JSON.stringify({
-                    friendId: senderInfo.userId,
+            const idResult = await db('user_event')
+                .insert({
+                    user_id: friendId,
+                    action: 'friend_deleted',
+                    event_data: JSON.stringify({
+                        friendId: senderInfo.userId,
+                    })
                 })
-            });
-            await updateUserContactVersion(friendId);
+                .returning('id');
+            const id = idResult[0].id;
+            await updateUserContactVersion(friendId, id);
             const targetSocketId = await getOnlineUserId(friendId);
             if (targetSocketId) {
                 io.to(targetSocketId.socketId).emit('contact-update');
@@ -733,17 +739,20 @@ io.on('connection', (socket) => {
                     .select('users.id', 'users.username')
                     .first();
                 const infoVersion = await db('users').where({ id: senderInfo.userId }).first('inf_version');
-                await db('user_event').insert({
-                    user_id: friendInformation.id,
-                    action: 'friend_add',
-                    event_data: JSON.stringify({
-                        status: 'accepted',
-                        friend_id: senderInfo.userId,
-                        username: senderInfo.username,
-                        infoVersion: infoVersion.inf_version
+                const idResult = await db('user_event')
+                    .insert({
+                        user_id: friendInformation.id,
+                        action: 'friend_add',
+                        event_data: JSON.stringify({
+                            status: 'accepted',
+                            friend_id: senderInfo.userId,
+                            username: senderInfo.username,
+                            infoVersion: infoVersion.inf_version
+                        })
                     })
-                });
-                await updateUserContactVersion(friendInformation.id);
+                    .returning('id');
+                const id = idResult[0].id;
+                await updateUserContactVersion(friendInformation.id, id);
 
                 const targetSocketId = await getOnlineUserId(friendInformation.id);
                 if (targetSocketId) {
@@ -772,16 +781,34 @@ io.on('connection', (socket) => {
                 .first();
 
 
-            await db('group_members').insert({
-                group_id: newMemberInformation.groupId,
-                user_id: newMemberInformation.userId,
-                user_name: newMemberInformation.username,
-                created_at: timestamp,
-                updated_at: timestamp,
-                role: 'member'
-            }).onConflict(['group_id', 'user_id']).ignore();;
+            await db('group_members')
+                .insert({
+                    group_id: newMemberInformation.groupId,
+                    user_id: newMemberInformation.userId,
+                    user_name: newMemberInformation.username,
+                    created_at: timestamp,
+                    updated_at: timestamp,
+                    role: 'member'
+                })
+                .onConflict(['group_id', 'user_id'])
+                .ignore()
+            const idResult = await db('group_member_event')
+                .insert({
+                    group_id: newMemberInformation.groupId,
+                    user_id: newMemberInformation.userId,
+                    action: 'group_member_add',
+                    event_data: JSON.stringify({
+                        status: 'accepted',
+                        username: newMemberInformation.username,
+                        role: 'member',
+                        join_time: timestamp
+                    })
+                })
+                .returning('id');
 
-            await updateGroupMemberVersion(newMemberInformation.groupId);
+            const id = idResult[0].id;
+
+            await updateGroupMemberVersion(newMemberInformation.groupId, id);
 
             const groupMembers = await db('group_invitations')
                 .where({ 'group_invitations.id': requesterId })
@@ -863,19 +890,22 @@ io.on('connection', (socket) => {
             },
             );
 
-            await db('user_event').insert({
-                user_id: senderInfo.userId,
-                action: 'group_added',
-                event_data: JSON.stringify({
-                    groupId: nextId,
-                    groupName,
-                    createdAt: nowDate,
-                    joinedAt: nowDate,
-                    type: 'group',
-                    role: 'owner'
+            const idResult = await db('user_event')
+                .insert({
+                    user_id: senderInfo.userId,
+                    action: 'group_added',
+                    event_data: JSON.stringify({
+                        groupId: nextId,
+                        groupName,
+                        createdAt: nowDate,
+                        joinedAt: nowDate,
+                        type: 'group',
+                        role: 'owner'
+                    })
                 })
-            })
-            await updateUserContactVersion(senderInfo.userId);
+                .returning('id');
+            const id = idResult[0].id;
+            await updateUserContactVersion(senderInfo.userId, id);
 
 
             for (const contact of checkedContacts) {
@@ -887,7 +917,7 @@ io.on('connection', (socket) => {
                     updated_at: nowDate,
                     role: 'member'
                 });
-                await db('user_event').insert({
+                const idResult = await db('user_event').insert({
                     user_id: contact.id,
                     action: 'group_added',
                     event_data: JSON.stringify({
@@ -899,7 +929,8 @@ io.on('connection', (socket) => {
                         role: 'member'
                     })
                 })
-                await updateUserContactVersion(contact.id);
+                const id = idResult[0].id;
+                await updateUserContactVersion(contact.id, id);
             }
 
             socket.emit('grops-create-success');
@@ -930,19 +961,24 @@ io.on('connection', (socket) => {
                 .where({ group_id: groupId, user_id: userId })
                 .del();
 
-            await db('group_member_event').insert({
-                group_id: groupId,
-                user_id: userId,
-                action: 'left',
-                created_at: new Date(),
-                event_data: JSON.stringify({
-                    groupId,
-                    userId,
-                    userName: senderInfo.username,
+            const idResult = await db('group_member_event')
+                .insert({
+                    group_id: groupId,
+                    user_id: userId,
+                    action: 'left',
+                    created_at: new Date(),
+                    event_data: JSON.stringify({
+                        groupId,
+                        userId,
+                        userName: senderInfo.username,
+                    })
                 })
-            });
+                .returning('id');
 
-            await db('groups').where({ id: groupId }).increment('member_version', 1);
+            const id = idResult[0].id;
+            await db('groups').where({ id: groupId }).update({
+                member_version: id,
+            });
 
             socket.emit('leave-group-success', groupId);
         } catch (error) {
@@ -998,20 +1034,23 @@ io.on('connection', (socket) => {
                     })
                     ;
 
-                await db('user_event').insert({
-                    user_id: contact.id,
-                    action: 'group_invited',
-                    event_data: JSON.stringify({
-                        id: invitationId,
-                        groupId,
-                        groupName,
-                        inviterId: senderInfo.userId,
-                        inviterName: senderInfo.username,
-                        invitedAt: nowDate
+                const idResult = await db('user_event')
+                    .insert({
+                        user_id: contact.id,
+                        action: 'group_invited',
+                        event_data: JSON.stringify({
+                            id: invitationId,
+                            groupId,
+                            groupName,
+                            inviterId: senderInfo.userId,
+                            inviterName: senderInfo.username,
+                            invitedAt: nowDate
+                        })
                     })
-                });
+                    .returning('id');
 
-                await updateUserContactVersion(contact.id);
+                const id = idResult[0].id;
+                await updateUserContactVersion(contact.id, id);
 
                 if (onlineUsersIds.has(contact.id)) {
                     // 在线用户直接发送邀请
@@ -1269,7 +1308,7 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
                     const targetSocketId = onlineUsersIds.get(member.user_id)?.socketId;
                     io.to(targetSocketId).emit('new-message', savedMessage);
                 }
-                else {
+                else if (member.user_id !== senderId) {
                     await db('group_message_read_status').insert({
                         group_message_id: messageId,
                         user_id: member.user_id,
@@ -1616,6 +1655,48 @@ async function githubCallback(req, res) {
 }
 
 app.get('/api/auth/github/callback', githubCallback);
+
+// 在 chatServer.js 中添加刷新 token 接口
+app.post('/api/refresh-token', async (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+        return res.status(401).json({ error: 'Refresh token required' });
+    }
+
+    try {
+        // 从数据库查找用户的 refresh token
+        const user = await db('users')
+            .where({ refresh_token: refreshToken })
+            .first();
+
+        if (!user || new Date() > user.refresh_token_expiry) {
+            return res.status(401).json({ error: 'Invalid or expired refresh token' });
+        }
+
+        // 生成新的 access token
+        const accessToken = jwt.sign(
+            { userId: user.id, username: user.username },
+            JSON_WEB_TOKEN_SECRET,
+            { expiresIn: '15m' }
+        );
+
+        // 可选：生成新的 refresh token
+        const newRefreshToken = crypto.randomBytes(40).toString('hex');
+        await db('users').where({ id: user.id }).update({
+            refresh_token: newRefreshToken,
+            refresh_token_expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        });
+
+        res.json({
+            accessToken,
+            refreshToken: newRefreshToken
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Token refresh failed' });
+        console.error('Token refresh failed:', error);
+    }
+});
 
 
 // 启动服务器
