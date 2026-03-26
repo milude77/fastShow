@@ -109,6 +109,8 @@ export const io = new Server(server, {
         methods: ["GET", "POST"],
         credentials: true
     },
+    pingInterval: 25000,
+    pingTimeout: 5000,
 });
 
 // 中间件

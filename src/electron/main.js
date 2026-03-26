@@ -603,6 +603,11 @@ app.on('before-quit', () => {
 
 
 app.whenReady().then(() => {
+    const gotTheLock = app.requestSingleInstanceLock();
+    if (!gotTheLock) {
+        app.quit();
+        return;
+    }
     protocol.registerFileProtocol('avatar', (request, callback) => {
         const filePath = decodeURI(request.url.replace('avatar://', ''));
         callback(filePath);
