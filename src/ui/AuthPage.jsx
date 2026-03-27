@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from './hooks/useSocket';
-import { Button, Select, Modal } from 'antd';
+import { Button, Select, Modal, Dropdown } from 'antd';
 import './css/authPage.css'
 import Avatar from './components/avatar.jsx';
 import { useUserAvatar } from './hooks/useAvatar.js';
 import { FaGithub } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
+import { GlobalOutlined } from '@ant-design/icons'
 
 // 用户登录中
 const LoginLoading = ({ credentials }) => {
@@ -94,9 +95,12 @@ const AuthPage = () => {
   const [showAttemptAutoLogin, setShowAttemptAutoLogin] = useState(false);
   const [lastLoginUser, setLastLoginUser] = useState(null);
   const [modal, modalContextHolder] = Modal.useModal();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [languageDropdownVisible, setLanguageDropdownVisible] = useState(false);
 
   const socket = useSocket();
+
+
 
   useEffect(() => {
 
@@ -125,17 +129,23 @@ const AuthPage = () => {
     };
     checkInitialStatus();
 
+    const handleloginFailed = () => {
+      setIsLoggingIn(false);
+    }
+
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('reconnecting', handleReconnecting);
+    socket.on('login-failed', handleloginFailed)
 
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting)
+      socket.off('login-failed', handleloginFailed)
     };
-  }, [socket]);
+  }, [socket ]);
 
   useEffect(() => {
     const attemptAutoLogin = async () => {
@@ -151,7 +161,7 @@ const AuthPage = () => {
       };
     }
     attemptAutoLogin();
-  }, [socket]);
+  }, [socket ]);
 
   useEffect(() => {
 
@@ -176,7 +186,7 @@ const AuthPage = () => {
     return () => {
       socket.off('user-registered', handleRegisterSuccess);
     }
-  }, []);
+  }, [socket]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -238,7 +248,7 @@ const AuthPage = () => {
       window.electronAPI.ipcRenderer.removeListener('strong-logout-waring', handleStrongLogoutWaring)
       window.electronAPI.ipcRenderer.removeListener('oauth-success', handleOauthSuccess)
     }
-  }, [modal, socket]);
+  }, [ socket ]);
 
   const handleLoginSuccess = (data) => {
     const { userId, username, token, email } = data;
@@ -252,6 +262,21 @@ const AuthPage = () => {
     setIsLoggingIn(true)
     socket.emit('login-with-token', credentials.token)
   };
+
+  // 语言选项配置
+  const languageOptions = [
+    { value: 'en', label: 'English' },
+    { value: 'zh', label: '简体中文' },
+    { value: 'ru', label: 'Русский' }
+  ];
+
+
+  const handleLanguageChange = async (value) => {
+    i18n.changeLanguage(value);
+    window.electronAPI.updateLanguage(value);
+    setLanguageDropdownVisible(false);
+  }
+
 
   if (isLoggingIn && logincredentials) {
     return <LoginLoading credentials={logincredentials} />
@@ -332,6 +357,20 @@ const AuthPage = () => {
             </button>
           </form>
           <p style={{ textAlign: 'center', marginTop: '20px', color: '#666' }}>
+            <Dropdown
+              menu={{
+                items: languageOptions.map(option => ({
+                  key: option.value,
+                  label: option.label,
+                  onClick: () => handleLanguageChange(option.value)
+                }))
+              }}
+              trigger={['click']}
+              open={languageDropdownVisible}
+              onOpenChange={setLanguageDropdownVisible}
+            >
+              <GlobalOutlined style={{ color: '#00DFFF', position: 'absolute', left: '10px', bottom: '10px' }} />
+            </Dropdown>
             {isRegistering ? t('auth.haveAccount') : t('auth.noAccount')}
             <span
               onClick={() => {

@@ -117,6 +117,7 @@ export const userLoginWithToken = async (socket, data) => {
 
     if (!token) {
         socket.emit('notification', { status: 'error', message: '需要提供Token' });
+        socket.emit('login-failed', { message: 'Token无效或已过期' });
         return;
     }
 
@@ -155,8 +156,10 @@ export const userLoginWithToken = async (socket, data) => {
         console.error('登录失败:', error);
         if (error.name === 'TokenExpiredError') {
             socket.emit('notification', { status: 'error', message: 'Token已过期，请重新登录' });
+            socket.emit('login-failed', { message: 'Token已过期, 请重新登录' });
         } else {
             socket.emit('notification', { status: 'error', message: '登录失败，请稍后再试' });
+            socket.emit('login-failed', { message: '登录失败，请稍后再试' });
         }
     }
 }

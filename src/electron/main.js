@@ -12,6 +12,7 @@ import { snowflake } from './snowFlake.js';
 import { handleContactsList, handleContactCompareResult, handleGroupCompareResult } from './userContactDataOptions.js';
 import { protocol } from 'electron';
 import { decryptMessage, wrapSocket } from './aseOptions.js'
+import logger from './logger.js'; // 引入外部日志工具类
 
 import { v4 as uuidv4 } from 'uuid';
 
@@ -53,6 +54,7 @@ let currentUserToken;
 
 
 function connectSocket() {
+    logger.info('Attempting to connect to socket server', { url: SOCKET_SERVER_URL });
 
     if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
@@ -74,7 +76,10 @@ function connectSocket() {
 
     // Add a listener for connection errors
     socket.on('connect_error', (err) => {
-        console.error('Socket connection error in main process:', err.message);
+        logger.error('Socket connection error in main process:', { 
+            message: err.message,
+            stack: err.stack 
+        });
         BrowserWindow.getAllWindows().forEach(win => {
             win.webContents.send('socket-event', { event: 'connect_error', args: [err.message] });
         });
@@ -83,10 +88,12 @@ function connectSocket() {
             BrowserWindow.getAllWindows().forEach(win => {
                 win.webContents.send('socket-event', { event: 'reconnecting' });
             });
+            logger.warn('Scheduled socket reconnection', { delayMs: 5000 });
         }
     });
 
     socket.on('connect', () => {
+        logger.info('Socket connected successfully', { id: socket.id });
         if (reconnectionTimer) {
             clearTimeout(reconnectionTimer);
             reconnectionTimer = null;
@@ -104,19 +111,15 @@ function connectSocket() {
             heartbeatTimeout = setTimeout(() => {
                 if (socket) {
                     socket.disconnect();
+                    logger.warn('Heartbeat timeout - disconnecting socket');
                 }
             }, 2000); // Assume timeout if no pong in 2 seconds
             socket.emit('heartbeat', 'ping');
         }, 5000); // Send ping every 5 seconds
     });
 
-    socket.on('heartbeat', (payload) => {
-        if (payload === 'pong') {
-            clearTimeout(heartbeatTimeout); // Pong received, clear timeout
-        }
-    });
-
     socket.on('disconnect', () => {
+        logger.warn('Socket disconnected');
         clearInterval(heartbeatInterval);
         clearTimeout(heartbeatTimeout);
 
@@ -129,7 +132,13 @@ function connectSocket() {
         BrowserWindow.getAllWindows().forEach(win => {
             win.webContents.send('socket-event', { event: 'reconnecting' });
         });
+        logger.info('Scheduled socket reconnection after disconnect', { delayMs: 5000 });
+    });
 
+    socket.on('heartbeat', (payload) => {
+        if (payload === 'pong') {
+            clearTimeout(heartbeatTimeout); // Pong received, clear timeout
+        }
     });
 
     socket.onAny((event, ...args) => {
@@ -294,9 +303,9 @@ async function writeChatHistory(contactId, msg) {
         await updateContactLastMessagetimestamp(contactId, msg.type == 'group');
 
     } catch (error) {
-        console.error(`Failed to write chat history for contact ${contactId}:`, error);
-        console.error('Error details:', {
-            message: error.message,
+        logger.error(`Failed to write chat history for contact ${contactId}`, {
+            error: error.message,
+            stack: error.stack,
             code: error.code,
             errno: error.errno,
             sql: error.sql,
@@ -552,6 +561,7 @@ function createMainWindow() {
             mainWindow.hide();
         }
     });
+    initUpdater(mainWindow);
 }
 
 async function downLoadUserAvatar() {
@@ -603,13 +613,18 @@ app.on('before-quit', () => {
 app.whenReady().then(() => {
     const gotTheLock = app.requestSingleInstanceLock();
     if (!gotTheLock) {
+        logger.warn('Another instance is already running. Quitting.');
         app.quit();
         return;
     }
+    
+    logger.info('Application is ready. Creating windows and initializing components.');
+
     protocol.registerFileProtocol('avatar', (request, callback) => {
         const filePath = decodeURI(request.url.replace('avatar://', ''));
         callback(filePath);
     });
+    
     // --- Socket.IO Connection ---
     connectSocket();
     // --- End Socket.IO Connection ---
@@ -620,10 +635,13 @@ app.whenReady().then(() => {
         windowId: mainWindow.id,
         status: 'pending'
     });
+    
     app.on('activate', function () {
-        if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+        if (BrowserWindow.getAllWindows().length === 0) {
+            logger.info('App activated with no windows. Creating main window.');
+            createMainWindow()
+        }
     })
-    initUpdater(mainWindow);
 })
 
 // IPC handlers for custom window controls
@@ -701,6 +719,7 @@ const revicedContactList = async (payload) => {
 
 
 ipcMain.on('login-success', async (event, { userId, username, token, email }) => {
+    logger.info('Login success received', { userId, username, email });
     currentUserId = userId;
     currentUserToken = token;
     try {
@@ -730,7 +749,10 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
         try {
             await migrateUserDb(db, userId);
         } catch (e) {
-            console.error('User DB migration failed:', e);
+            logger.error('User DB migration failed:', {
+                error: e.message,
+                stack: e.stack
+            });
         }
 
 
@@ -746,11 +768,9 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
 
         await downLoadUserAvatar();
     }
-
     catch (error) {
-        console.error('Error in login-success handler:', error);
-        console.error('Error details:', {
-            message: error.message,
+        logger.error('Error in login-success handler:', {
+            error: error.message,
             code: error.code,
             errno: error.errno,
             sql: error.sql,
