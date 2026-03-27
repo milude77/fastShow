@@ -45,7 +45,7 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
     const getDraft = useCallback(async (contactId) => {
         const isGroup = contact.type === 'group';
         const draft = await window.electronAPI.getMessageDraft(contactId, isGroup);
-        if (draft) {
+        if (draft !== null) {
             setDraft(draft);
         }
     }, [contact.type]);

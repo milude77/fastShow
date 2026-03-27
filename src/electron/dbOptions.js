@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { dbMigrationManager } from './store.js';
 
 export async function initializeDatabase(db) {
@@ -32,8 +30,15 @@ export async function initializeDatabase(db) {
         table.timestamp('addTime').defaultTo(db.fn.now());
         table.integer('version').notNullable().defaultTo(0);
         table.timestamp('lastMessage').nullable().defaultTo(null);
-        table.string('status').notNullable().defaultTo('normal')
-      })
+        table.string('status').notNullable().defaultTo('normal');
+        table.string('type').nullable().defaultTo('private');
+      });
+      
+      // 为 friends 表创建索引
+      await db.schema.alterTable('friends', (table) => {
+        table.index(['id'], 'friends_user_id_idx');
+        table.index(['version'], 'friends_version_idx');
+      });
     }
 
     if (!groupTableExists) {
@@ -45,9 +50,14 @@ export async function initializeDatabase(db) {
         table.integer('member_version').notNullable().defaultTo(0);
         table.integer('message_version').notNullable().defaultTo(0);
         table.timestamp('lastMessage').nullable().defaultTo(null);
-        table.string('status').notNullable().defaultTo('normal')
+        table.string('status').notNullable().defaultTo('normal');
         table.string('my_role').nullable().defaultTo('member');
-      })
+      });
+      
+      // 为 groups 表创建索引
+      await db.schema.alterTable('groups', (table) => {
+        table.index(['version'], 'groups_version_idx');
+      });
     }
 
     if (!privateMessageExists) {
@@ -85,7 +95,7 @@ export async function initializeDatabase(db) {
         table.string('localFilePath').nullable();
         table.boolean('fileExt').nullable().defaultTo(false);
         table.string('status').nullable().defaultTo('fail');
-      })
+      });
     }
     if (!inviteInformationExists) {
       await db.schema.createTable('invite_information', (table) => {
@@ -98,7 +108,7 @@ export async function initializeDatabase(db) {
         table.string('status').notNullable().defaultTo('pending');
         table.timestamp('create_time').defaultTo(db.fn.now());
         table.timestamp('update_time').defaultTo(db.fn.now());
-      })
+      });
     }
 
     if (!groupMemberExists) {
@@ -109,7 +119,7 @@ export async function initializeDatabase(db) {
         table.timestamp('join_time').defaultTo(db.fn.now());
         table.string('role').notNullable().defaultTo('member');
         table.primary(['group_id', 'member_id']);
-      })
+      });
     }
   } catch (error) {
     console.error('Failed to initialize database:', error);
@@ -129,10 +139,9 @@ export async function initializeDatabase(db) {
  * 数据库迁移：确保 messages 表符合当前 Electron 架构（camelCase）并备份
  * - 备份当前用户数据库文件
  * - 检测 snake_case（旧版）与 camelCase（现版）列形态
- * - 直接补充缺失的列（幂等）
  * - 使用 electron-store 按用户记录迁移版本，避免重复执行
  */
-export async function migrateUserDb(db, userId, dbPath) {
+export async function migrateUserDb(db, userId) {
   try {
     const currentDbVersion = dbMigrationManager.getMigrationVersion(userId);
 
@@ -141,18 +150,6 @@ export async function migrateUserDb(db, userId, dbPath) {
     // 若版本已满足，直接返回
     if (currentDbVersion >= targetVer) {
       return;
-    }
-
-    // 备份原库
-    try {
-      if (dbPath && fs.existsSync(dbPath)) {
-        const dir = path.dirname(dbPath);
-        const ts = new Date().toISOString().replace(/[-:.TZ]/g, '');
-        const backupPath = path.join(dir, `chat_history.backup_${ts}.sqlite3`);
-        fs.copyFileSync(dbPath, backupPath);
-      }
-    } catch (backupErr) {
-      console.warn('Database backup failed:', backupErr?.message || backupErr);
     }
 
     // 确保 messages 表存在
@@ -200,24 +197,7 @@ export async function migrateUserDb(db, userId, dbPath) {
       }
     }
 
-    // 为 friends 表补充 type 列
-    const hasTypeColumn = await db.schema.hasColumn('friends', 'type');
-    if (!hasTypeColumn) {
-      await db.schema.table('friends', (table) => {
-        table.string('type').nullable().defaultTo('private');
-      });
-      console.log("Added 'type' column to 'friends' table.");
-    }
-
-    // 为 friendships 表补充 version 和 is_deleted 列
-    const hasVersionColumn = await db.schema.hasColumn('friends', 'version');
-    if (!hasVersionColumn) {
-      await db.schema.table('friends', (table) => {
-        table.integer('version').notNullable().defaultTo(0);
-      });
-      console.log("Added 'version' column to 'friends' table.");
-    }
-
+    // 删除 friends 表中不再需要的列
     const hasIsDeletedColumn = await db.schema.hasColumn('friends', 'is_deleted');
     if (hasIsDeletedColumn) {
       await db.schema.table('friends', (table) => {
@@ -239,31 +219,7 @@ export async function migrateUserDb(db, userId, dbPath) {
       });
     }
 
-    const hasIsExitFriendLatestColumn = await db.schema.hasColumn('friends', 'lastMessage');
-
-    if (!hasIsExitFriendLatestColumn) {
-      await db.schema.table('friends', (table) => {
-        table.timestamp('lastMessage').nullable().defaultTo(null);
-      });
-      console.log("Added 'lastMessage' column to 'friends' table.");
-    }
-
-    const hasIsExitFriendVersionColumn = await db.schema.hasColumn('friends', 'version');
-    if (!hasIsExitFriendVersionColumn) {
-      await db.schema.table('friends', (table) => {
-        table.integer('version').notNullable().defaultTo(0);
-      });
-    }
-
-    // 为 groups 表补充 is_exit 和 version 列
-    const hasGroupsVersionColumn = await db.schema.hasColumn('groups', 'version');
-    if (!hasGroupsVersionColumn) {
-      await db.schema.table('groups', (table) => {
-        table.integer('version').notNullable().defaultTo(0);
-      });
-      console.log("Added 'version' column to 'groups' table.");
-    }
-
+    // 删除 groups 表中不再需要的列
     const hasIsExitColumn = await db.schema.hasColumn('groups', 'is_exit');
     if (hasIsExitColumn) {
       await db.schema.table('groups', (table) => {
@@ -280,95 +236,11 @@ export async function migrateUserDb(db, userId, dbPath) {
       console.log("Dropped 'isMember' column from 'groups' table.");
     }
 
-    const hasGroupStatusColumn = await db.schema.hasColumn('groups', 'status');
-    if (!hasGroupStatusColumn) {
-      await db.schema.table('groups', (table) => {
-        table.string('status').defaultTo('normal');
-        console.log("Added 'status' column to 'groups' table.");
-      });
-    }
-
-    const hasIsExitLatestColumn = await db.schema.hasColumn('groups', 'lastMessage');
-
-    if (!hasIsExitLatestColumn) {
-      await db.schema.table('groups', (table) => {
-        table.timestamp('lastMessage').nullable().defaultTo(null);
-      });
-      console.log("Added 'lastMessage' column to 'groups' table.");
-    }
-
-    const hasMyRoleColumn = await db.schema.hasColumn('groups', 'my_role');
-    if (!hasMyRoleColumn) {
-      await db.schema.table('groups', (table) => {
-        table.string('my_role').nullable().defaultTo('member');
-      });
-    }
-
-    const hasGroupMemberVersionColumn = await db.schema.hasColumn('groups', 'member_version');
-    if (!hasGroupMemberVersionColumn) {
-      await db.schema.table('groups', (table) => {
-        table.integer('member_version').notNullable().defaultTo(0);
-      })
-    }
-
-    const hasGroupMessageVersion = await db.schema.hasColumn('groups', 'messsage_version')
-    if (!hasGroupMessageVersion) {
-      await db.schema.table('groups', (table) => {
-        table.integer('message_version').notNullable().defaultTo(0);
-      })
-    }
-
     const hasGroupMemberRoleColumn = await db.schema.hasColumn('group_member', 'role');
     if (!hasGroupMemberRoleColumn) {
       await db.schema.table('group_member', (table) => {
         table.string('role').nullable().defaultTo('member');
       })
-    }
-
-
-    // 为 friends 表添加索引（如果不存在）
-    const indexesToAdd = [
-      { tableName: 'friends', columns: ['user_id'], indexName: 'friends_user_id_idx' },
-      { tableName: 'friends', columns: ['version'], indexName: 'friends_version_idx' },
-      { tableName: 'groups', columns: ['version'], indexName: 'groups_version_idx' }
-    ];
-
-    for (const idx of indexesToAdd) {
-      // Knex doesn't have direct methods to check if index exists in SQLite
-      // We'll just try to create them and ignore errors
-      try {
-        await db.schema.alterTable(idx.tableName, (table) => {
-          table.index(idx.columns, idx.indexName);
-        });
-        console.log(`Created index '${idx.indexName}' on '${idx.tableName}'.`);
-      } catch (e) {
-        // Index might already exist, ignore error
-        console.log(`Index '${idx.indexName}' may already exist on '${idx.tableName}'.`);
-      }
-    }
-
-    try {
-      if (dbPath && fs.existsSync(path.dirname(dbPath))) {
-        const dir = path.dirname(dbPath);
-        const files = fs.readdirSync(dir)
-          .filter(name => /^chat_history\.backup_.*\.sqlite3$/i.test(name))
-          .map(name => {
-            const full = path.join(dir, name);
-            const stat = fs.statSync(full);
-            return { name, full, mtime: stat.mtimeMs };
-          })
-          .sort((a, b) => b.mtime - a.mtime);
-        const keep = 0;
-        for (let i = keep; i < files.length; i++) {
-          try {
-            fs.unlinkSync(files[i].full);
-          } catch {
-            /* 忽略清理失败 */
-          }
-        }
-      }
-    } catch (cleanupErr) {
-      console.warn('Backup cleanup warning:', cleanupErr?.message || cleanupErr);
     }
 
     dbMigrationManager.setMigrationVersion(userId, targetVer);

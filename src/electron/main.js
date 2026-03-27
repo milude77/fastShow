@@ -279,18 +279,16 @@ async function writeChatHistory(contactId, msg) {
         }
         else {
             await db('group_messages').insert(messageData).onConflict('id').ignore();
-            if (msg.sender !== 'user') {
-                const messageVersion = await db('group_messages')
-                    .where('id', contactId)
-                    .first()
-                    .then(group => group ? group.message_version : 0);
-                const maxMessageVersion = Math.max(messageVersion, msg.versionId);
-                await db('groups')
-                    .where('id', contactId)
-                    .update({
-                        message_version: maxMessageVersion
-                    });
-            }
+            const messageVersion = await db('groups')
+                .where('id', contactId)
+                .first()
+                .then(group => group ? group.message_version : 0);
+            const maxMessageVersion = Math.max(messageVersion, msg.versionId);
+            await db('groups')
+                .where('id', contactId)
+                .update({
+                    message_version: maxMessageVersion
+                });
         }
 
         await updateContactLastMessagetimestamp(contactId, msg.type == 'group');
@@ -730,7 +728,7 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
         // 初始化数据库（确保表存在）
         await initializeDatabase(db);
         try {
-            await migrateUserDb(db, userId, dbPath);
+            await migrateUserDb(db, userId);
         } catch (e) {
             console.error('User DB migration failed:', e);
         }
@@ -848,7 +846,8 @@ const saveNewMessage = async ({ contactId, msg }) => {
 
     await writeChatHistory(contactId, msg);
     socket.emit('confirm-message-received', { messageId, isGroup });
-    unreadMessageManager.incrementUnreadMessageCount(currentUserId, contactId, isGroup)
+    unreadMessageManager.incrementUnreadMessageCount(currentUserId, contactId, isGroup);
+    shell.beep();
 }
 
 const handleNewMessage = async (msg) => {
@@ -861,7 +860,7 @@ const handleNewMessage = async (msg) => {
     const newMessage = {
         id: messageId,
         text: msg.content,
-        sender: 'other',
+        sender: msg.senderId == currentUserId ? 'user' : 'other',
         sender_id: msg.senderId,
         timestamp: new Date(msg.timestamp),
         username: msg.username,
@@ -870,7 +869,8 @@ const handleNewMessage = async (msg) => {
         type: msg.type,
         fileUrl: msg.fileUrl,
         fileSize: msg.fileSize,
-        versionId
+        versionId,
+        status: 'success'
     }
 
     await saveNewMessage({ contactId, msg: newMessage });

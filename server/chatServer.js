@@ -5,7 +5,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import knex from 'knex';
-import knexConfig from './knexfile.cjs'; // 注意这里是 .cjs 扩展名
+import knexConfig from './knexfile.cjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import * as Minio from 'minio';
@@ -23,6 +23,7 @@ import {
     removeOnlineUserId,
     removeOnlineUser
 } from './redisClient.js';
+import logger from './logger.js'; // 引入外部日志工具类
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,7 +86,6 @@ const server = createServer(app);
 export const io = new Server(server, {
     cors: {
         origin: (origin, callback) => {
-            // Electron 应用的常见源
             const electronOrigins = [
                 'file://',
                 'app://',
@@ -93,16 +93,15 @@ export const io = new Server(server, {
                 'null'
             ];
 
-            // 是否为 Electron 应用的源
             const isElectronOrigin = !origin ||
                 electronOrigins.some(electronOrigin =>
                     origin.startsWith(electronOrigin) ||
                     origin === 'null');
 
             if (isElectronOrigin) {
-                callback(null, true);  // 允许连接
+                callback(null, true);
             } else {
-                console.log(`CORS blocked: ${origin} is not an allowed origin`);
+                logger.warn('CORS blocked', { origin });
                 callback(new Error('Origin not allowed by CORS'));
             }
         },
@@ -124,12 +123,13 @@ const authenticateToken = (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (token == null) {
+        logger.warn('No access token provided', { url: req.url });
         return res.status(401).json({ error: '未提供访问令牌' });
     }
 
     jwt.verify(token, JSON_WEB_TOKEN_SECRET, (err, user) => {
         if (err) {
-            console.error('JWT验证失败:', err);
+            logger.error('JWT verification failed', { error: err.message, name: err.name });
             if (err.name === 'TokenExpiredError') {
                 return res.status(401).json({ error: '令牌已过期' });
             } else if (err.name === 'JsonWebTokenError') {
@@ -198,6 +198,7 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                 'u.username as sender_username'
             )
             .orderBy('gm.timestamp', 'asc');
+            
 
         // 发送群聊消息
         for (const msg of newGroupMessages) {
@@ -254,7 +255,7 @@ async function getFriendsList(socket) {
             .where('id', senderInfo.userId)
             .first('contact_list_version');
 
-        return { friendsWithStatus, contactVersion: contactVersion.contact_list_version };
+        return { friendsWithStatus, contactVersion: contactVersion.contact_list_version || -1 };
     } catch (error) {
         console.error('Error fetching friends:', error);
         socket.emit('notification', { status: 'error', message: '获取好友列表失败' });
@@ -365,9 +366,9 @@ async function handleGetFriendRequests(socket) {
 }
 
 // Socket.IO 连接处理
-console.log('Socket.IO server initialized, waiting for connections...'); // 新增日志
+logger.info('Socket.IO server initialized, waiting for connections...');
 io.on('connection', (socket) => {
-    console.log(`用户连接: ${socket.id}`);
+    logger.info('User connected', { socketId: socket.id });
 
     const originalEmit = socket.emit;
     socket.emit = function (event, data) {
@@ -416,16 +417,23 @@ io.on('connection', (socket) => {
     };
 
     // 用户注册
-    socket.on('register-user', (data) => registerUser(socket, data));
+    socket.on('register-user', (data) => {
+        logger.debug('Register user request received', { socketId: socket.id });
+        registerUser(socket, data);
+    });
 
-    // 用户登录
-    socket.on('login-user', async (data) => userLogin(socket, data));
+    socket.on('login-user', async (data) => {
+        logger.debug('Login user request received', { socketId: socket.id });
+        userLogin(socket, data);
+    });
 
-
-    socket.on('login-with-token', async (data) => userLoginWithToken(socket, data));
+    socket.on('login-with-token', async (data) => {
+        logger.debug('Login with token request received', { socketId: socket.id });
+        userLoginWithToken(socket, data);
+    });
 
     socket.on('initial-data-success', async (data) => {
-        console.log('Initial data success:', data);
+        logger.debug('Initial data success received', { socketId: socket.id });
         let userId;
         // 检查 data 是否为对象以及是否包含 userId
         if (data && typeof data === 'object' && 'userId' in data) {
@@ -463,7 +471,11 @@ io.on('connection', (socket) => {
             await handleSendDisconnectMessage(socket, { userId: user.id, username: user.username });
             await handleGetFriendRequests(socket);
         } catch (error) {
-            console.error('处理 initial-data-success 时出错:', error);
+            logger.error('Error processing initial-data-success', { 
+                error: error.message, 
+                stack: error.stack,
+                socketId: socket.id 
+            });
             socket.emit('notification', { status: 'error', message: '处理请求时出错' });
         }
     });
@@ -479,7 +491,10 @@ io.on('connection', (socket) => {
 
     // 处理私聊消息
     socket.on('send-private-message', async (message) => {
-
+        logger.debug('Send private message request', { 
+            receiverId: message.receiver_id, 
+            socketId: socket.id 
+        });
         const receiverId = message.receiver_id;
 
         const senderInfo = await getOnlineUser(socket.id);
@@ -542,6 +557,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send-group-message', async (message) => {
+        logger.debug('Send group message request', { 
+            groupId: message.receiver_id, 
+            socketId: socket.id 
+        });
         const senderInfo = await getOnlineUser(socket.id);
         const groupId = message.receiver_id;
         const sendMessageId = message.id
@@ -1111,17 +1130,16 @@ io.on('connection', (socket) => {
     // 用户断开连接
     socket.on('disconnect', async () => {
         const userInfo = await getOnlineUser(socket.id);
-
-
         if (userInfo) {
-            console.log(`${userInfo.username} (ID: ${userInfo.userId}) 断开连接`);
+            logger.info('User disconnected', { 
+                username: userInfo.username, 
+                userId: userInfo.userId, 
+                socketId: socket.id 
+            });
         }
-        else {
-            return;
-        }
-
+        
         // 清理用户数据
-        await removeOnlineUserId(userInfo.userId);
+        await removeOnlineUserId(userInfo?.userId);
         await removeOnlineUser(socket.id);
     });
 
@@ -1455,6 +1473,7 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
             24 * 60 * 60
         );
         res.redirect(defaultAvatarUrl);
+        logger.error('头像访问失败:', { userId, userType, error });
     }
 });
 
@@ -1488,6 +1507,7 @@ app.get('/api/avatar/:userId/:userType/download', async (req, res) => {
             await minioClient.statObject(bucketName, objectName);
         } catch (error) {
             // 如果头像不存在，返回默认头像
+            logger.error('头像下载失败:', { userId, userType, error });
             try {
                 const defaultObjectName = 'public-resources/default_avatar.jpg';
                 await minioClient.statObject(bucketName, defaultObjectName);
@@ -1733,15 +1753,32 @@ app.post('/api/refresh-token', async (req, res) => {
 // 启动服务器
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-    console.log(`聊天室服务器运行在端口 ${PORT}`);
-    console.log(`WebSocket 服务已启动`);
+    logger.info(`聊天室服务器运行在端口 ${PORT}`);
+    logger.info('WebSocket 服务已启动');
 });
 
 process.on('SIGTERM', () => {
-    console.log('收到 SIGTERM 信号，正在关闭服务器...');
+    logger.info('收到 SIGTERM 信号，正在关闭服务器...');
     server.close(() => {
-        console.log('服务器已关闭');
+        logger.info('服务器已关闭');
         process.exit(0);
+    });
+});
+
+// 错误处理
+process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception', { 
+        error: error.message, 
+        stack: error.stack 
+    });
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection', { 
+        reason: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+        promise: String(promise)
     });
 });
 
