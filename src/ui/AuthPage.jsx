@@ -145,7 +145,7 @@ const AuthPage = () => {
       socket.off('reconnecting', handleReconnecting)
       socket.off('login-failed', handleloginFailed)
     };
-  }, [socket ]);
+  }, [socket]);
 
   useEffect(() => {
     const attemptAutoLogin = async () => {
@@ -161,7 +161,7 @@ const AuthPage = () => {
       };
     }
     attemptAutoLogin();
-  }, [socket ]);
+  }, [socket]);
 
   useEffect(() => {
 
@@ -248,7 +248,7 @@ const AuthPage = () => {
       window.electronAPI.ipcRenderer.removeListener('strong-logout-waring', handleStrongLogoutWaring)
       window.electronAPI.ipcRenderer.removeListener('oauth-success', handleOauthSuccess)
     }
-  }, [ socket ]);
+  }, [socket]);
 
   const handleLoginSuccess = (data) => {
     const { userId, username, token, email } = data;

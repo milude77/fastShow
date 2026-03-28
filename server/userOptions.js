@@ -127,6 +127,7 @@ export const userLoginWithToken = async (socket, data) => {
 
         if (!user) {
             socket.emit('notification', { status: 'error', message: '无效的Token' });
+            socket.emit('login-failed', { message: 'Token无效或已过期' });
             return;
         }
 

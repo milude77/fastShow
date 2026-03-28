@@ -42,7 +42,7 @@ class Logger {
     }
 
     error(message, meta = {}) {
-        this.write('error', message, meta);
+        this.writeLog('error', message, meta);
     }
 
     warn(message, meta = {}) {

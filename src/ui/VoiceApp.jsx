@@ -36,7 +36,7 @@ const VoiceApp = () => {
   // 初始化PC（无stream，延迟addTrack）
   const createPeerConnection = useCallback(async (targetId = null) => {
     try {
-      const voiceServerUrl = await window.electronAPI.getVoiceChatServerUrl();
+      const { voiceServerUrl, username, credential} = await window.electronAPI.getVoiceChatServerUrl();
 
       peerConnectionRef.current = new RTCPeerConnection({
         iceServers: [
@@ -54,8 +54,8 @@ const VoiceApp = () => {
           // TURN配置
           {
             urls: `turn:${voiceServerUrl}`,
-            username: "testuser",
-            credential: "testpassword"
+            username: username,
+            credential: credential
           }
         ]
       });

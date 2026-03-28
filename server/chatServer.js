@@ -1658,7 +1658,7 @@ async function githubCallback(req, res) {
         }
 
         /* 4. 查找 / 创建用户 */
-        let user = await db('users').where({ github_id: githubUser.id }).first();
+        let user = await db('users').where({ github_id: githubUser.id }).orWhere({ email }).first();
         let username = githubUser.login;
         let githubId = githubUser.id;
         let formattedId;

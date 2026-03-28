@@ -2018,7 +2018,7 @@ ipcMain.on('voice-call-to-contact', async (event, { contactId = null, callMode =
 });
 
 ipcMain.handle('get-voice-chat-server-url', async () => {
-    return config.SOCKET_VOICE_SERVER_URL
+    return { voiceServerUrl: config.SOCKET_VOICE_SERVER_URL, username: config.VOICE_SERVER_USERNAME, credential: config.VOICE_SERVER_CREDENTIAL }
 })
 
 // --- End Socket.IO IPC ---
