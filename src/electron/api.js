@@ -3,6 +3,7 @@ import { userCredentialsManager } from './store.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { BrowserWindow } from 'electron';
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -62,7 +63,7 @@ const refreshAccessToken = async () => {
     });
 
     const { accessToken, refreshToken: newRefreshToken } = response.data;
-    userCredentialsManager.updateCredentials({
+    userCredentialsManager.updateCurrentCredentials({
       ...credentials,
       token: accessToken,
       refreshToken: newRefreshToken
@@ -71,7 +72,10 @@ const refreshAccessToken = async () => {
     return accessToken;
   } catch (error) {
     // 刷新失败，清除凭证并触发重新登录
-    userCredentialsManager.clearCredentials();
+    userCredentialsManager.clearCurrentCredentials();
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('token-expired');
+    });
     throw error;
   }
 };

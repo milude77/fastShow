@@ -198,7 +198,7 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                 'u.username as sender_username'
             )
             .orderBy('gm.timestamp', 'asc');
-            
+
 
         // 发送群聊消息
         for (const msg of newGroupMessages) {
@@ -471,10 +471,10 @@ io.on('connection', (socket) => {
             await handleSendDisconnectMessage(socket, { userId: user.id, username: user.username });
             await handleGetFriendRequests(socket);
         } catch (error) {
-            logger.error('Error processing initial-data-success', { 
-                error: error.message, 
+            logger.error('Error processing initial-data-success', {
+                error: error.message,
                 stack: error.stack,
-                socketId: socket.id 
+                socketId: socket.id
             });
             socket.emit('notification', { status: 'error', message: '处理请求时出错' });
         }
@@ -491,9 +491,9 @@ io.on('connection', (socket) => {
 
     // 处理私聊消息
     socket.on('send-private-message', async (message) => {
-        logger.debug('Send private message request', { 
-            receiverId: message.receiver_id, 
-            socketId: socket.id 
+        logger.debug('Send private message request', {
+            receiverId: message.receiver_id,
+            socketId: socket.id
         });
         const receiverId = message.receiver_id;
 
@@ -557,9 +557,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send-group-message', async (message) => {
-        logger.debug('Send group message request', { 
-            groupId: message.receiver_id, 
-            socketId: socket.id 
+        logger.debug('Send group message request', {
+            groupId: message.receiver_id,
+            socketId: socket.id
         });
         const senderInfo = await getOnlineUser(socket.id);
         const groupId = message.receiver_id;
@@ -974,7 +974,7 @@ io.on('connection', (socket) => {
                         type: 'group',
                         role: 'member'
                     })
-                })
+                }).returning('id');
                 const id = idResult[0].id;
                 await updateUserContactVersion(contact.id, id);
             }
@@ -1131,13 +1131,13 @@ io.on('connection', (socket) => {
     socket.on('disconnect', async () => {
         const userInfo = await getOnlineUser(socket.id);
         if (userInfo) {
-            logger.info('User disconnected', { 
-                username: userInfo.username, 
-                userId: userInfo.userId, 
-                socketId: socket.id 
+            logger.info('User disconnected', {
+                username: userInfo.username,
+                userId: userInfo.userId,
+                socketId: socket.id
             });
         }
-        
+
         // 清理用户数据
         await removeOnlineUserId(userInfo?.userId);
         await removeOnlineUser(socket.id);
@@ -1153,10 +1153,10 @@ io.on('connection', (socket) => {
     socket.on('call-request', async ({ roomId, contactId }) => {
         const targetId = await getOnlineUserId(contactId);
         if (targetId) {
-            socket.to(targetId.socketId).emit('call-request', { callerId: socket.id });
+            socket.to(targetId.socketId).emit('call-request', { callerId: socket.id, roomId });
         }
         else {
-            socket.to(roomId).emit('call-request', { callerId: socket.id });
+            socket.to(roomId).emit('call-request', { callerId: socket.id, roomId });
         }
     });
 
@@ -1195,7 +1195,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('sync-group-messages', async ({ groupId, messageVersion }) => {
-        console.log({ groupId, messageVersion })
         if (!groupId || messageVersion === undefined) {
             socket.emit('notification', { status: 'error', message: '缺少必要参数' });
             return;
@@ -1473,7 +1472,6 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
             24 * 60 * 60
         );
         res.redirect(defaultAvatarUrl);
-        logger.error('头像访问失败:', { userId, userType, error });
     }
 });
 
@@ -1716,36 +1714,30 @@ app.post('/api/refresh-token', async (req, res) => {
     }
 
     try {
-        // 从数据库查找用户的 refresh token
-        const user = await db('users')
-            .where({ refresh_token: refreshToken })
-            .first();
-
-        if (!user || new Date() > user.refresh_token_expiry) {
-            return res.status(401).json({ error: 'Invalid or expired refresh token' });
+        const date = jwt.verify(refreshToken, JSON_WEB_TOKEN_SECRET);
+        const userId = date.userId;
+        const userIsExit = await db('users').where({ id: userId }).first();
+        if (!userIsExit) {
+            return res.status(401).json({ error: '非法的token' });
         }
-
-        // 生成新的 access token
         const accessToken = jwt.sign(
-            { userId: user.id, username: user.username },
+            { userId: userId, username: userIsExit.username },
             JSON_WEB_TOKEN_SECRET,
-            { expiresIn: '15m' }
+            { expiresIn: '2d' }
         );
-
-        // 可选：生成新的 refresh token
-        const newRefreshToken = crypto.randomBytes(40).toString('hex');
-        await db('users').where({ id: user.id }).update({
-            refresh_token: newRefreshToken,
-            refresh_token_expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        });
-
+        const newRefreshToken = jwt.sign(
+            { userId: userId, username: userIsExit.username },
+            JSON_WEB_TOKEN_SECRET,
+            { expiresIn: '7d' }
+        )
         res.json({
             accessToken,
             refreshToken: newRefreshToken
         });
     } catch (error) {
-        res.status(500).json({ error: 'Token refresh failed' });
-        console.error('Token refresh failed:', error);
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: '用户登陆状态已过期，请重新登录' });
+        }
     }
 });
 
@@ -1767,15 +1759,15 @@ process.on('SIGTERM', () => {
 
 // 错误处理
 process.on('uncaughtException', (error) => {
-    logger.error('Uncaught Exception', { 
-        error: error.message, 
-        stack: error.stack 
+    logger.error('Uncaught Exception', {
+        error: error.message,
+        stack: error.stack
     });
     process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection', { 
+    logger.error('Unhandled Rejection', {
         reason: reason instanceof Error ? reason.message : String(reason),
         stack: reason instanceof Error ? reason.stack : undefined,
         promise: String(promise)

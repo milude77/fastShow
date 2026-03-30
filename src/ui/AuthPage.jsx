@@ -213,7 +213,6 @@ const AuthPage = () => {
     if (isRegistering) {
       socket.emit('register-user', { username, password, email });
     } else {
-      setIsLoggingIn(true);
       socket.emit('login-user', credentials);
     }
   };
@@ -259,7 +258,6 @@ const AuthPage = () => {
 
   const userLoginOption = (credentials) => {
     setLogincredentials(credentials)
-    setIsLoggingIn(true)
     socket.emit('login-with-token', credentials.token)
   };
 

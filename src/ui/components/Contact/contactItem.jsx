@@ -67,11 +67,11 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
     }, [contact.type, contact.id]);
 
     useEffect(() => {
-
-        getUnreadMessageCount(contact.id);
+        const isGroup = contact.type === 'group';
+        getUnreadMessageCount(contact.id, isGroup);
 
         const handleDisconnectComplete = () => {
-            getUnreadMessageCount(contact.id);
+            getUnreadMessageCount(contact.id, isGroup);
             setIsReadyToReceive(true);
         };
 
@@ -79,7 +79,7 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
         return () => {
             window.electronAPI.ipcRenderer.removeListener('disconnect-message-send-comple', handleDisconnectComplete);
         }
-    }, [contact.id, getUnreadMessageCount]);
+    }, []);
 
     useEffect(() => {
         getDraft(contact.id);
@@ -91,10 +91,9 @@ const ContactItem = ({ contact, selectedContact, handleSelectContact, serverUrl 
 
     const handleNewMessage = useCallback((event, { contactId, isGroup }) => {
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {
-            setNewMessageCount(prevCount => prevCount + 1);
-            throttledGetLastMessage(contactId);
+            getUnreadMessageCount(contactId, isGroup);
         }
-    }, [contact.id, contact.type, throttledGetLastMessage]);
+    }, []);
 
     const handleSendNewMessage = useCallback((event, { contactId, isGroup }) => {
         if (contactId === contact.id && isGroup === (contact.type === 'group')) {

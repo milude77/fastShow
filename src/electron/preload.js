@@ -76,11 +76,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteUser: (removeUserId) => ipcRenderer.send('delete-saved-user', removeUserId),
   strongLogoutWaring: (message) => ipcRenderer.send('strong-logout-waring', message),
   logout: () => ipcRenderer.send('logout'),
+  writeLog: (logEntry) => ipcRenderer.send('write-log', logEntry),
 
   //音视频通话功能配置
   voiceCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'audio' }),
   videoCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'video' }),
-  receivedCallRequest: (callerId) => ipcRenderer.send('voice-call-to-contact', { callerId }),
+  receivedCallRequest: (callerId, roomId) => ipcRenderer.send('voice-call-to-contact', { callerId, roomId }),
   hangupCall: () => ipcRenderer.send('hangup-call'),
 
   //设置相关

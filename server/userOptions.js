@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { setOnlineUser, removeOnlineUser, setOnlineUserId, getOnlineUserId, removeOnlineUserId } from './redisClient.js';
 import { io, db } from './chatServer.js';
+import logger from './logger.js'; 
 
 const JSON_WEB_TOKEN_SECRET = process.env.JWT || 'your_secret_key';
 
@@ -47,7 +48,7 @@ export const registerUser = async (socket, data) => {
 
         socket.emit('user-registered', { userId: formattedId, username });
     } catch (error) {
-        console.error('注册用户失败:', error);
+        logger.error('注册失败:', { error, data });
         socket.emit('notification', { status: 'error', message: '注册失败，请稍后再试' });
     }
 }
@@ -102,12 +103,13 @@ export const userLogin = async (socket, data) => {
         // 登录成功
         const formattedId = String(user.id).padStart(6, '0');
         const token = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
+        const refreshToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '7d' });
         await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
         await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
-        socket.emit('login-success', { userId: formattedId, username: user.username, token, email: user.email });
+        socket.emit('login-success', { userId: formattedId, username: user.username, refreshToken , token, email: user.email });
 
     } catch (error) {
-        console.error('登录失败:', error);
+        logger.error('登录失败:', { error, data });
         socket.emit('notification', { status: 'error', message: '登录失败，请稍后再试' });
     }
 }
@@ -149,12 +151,13 @@ export const userLoginWithToken = async (socket, data) => {
         const formattedId = String(user.id).padStart(6, '0');
 
         const newToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
+        const refreshToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '7d' });
         await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
         await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
-        socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken, email: user.email });
+        socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken, refreshToken, email: user.email });
 
     } catch (error) {
-        console.error('登录失败:', error);
+        logger.error('Token登录失败:', { error, data });
         if (error.name === 'TokenExpiredError') {
             socket.emit('notification', { status: 'error', message: 'Token已过期，请重新登录' });
             socket.emit('login-failed', { message: 'Token已过期, 请重新登录' });

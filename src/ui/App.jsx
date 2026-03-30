@@ -132,11 +132,12 @@ function App() {
   }, [setContacts]);
 
   const handleLoginSuccess = useCallback((data) => {
-    const { userId, username, token, email } = data;
+    const { userId, username, refreshToken, token, email } = data;
     window.electronAPI.loginSuccess({ userId, username, token, email });
-    window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token });
-    window.electronAPI.saveUserListCredentials({ userId, userName: username, token });
+    window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token, refreshToken });
+    window.electronAPI.saveUserListCredentials({ userId, userName: username, token, refreshToken });
     localStorage.setItem('token', token);
+    localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('currentUser', JSON.stringify({
       userId: userId,
       username: username
@@ -287,8 +288,8 @@ function App() {
     }
   }, [])
 
-  const handleCallRequest = useCallback(async ({ callerId }) => {
-    await window.electronAPI.receivedCallRequest(callerId)
+  const handleCallRequest = useCallback(async ({ callerId, roomId }) => {
+    await window.electronAPI.receivedCallRequest(callerId, roomId)
   }, [])
 
   useEffect(() => {

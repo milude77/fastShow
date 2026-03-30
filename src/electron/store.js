@@ -79,11 +79,7 @@ export const userCredentialsManager = {
   // 保存用户凭证列表
   saveUserCredentials: (credentials) => {
     const originalUserList = store.get('userCredentials') || {};
-    originalUserList[credentials.userId] = {
-      userId: credentials.userId,
-      userName: credentials.userName,
-      token: credentials.token
-    };
+    originalUserList[credentials.userId] = credentials;
     store.set('userCredentials', originalUserList);
   },
 
@@ -94,16 +90,21 @@ export const userCredentialsManager = {
 
   // 保存当前用户凭证
   saveCurrentCredentials: (credentials) => {
-    store.set('currentUserCredentials', {
-      userId: credentials.userId,
-      userName: credentials.userName,
-      token: credentials.token
-    });
+    store.set('currentUserCredentials', credentials);
   },
 
   // 获取当前用户凭证
   getCurrentCredentials: () => {
     return store.get('currentUserCredentials');
+  },
+
+  clearCurrentCredentials: () => {
+    store.set('currentUserCredentials', null);
+  },
+  updateCurrentCredentials: (updatedFields) => {
+    const currentCredentials = store.get('currentUserCredentials') || {};
+    const updatedCredentials = { ...currentCredentials, ...updatedFields };
+    store.set('currentUserCredentials', updatedCredentials);
   },
 
   // 切换用户

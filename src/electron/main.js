@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, session, desktopCapturer } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
@@ -52,6 +52,19 @@ let currentUserId;
 let currentUserToken;
 
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'file',
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      allowServiceWorkers: true,
+    }
+  }
+]);
+
 
 function connectSocket() {
     logger.info('Attempting to connect to socket server', { url: SOCKET_SERVER_URL });
@@ -76,9 +89,9 @@ function connectSocket() {
 
     // Add a listener for connection errors
     socket.on('connect_error', (err) => {
-        logger.error('Socket connection error in main process:', { 
+        logger.error('Socket connection error in main process:', {
             message: err.message,
-            stack: err.stack 
+            stack: err.stack
         });
         BrowserWindow.getAllWindows().forEach(win => {
             win.webContents.send('socket-event', { event: 'connect_error', args: [err.message] });
@@ -617,14 +630,14 @@ app.whenReady().then(() => {
         app.quit();
         return;
     }
-    
+
     logger.info('Application is ready. Creating windows and initializing components.');
 
     protocol.registerFileProtocol('avatar', (request, callback) => {
         const filePath = decodeURI(request.url.replace('avatar://', ''));
         callback(filePath);
     });
-    
+
     // --- Socket.IO Connection ---
     connectSocket();
     // --- End Socket.IO Connection ---
@@ -635,13 +648,18 @@ app.whenReady().then(() => {
         windowId: mainWindow.id,
         status: 'pending'
     });
-    
+
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) {
             logger.info('App activated with no windows. Creating main window.');
             createMainWindow()
         }
     })
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+            callback({ video: sources[0], audio: 'loopback' })
+        })
+    }, { useSystemPicker: true })
 })
 
 // IPC handlers for custom window controls
@@ -1994,9 +2012,7 @@ const creatVoiceWindow = async (event, { contactId, callMode, callerId }) => {
 
     let voiceWindowPath;
 
-    voiceWindowPath = isDev
-        ? `http://localhost:5234/voice.html?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`
-        : `file://${path.join(app.getAppPath(), "dist", "voice.html")}?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`;
+    voiceWindowPath =  `file://${path.join(app.getAppPath(), "dist", "voice.html")}?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`;
 
     if (isDev) {
         voiceWindow.openDevTools()
@@ -2016,6 +2032,15 @@ ipcMain.on('voice-call-to-contact', async (event, { contactId = null, callMode =
         return
     }
 });
+
+ipcMain.on('write-log', (event, logEntry) => {
+    const logFilePath = path.join(app.getPath('userData'), 'app.log');
+    const logMessage = `[${new Date().toISOString()}] ${logEntry}\n`;
+    if (!fs.existsSync(logFilePath)) {
+        fs.writeFileSync(logFilePath, '');
+    }
+    fs.writeFileSync(logFilePath, logMessage, { flag: 'a' });
+})
 
 ipcMain.handle('get-voice-chat-server-url', async () => {
     return { voiceServerUrl: config.SOCKET_VOICE_SERVER_URL, username: config.VOICE_SERVER_USERNAME, credential: config.VOICE_SERVER_CREDENTIAL }

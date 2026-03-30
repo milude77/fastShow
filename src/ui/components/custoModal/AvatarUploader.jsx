@@ -75,7 +75,6 @@ const AvatarUploader = ({ onClose, imgSrc, isGroupAvatarUpload = false, groupId 
           croppedAreaPixels
         );
         let message;
-        console.log(isGroupAvatarUpload, groupId)
         if (!isGroupAvatarUpload) {
           message = await avatarUpload(croppedImageBlob);
         }
