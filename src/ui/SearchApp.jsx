@@ -17,14 +17,20 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
 
   const { getAvatarUrl } = useUserAvatar();
 
-  const handleAddFriendCall = useCallback((message) => {
-    if (message.success) {
-      messageApi.success(t('friendsRequest.sent'));
+  const handleNotificationMessage = useCallback((data) => {
+    switch (data.status) {
+      case 'success':
+        messageApi.success(data.message);
+        break;
+      case 'error':
+        messageApi.error(data.message);
+        break;
+      case 'info':
+        messageApi.info(data.message);
+        break;
     }
-    else {
-      messageApi.error(`${t('friendsRequest.sendFailed')}${message.message}`);
-    }
-  }, [messageApi, t])
+  }, [messageApi]);
+
 
   const handleThemeUpdated = useCallback((event, theme) => {
     setTheme(theme);
@@ -55,12 +61,12 @@ const SearchUser = ({ onSearch, searchTerm, setSearchTerm, searchResults, onAddF
 
 
   useEffect(() => {
-    socket.on('add-friends-msg', (message) => { handleAddFriendCall(message) })
+    socket.on('notification', handleNotificationMessage)
 
     return () => {
-      socket.off('add-friends-msg');
+      socket.off('notification', handleNotificationMessage);
     }
-  }, [socket, handleAddFriendCall])
+  }, [socket])
   const handleAddFriend = async (userId) => {
     await onAddFriend(userId);
   }

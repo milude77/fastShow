@@ -1963,7 +1963,7 @@ const CLINEID = config.CLINEID;
 ipcMain.handle('github-oauth', async () => {
     const clientId = CLINEID;
     const redirectUri = encodeURIComponent(
-        `http://${SOCKET_SERVER_URL}/api/auth/github/callback`
+        `${SOCKET_SERVER_URL}/api/auth/github/callback`
     );
 
     const authUrl =

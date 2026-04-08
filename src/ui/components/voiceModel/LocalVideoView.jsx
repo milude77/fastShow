@@ -1,17 +1,21 @@
-import React from "react";
-import Avatar from "./avatar";
-import { useUserAvatar } from "../hooks/useAvatar";
+import React, { useEffect, useRef} from "react";
+import Avatar from "../avatar";
+import { useUserAvatar } from "../../hooks/useAvatar";
 
 export const LocalVideoView = ({ localStream, hasLocalVideo, userId }) => {
   const { getAvatarUrl } = useUserAvatar();
+  const videoRef = useRef(null);
+  useEffect(() => {
+    if (videoRef.current && localStream) {
+      videoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
 
   if (hasLocalVideo && localStream) {
     return (
       <div className="remote-voice-stream">
         <video
-          ref={(el) => {
-            if (el) el.srcObject = localStream;
-          }}
+          ref={videoRef}
           autoPlay
           muted
           playsInline

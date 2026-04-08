@@ -667,13 +667,13 @@ io.on('connection', (socket) => {
 
 
         if (!friendId) {
-            socket.emit('add-friends-msg', { success: false, message: '好友id不可为空' });
+            socket.emit('notification', { status: 'error', message: '好友id不可为空' });
             return
         }
 
         // 用户不能添加自己为好友
         if (senderInfo.userId == friendId) {
-            socket.emit('add-friends-msg', { success: false, message: '不能添加自己为好友' });
+            socket.emit('notification', { status: 'error', message: '不能添加自己为好友' });
             return;
         }
 
@@ -687,7 +687,7 @@ io.on('connection', (socket) => {
                 .first();
 
             if (existingFriendship && !existingFriendship.is_deleted) {
-                socket.emit('add-friends-msg', { success: false, message: '已经是好友或已发送请求' });
+                socket.emit('notification', { status: 'info', message: '已经是好友或已发送请求' });
                 return;
             }
 
@@ -726,10 +726,11 @@ io.on('connection', (socket) => {
                 io.to(targetSocketId.socketId).emit('contact-update');
             }
 
-            socket.emit('add-friends-msg', { success: true });
+            // 改为通用成功通知，或直接不通知（由 contact-update 触发刷新）
+            socket.emit('notification', { status: 'success', message: '好友请求已发送' });
         } catch (error) {
             console.error('Error adding friend:', error);
-            socket.emit('add-friends-msg', { success: false, message: '添加好友失败' });
+            socket.emit('notification', { status: 'error', message: '添加好友失败' });
         }
     });
 
@@ -1664,13 +1665,13 @@ async function githubCallback(req, res) {
         if (!user) {
             await db.transaction(async (trx) => {
                 // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
-                const maxIdResult = await trx('users')
-                    .max('id as maxId')
+                const lastUser = await trx('users')
+                    .orderBy('id', 'desc')
                     .first()
-                    .forUpdate(); // 锁定查询结果
+                    .forUpdate();
 
-                const nextId = (+maxIdResult.maxId || 0) + 1;
-                formattedId = nextId.toString().padStart(6, '0');
+                const nextId = (parseInt(lastUser?.id || '0', 10)) + 1;
+                const formattedId = nextId.toString().padStart(6, '0');
 
                 // 插入新用户
                 await trx('users').insert({

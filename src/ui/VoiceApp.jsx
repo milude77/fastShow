@@ -2,9 +2,9 @@ import React, { useRef, useState, useEffect } from "react";
 import { useVoiceCall } from './hooks/useVoiceCall';
 import AppHeaderBar from './components/appHeaderBar';
 import '../ui/css/voiceApp.css';
-import { LocalVideoView } from './components/LocalVideoView';
-import { RemoteVideoView } from './components/RemoteVideoView';
-import { CallControlBar } from './components/CallControlBar';
+import { LocalVideoView } from './components/voiceModel/LocalVideoView';
+import { RemoteVideoView } from './components/voiceModel/RemoteVideoView';
+import { CallControlBar } from './components/voiceModel/CallControlBar';
 
 const VoiceApp = () => {
   const urlParams = new URLSearchParams(window.location.search);
