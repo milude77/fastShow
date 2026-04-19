@@ -19,18 +19,6 @@
     z-index: 2;
 }
 
-.voice-stream-status{
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 15px;
-    color: white;
-    padding: 10px;
-    list-style: none;
-    position: fixed;
-    top: 10px;
-    left: 10px;
-}
-
-
 .remote-voice-stream::before {
     content: " ";
     display: block;
@@ -114,10 +102,10 @@
     border-radius: 10px;
 }
 
-.voice-open {
+.voice-open{
     background-color: white;
 }
 
-.voice-close {
+.voice-close{
     background-color: gray;
 }

@@ -53,16 +53,16 @@ let currentUserToken;
 
 
 protocol.registerSchemesAsPrivileged([
-    {
-        scheme: 'file',
-        privileges: {
-            secure: true,
-            standard: true,
-            supportFetchAPI: true,
-            corsEnabled: true,
-            allowServiceWorkers: true,
-        }
+  {
+    scheme: 'file',
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      allowServiceWorkers: true,
     }
+  }
 ]);
 
 
@@ -624,6 +624,12 @@ app.on('before-quit', () => {
 
 
 app.whenReady().then(() => {
+    const gotTheLock = app.requestSingleInstanceLock();
+    if (!gotTheLock) {
+        logger.warn('Another instance is already running. Quitting.');
+        app.quit();
+        return;
+    }
 
     logger.info('Application is ready. Creating windows and initializing components.');
 
@@ -2005,14 +2011,8 @@ const creatVoiceWindow = async (event, { contactId, callMode, callerId }) => {
     });
 
     let voiceWindowPath;
-    if (isDev){
-        voiceWindowPath = `http://localhost:5234/voice.html?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`;
-    }
-    else {
-        voiceWindowPath = `file://${path.join(app.getAppPath(), "dist", "voice.html")}?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`;
 
-    }
-
+    voiceWindowPath =  `file://${path.join(app.getAppPath(), "dist", "voice.html")}?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`;
 
     if (isDev) {
         voiceWindow.openDevTools()
@@ -2043,7 +2043,6 @@ ipcMain.on('write-log', (event, logEntry) => {
 })
 
 ipcMain.handle('get-voice-chat-server-url', async () => {
-    console.log(config.SOCKET_VOICE_SERVER_URL, config.VOICE_SERVER_USERNAME, config.VOICE_SERVER_CREDENTIAL)
     return { voiceServerUrl: config.SOCKET_VOICE_SERVER_URL, username: config.VOICE_SERVER_USERNAME, credential: config.VOICE_SERVER_CREDENTIAL }
 })
 
