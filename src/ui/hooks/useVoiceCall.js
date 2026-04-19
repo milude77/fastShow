@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSocket } from "./useSocket";
 
-export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) => {
+export const useVoiceCall = ({ contactId, callerId, callMode, roomId }) => {
   const socket = useSocket();
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
@@ -11,6 +11,20 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
   const [remotePeerId, setRemotePeerId] = useState(null);
   const [hasLocalVideo, setHasLocalVideo] = useState(callMode === "video");
   const [isVideoMode, setIsVideoMode] = useState(callMode === "video");
+  const [voiceStreamStatus, setVoiceStreamStatus] = useState({
+    rtt: null,
+    jitter: null,
+    loss: null,
+    bitrate: null,
+  })
+
+  const lastStatsRef = useRef({
+    bytesSent: 0,
+    timestamp: 0
+  });
+
+
+
 
   // 获取本地媒体流
   const getLocalVoiceStream = async (videoEnabled) => {
@@ -127,6 +141,7 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
 
   // 处理 ICE 候选
   const handleCandidate = async ({ candidate }) => {
+    console.log('收到ICE候选:', candidate);
     const pc = peerConnectionRef.current;
     if (!pc) return;
     try {
@@ -165,9 +180,56 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
 
   // 处理呼叫请求
   const handleCallRequest = ({ callerId }) => {
+    console.log('收到呼叫请求:', callerId);
     setRemotePeerId(callerId);
     setCallStatus("receiving");
   };
+
+  // 音频流状态监控
+  const monitorstatus = async () => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+    const stats = await pc.getStats();
+    let rtt = null;
+    let jitter = null;
+    let loss = null;
+    let bitrate = null;
+
+    if (stats) {
+      stats.forEach(report => {
+        if (report.type === "candidate-pair" && report.state === "succeeded") {
+          rtt = report.currentRoundTripTime * 1000;
+        }
+
+        // 入站视频（远端 -> 本地）
+        if (report.type === "inbound-rtp" && report.kind === "video") {
+          jitter = report.jitter;
+          loss = report.packetsLost;
+        }
+
+        // 出站视频（本地 -> 远端）
+        if (report.type === "outbound-rtp" && report.kind === "video") {
+          const now = report.timestamp;
+          const bytes = report.bytesSent;
+
+          const last = lastStatsRef.current;
+
+          if (last.timestamp) {
+            bitrate = Math.floor(
+              (bytes - last.bytesSent) * 8 / (now - last.timestamp)
+            );
+          }
+
+          lastStatsRef.current = {
+            bytesSent: bytes,
+            timestamp: now
+          };
+        }
+      })
+    }
+
+    setVoiceStreamStatus({ rtt, jitter, loss, bitrate });
+  }
 
   // 初始化
   useEffect(() => {
@@ -228,6 +290,8 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
     startCall,
     acceptCall,
     closeCall,
-    toggleVideoMode
+    toggleVideoMode,
+    voiceStreamStatus,
+    monitorstatus
   };
 };
