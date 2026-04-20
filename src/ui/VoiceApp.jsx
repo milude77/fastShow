@@ -5,6 +5,7 @@ import '../ui/css/voiceApp.css';
 import { LocalVideoView } from './components/voiceModel/LocalVideoView';
 import { RemoteVideoView } from './components/voiceModel/RemoteVideoView';
 import { CallControlBar } from './components/voiceModel/CallControlBar';
+import { WifiOutlined } from '@ant-design/icons';
 
 const VoiceApp = () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -12,10 +13,20 @@ const VoiceApp = () => {
   const userId = urlParams.get('userId');
   const callerId = urlParams.get('callerId');
   const callMode = urlParams.get('callMode') || "audio";
-  const roomId = `room_${[userId, contactId].sort().join('_')}`;
+  let offer = urlParams.get('offer');
+  if (offer) {
+    offer = JSON.parse(offer);
+  }
+
+  let roomId = urlParams.get('roomId');
+  if (roomId === 'null' || roomId === 'undefined') {
+    roomId = `room_${[userId, contactId].sort().join('_')}`;
+  }
 
   const [showHeaderBar, setShowHeaderBar] = useState(false);
   const [openMicrophone, setOpenMicrophone] = useState(true);
+  const [voiceStreamStatusBarOpen, setVoiceStreamStatusBarOpen] = useState(false);
+
 
   const {
     callStatus,
@@ -26,8 +37,58 @@ const VoiceApp = () => {
     startCall,
     acceptCall,
     closeCall,
-    toggleVideoMode
-  } = useVoiceCall({ userId, contactId, callerId, callMode, roomId });
+    toggleVideoMode,
+    voiceStreamStatus,
+    monitorstatus
+  } = useVoiceCall({ userId, contactId, callerId, callMode, roomId, offer });
+
+  const [wifiStatusStyle, setWifiStatusStyle] = useState({
+    color: voiceStreamStatus.rtt > 100 ? "red" : "green"
+  })
+
+  // 音视频流状态监听
+  useEffect(() => {
+    let voiceStreamListener;
+    if (callStatus === "connecting" || callStatus === "connected") {
+      voiceStreamListener = setInterval(() => {
+        monitorstatus();
+        setWifiStatusStyle({
+          color: voiceStreamStatus.rtt > 200 ? "red" : "green"
+        })
+      }, 2000);
+    }
+    return () => {
+      clearInterval(voiceStreamListener);
+    };
+  }, [callStatus, monitorstatus, voiceStreamStatus]);
+
+  const VoiceStreamStatusBarOpenList = () => {
+    return (
+      <ui onClick={() => setVoiceStreamStatusBarOpen(false)} className="voice-stream-status">
+        <li>
+          <span>{`延迟 : ${voiceStreamStatus.rtt} ms`}</span>
+        </li>
+        <li>
+          <span>{`抖动 : ${voiceStreamStatus.jitter}`}</span>
+        </li>
+        <li>
+          <span>{`丢包率:  ${voiceStreamStatus.loss}`}</span>
+        </li>
+        <li>
+          <span>{`码率: ${voiceStreamStatus.bitrate} kbps `}</span>
+        </li>
+      </ui>
+    )
+  }
+
+  const VoiceStreamStatusBarCloseList = () => {
+    return (
+      <span onClick={() => setVoiceStreamStatusBarOpen(true)} className="voice-stream-status">
+        <WifiOutlined style={wifiStatusStyle} />
+        {`延迟 : ${voiceStreamStatus.rtt} ms`}
+      </span>
+    )
+  }
 
   const headerBarRef = useRef(null);
 
@@ -55,6 +116,7 @@ const VoiceApp = () => {
         style={{ background: showHeaderBar ? 'rgba(200, 200, 200, 0.3)' : 'transparent' }}
       />
       <div className="voice-container">
+        {voiceStreamStatusBarOpen ? <VoiceStreamStatusBarOpenList /> : <VoiceStreamStatusBarCloseList />}
         <RemoteVideoView remoteStream={remoteStream} contactId={contactId} />
         <LocalVideoView localStream={localStream} hasLocalVideo={hasLocalVideo} userId={userId} />
       </div>

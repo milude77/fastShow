@@ -81,7 +81,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   //音视频通话功能配置
   voiceCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'audio' }),
   videoCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'video' }),
-  receivedCallRequest: (callerId, roomId) => ipcRenderer.send('voice-call-to-contact', { callerId, roomId }),
+  receivedCallRequest: ({ callerUserId, callerId, roomId, offer, callMode }) => ipcRenderer.send('voice-call-to-contact', { contactId: callerUserId, callerId, roomId, offer, callMode }),
   hangupCall: () => ipcRenderer.send('hangup-call'),
 
   //设置相关

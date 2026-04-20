@@ -288,8 +288,8 @@ function App() {
     }
   }, [])
 
-  const handleCallRequest = useCallback(async ({ callerId, roomId }) => {
-    await window.electronAPI.receivedCallRequest(callerId, roomId)
+  const handleCallRequest = useCallback(async ({ callerUserId, callerId, roomId, offer, callMode }) => {
+    await window.electronAPI.receivedCallRequest({ callerUserId, callerId, roomId, offer, callMode })
   }, [])
 
   useEffect(() => {

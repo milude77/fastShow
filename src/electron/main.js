@@ -53,16 +53,16 @@ let currentUserToken;
 
 
 protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'file',
-    privileges: {
-      secure: true,
-      standard: true,
-      supportFetchAPI: true,
-      corsEnabled: true,
-      allowServiceWorkers: true,
+    {
+        scheme: 'file',
+        privileges: {
+            secure: true,
+            standard: true,
+            supportFetchAPI: true,
+            corsEnabled: true,
+            allowServiceWorkers: true,
+        }
     }
-  }
 ]);
 
 
@@ -624,12 +624,7 @@ app.on('before-quit', () => {
 
 
 app.whenReady().then(() => {
-    const gotTheLock = app.requestSingleInstanceLock();
-    if (!gotTheLock) {
-        logger.warn('Another instance is already running. Quitting.');
-        app.quit();
-        return;
-    }
+
 
     logger.info('Application is ready. Creating windows and initializing components.');
 
@@ -1997,7 +1992,7 @@ ipcMain.on('logout', async () => {
     app.exit();
 });
 
-const creatVoiceWindow = async (event, { contactId, callMode, callerId }) => {
+const creatVoiceWindow = async (event, { contactId, callMode, callerId, roomId, offer }) => {
     voiceWindow = new BrowserWindow({
         width: 400,
         height: 600,
@@ -2010,10 +2005,17 @@ const creatVoiceWindow = async (event, { contactId, callMode, callerId }) => {
         }
     });
 
+    offer = JSON.stringify(offer);
+    // 对 stringify 后的 JSON 字符串进行 URL 编码，防止特殊字符破坏 URL 结构
+    const encodedOffer = encodeURIComponent(offer);
+
     let voiceWindowPath;
-
-    voiceWindowPath =  `file://${path.join(app.getAppPath(), "dist", "voice.html")}?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}`;
-
+    if (isDev) {
+        voiceWindowPath = `http://localhost:5234/voice.html?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}&roomId=${roomId}&offer=${encodedOffer}`;
+    }
+    else {
+        voiceWindowPath = `file://${path.join(app.getAppPath(), "dist", "voice.html")}?contactId=${contactId}&userId=${currentUserId}&callMode=${callMode}&callerId=${callerId}&roomId=${roomId}&offer=${encodedOffer}`;
+    }
     if (isDev) {
         voiceWindow.openDevTools()
     }
@@ -2024,9 +2026,9 @@ const creatVoiceWindow = async (event, { contactId, callMode, callerId }) => {
 }
 
 //音视频通话功能模块
-ipcMain.on('voice-call-to-contact', async (event, { contactId = null, callMode = null, callerId = null }) => {
+ipcMain.on('voice-call-to-contact', async (event, { contactId = null, callMode = null, callerId = null, roomId = null, offer = null }) => {
     if (!voiceWindow) {
-        await creatVoiceWindow(event, { contactId, callMode, callerId });
+        await creatVoiceWindow(event, { contactId, callMode, callerId, roomId, offer });
     }
     else {
         return

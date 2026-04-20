@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSocket } from "./useSocket";
 
-export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) => {
+export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) => {
   const socket = useSocket();
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
@@ -11,15 +11,29 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
   const [remotePeerId, setRemotePeerId] = useState(null);
   const [hasLocalVideo, setHasLocalVideo] = useState(callMode === "video");
   const [isVideoMode, setIsVideoMode] = useState(callMode === "video");
+  const [voiceStreamStatus, setVoiceStreamStatus] = useState({
+    rtt: null,
+    jitter: null,
+    loss: null,
+    bitrate: null,
+  })
+
+  const lastStatsRef = useRef({
+    bytesSent: 0,
+    timestamp: 0
+  });
+
 
   // 获取本地媒体流
-  const getLocalVoiceStream = async (videoEnabled) => {
+  const getLocalVoiceStream = async () => {
     if (!localStreamRef.current) {
       try {
-        localStreamRef.current = await navigator.mediaDevices.getUserMedia({
-          video: videoEnabled,
-          audio: true
-        });
+        console.log(isVideoMode)
+        localStreamRef.current = await navigator.mediaDevices.getUserMedia(
+          isVideoMode ?
+            { video: true, audio: true } :
+            { video: false, audio: true }
+        );
         setHasLocalVideo(localStreamRef.current.getVideoTracks().length > 0);
       } catch (error) {
         console.error('获取摄像头失败:', error);
@@ -107,26 +121,32 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
   const acceptCall = async () => {
     if (!remotePeerId) return;
     setCallStatus("connecting");
-    await createPeerConnection(remotePeerId);
+    await getLocalVoiceStream();
+    handleOffer({ offer, senderId: remotePeerId });
+  };
+
+  // 发起呼叫
+  const startCall = async () => {
+    setCallStatus("calling");
+
+    await getLocalVoiceStream();
+
+    await createPeerConnection(contactId);
     const pc = peerConnectionRef.current;
     if (!pc) return;
     try {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit("offer", { roomId, offer, targetId: remotePeerId });
+      socket.emit("call-request", { roomId, contactId, offer, callMode });
     } catch (error) {
-      console.error('创建offer失败:', error);
+      console.error('发起呼叫失败:', error);
+      setCallStatus("idle");
     }
-  };
-
-  // 发起呼叫
-  const startCall = () => {
-    setCallStatus("calling");
-    socket.emit("call-request", { roomId, contactId });
   };
 
   // 处理 ICE 候选
   const handleCandidate = async ({ candidate }) => {
+    console.log('收到ICE候选:', candidate);
     const pc = peerConnectionRef.current;
     if (!pc) return;
     try {
@@ -142,6 +162,7 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
     if (!pc) return;
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      setCallStatus("connecting");
     } catch (error) {
       console.error('处理answer失败:', error);
     }
@@ -149,6 +170,7 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
 
   // 处理 Offer
   const handleOffer = async ({ offer, senderId }) => {
+    console.log('收到Offer:', offer);
     setRemotePeerId(senderId);
     await createPeerConnection(senderId);
     const pc = peerConnectionRef.current;
@@ -164,16 +186,21 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
   };
 
   // 处理呼叫请求
-  const handleCallRequest = ({ callerId }) => {
+  const handleCallRequest = ({ callerId, offer }) => {
+    console.log('收到呼叫请求:', callerId);
     setRemotePeerId(callerId);
     setCallStatus("receiving");
+    // 如果收到了offer，直接处理
+    if (offer) {
+      handleOffer({ offer, senderId: callerId });
+    }
   };
 
   // 初始化
   useEffect(() => {
     if (!socket) return;
 
-    getLocalVoiceStream(isVideoMode);
+    getLocalVoiceStream();
 
     if (callerId && callerId !== 'null' && callerId !== 'undefined') {
       handleCallRequest({ callerId });
@@ -199,24 +226,98 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
   const toggleVideoMode = async () => {
     const newMode = !isVideoMode;
     setIsVideoMode(newMode);
-    setHasLocalVideo(newMode);
-
-    // 重新获取流（简单策略：关闭旧流，开新流）
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
-    }
-    await getLocalVoiceStream(newMode);
-
-    // 如果已建立连接，需重新 addTrack（简化处理：实际应协商 re-offer）
+    
     const pc = peerConnectionRef.current;
-    if (pc && localStreamRef.current) {
-      // 移除旧轨道（简化）
-      pc.getSenders().forEach(sender => pc.removeTrack(sender));
-      // 添加新轨道
-      localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current));
+    const localStream = localStreamRef.current;
+
+    if (newMode) {
+      // 开启视频：获取视频轨道并添加到流和PeerConnection
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const videoTrack = videoStream.getVideoTracks()[0];
+        
+        if (localStream) {
+          localStream.addTrack(videoTrack);
+        }
+        
+        if (pc) {
+          pc.addTrack(videoTrack, localStream);
+        }
+        
+        setHasLocalVideo(true);
+      } catch (error) {
+        console.error('获取视频轨道失败:', error);
+        setHasLocalVideo(false);
+      }
+    } else {
+      // 关闭视频：停止并移除视频轨道
+      if (localStream) {
+        const videoTracks = localStream.getVideoTracks();
+        videoTracks.forEach(track => {
+          track.stop();
+          localStream.removeTrack(track);
+        });
+      }
+      
+      if (pc) {
+        // 移除视频发送器
+        pc.getSenders().forEach(sender => {
+          if (sender.track && sender.track.kind === 'video') {
+            pc.removeTrack(sender);
+          }
+        });
+      }
+      
+      setHasLocalVideo(false);
     }
   };
+
+  // 音频流状态监控
+  const monitorstatus = async () => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+    const stats = await pc.getStats();
+    let rtt = null;
+    let jitter = null;
+    let loss = null;
+    let bitrate = null;
+
+    if (stats) {
+      stats.forEach(report => {
+        if (report.type === "candidate-pair" && report.state === "succeeded") {
+          rtt = report.currentRoundTripTime * 1000;
+        }
+
+        // 入站视频（远端 -> 本地）
+        if (report.type === "inbound-rtp" && report.kind === "video") {
+          jitter = report.jitter;
+          loss = report.packetsLost;
+        }
+
+        // 出站视频（本地 -> 远端）
+        if (report.type === "outbound-rtp" && report.kind === "video") {
+          const now = report.timestamp;
+          const bytes = report.bytesSent;
+
+          const last = lastStatsRef.current;
+
+          if (last.timestamp) {
+            bitrate = Math.floor(
+              (bytes - last.bytesSent) * 8 / (now - last.timestamp)
+            );
+          }
+
+          lastStatsRef.current = {
+            bytesSent: bytes,
+            timestamp: now
+          };
+        }
+      })
+    }
+
+    setVoiceStreamStatus({ rtt, jitter, loss, bitrate });
+  }
+
 
   return {
     callStatus,
@@ -228,6 +329,8 @@ export const useVoiceCall = ({ userId, contactId, callerId, callMode, roomId }) 
     startCall,
     acceptCall,
     closeCall,
-    toggleVideoMode
+    toggleVideoMode,
+    voiceStreamStatus,
+    monitorstatus
   };
 };

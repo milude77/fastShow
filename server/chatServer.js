@@ -1151,13 +1151,14 @@ io.on('connection', (socket) => {
         console.log(`${userInfo.username} 加入房间 ${roomId}`);
     });
 
-    socket.on('call-request', async ({ roomId, contactId }) => {
+    socket.on('call-request', async ({ roomId, contactId, offer, callMode }) => {
         const targetId = await getOnlineUserId(contactId);
+        const callerUserId = await getOnlineUserId(socket.id);
         if (targetId) {
-            socket.to(targetId.socketId).emit('call-request', { callerId: socket.id, roomId });
+            socket.to(targetId.socketId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
         }
         else {
-            socket.to(roomId).emit('call-request', { callerId: socket.id, roomId });
+            socket.to(roomId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
         }
     });
 
