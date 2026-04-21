@@ -223,82 +223,50 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
     };
   }, [socket]);
 
-  // 切换视频模式
   const toggleVideoMode = async () => {
+    const pc = peerConnectionRef.current;
+    const localStream = localStreamRef.current;
+
     const newMode = !isVideoMode;
     setIsVideoMode(newMode);
 
-    const pc = peerConnectionRef.current;
-    let localStream = localStreamRef.current;
+    if (!pc || !localStream) return;
 
     if (newMode) {
-      // 开启视频
-      if (localStream) {
-        const videoTracks = localStream.getVideoTracks();
-        if (videoTracks.length > 0) {
-          // 如果已有视频轨道，直接启用
-          videoTracks[0].enabled = true;
-          setHasLocalVideo(true);
-        } else {
-          // 如果没有视频轨道，获取新的视频轨道
-          try {
-            const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            localStreamRef.current = videoStream
-            const videoTrack = videoStream.getVideoTracks()[0];
-            localStream.addTrack(videoTrack);
+      // 🔥 开视频
+      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      localStreamRef.current = videoStream
+      const videoTrack = videoStream.getVideoTracks()[0];
 
-            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+      const sender = pc.getSenders().find(s => s.track?.kind === "video");
 
-            if (sender) {
-              await sender.replaceTrack(videoTrack); 
-            } else {
-              pc.addTrack(videoTrack, localStream); 
-            }
-            setHasLocalVideo(true);
-          } catch (error) {
-            console.error('获取视频轨道失败:', error);
-            setHasLocalVideo(false);
-          }
-        }
+      if (sender) {
+        await sender.replaceTrack(videoTrack);
       } else {
-        // 如果没有本地流，创建包含视频的新流
-        try {
-          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          localStreamRef.current = localStream;
-
-          if (pc) {
-            localStream.getTracks().forEach(track => {
-              pc.addTrack(track, localStream);
-            });
-          }
-          setHasLocalVideo(true);
-        } catch (error) {
-          console.error('获取媒体流失败:', error);
-          setHasLocalVideo(false);
-        }
+        localStream.addTrack(videoTrack);
+        pc.addTrack(videoTrack, localStream);
       }
+
+      setHasLocalVideo(true);
+
     } else {
-      // 关闭视频 - 禁用轨道并从PeerConnection中移除
-      if (localStream) {
-        const videoTrack = localStream.getVideoTracks()[0]
-        if (videoTrack) {
-          videoTrack.enabled = false;
-          // 从PeerConnection中移除视频轨道
-          if (pc) {
-            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+      // 🔥 关视频
+      const sender = pc.getSenders().find(s => s.track?.kind === "video");
 
-            if (sender) {
-              await sender.replaceTrack(null);
-            }
-          }
-          // 从本地流中移除视频轨道
-          localStream.removeTrack(videoTrack);
-          videoTrack.stop();
-        }
+      if (sender) {
+        await sender.replaceTrack(null);
       }
+
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.stop();
+        localStream.removeTrack(videoTrack);
+      }
+
       setHasLocalVideo(false);
     }
   };
+
 
   // 音频流状态监控
   const monitorstatus = async () => {
