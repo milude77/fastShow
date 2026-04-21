@@ -8,8 +8,13 @@ export const RemoteVideoView = ({ remoteStream, contactId }) => {
 
   const audioRef = useRef(new Audio());  // 用 ref 管理音频对象
 
-  const hasRemoteVideo = remoteStream?.getVideoTracks().length > 0;
-  console.log("RemoteVideoView: hasRemoteVideo", hasRemoteVideo);
+  // 修改：检查视频轨道是否存在且处于活跃状态
+  let hasRemoteVideo = false;
+  if (remoteStream) {
+    const videoTracks = remoteStream.getVideoTracks();
+    hasRemoteVideo = videoTracks.length > 0 &&
+      videoTracks.some(track => track.readyState === 'live' && !track.muted);
+  }
 
   // 处理音频播放
   const handlePlayAudio = useCallback(async () => {
@@ -25,7 +30,6 @@ export const RemoteVideoView = ({ remoteStream, contactId }) => {
     // 设置远程视频流到 videoRef
     if (videoRef.current && remoteStream) {
       videoRef.current.srcObject = remoteStream;
-      console.log("RemoteVideoView: set remote stream");
     }
     handlePlayAudio();  // 开始播放音频
   }, [remoteStream, handlePlayAudio]);

@@ -43,7 +43,7 @@ const VoiceApp = () => {
   } = useVoiceCall({ userId, contactId, callerId, callMode, roomId, offer });
 
   const [wifiStatusStyle, setWifiStatusStyle] = useState({
-    color: voiceStreamStatus.rtt > 100 ? "red" : "green"
+    color: voiceStreamStatus?.rtt > 100 ? "red" : "green"
   })
 
   // 音视频流状态监听
@@ -85,7 +85,7 @@ const VoiceApp = () => {
     return (
       <span onClick={() => setVoiceStreamStatusBarOpen(true)} className="voice-stream-status">
         <WifiOutlined style={wifiStatusStyle} />
-        {`延迟 : ${voiceStreamStatus.rtt} ms`}
+        {`延迟 : ${voiceStreamStatus?.rtt} ms`}
       </span>
     )
   }

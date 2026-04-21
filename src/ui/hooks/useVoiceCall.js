@@ -90,6 +90,7 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+          console.log('通话已断开1');
           setCallStatus("idle");
         }
       };
@@ -220,54 +221,81 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
       socket.off("call-request", handleCallRequest);
       closeCall();
     };
-  }, [socket, isVideoMode]);
+  }, [socket]);
 
   // 切换视频模式
   const toggleVideoMode = async () => {
     const newMode = !isVideoMode;
     setIsVideoMode(newMode);
-    
+
     const pc = peerConnectionRef.current;
-    const localStream = localStreamRef.current;
+    let localStream = localStreamRef.current;
 
     if (newMode) {
-      // 开启视频：获取视频轨道并添加到流和PeerConnection
-      try {
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        const videoTrack = videoStream.getVideoTracks()[0];
-        
-        if (localStream) {
-          localStream.addTrack(videoTrack);
-        }
-        
-        if (pc) {
-          pc.addTrack(videoTrack, localStream);
-        }
-        
-        setHasLocalVideo(true);
-      } catch (error) {
-        console.error('获取视频轨道失败:', error);
-        setHasLocalVideo(false);
-      }
-    } else {
-      // 关闭视频：停止并移除视频轨道
+      // 开启视频
       if (localStream) {
         const videoTracks = localStream.getVideoTracks();
-        videoTracks.forEach(track => {
-          track.stop();
-          localStream.removeTrack(track);
-        });
-      }
-      
-      if (pc) {
-        // 移除视频发送器
-        pc.getSenders().forEach(sender => {
-          if (sender.track && sender.track.kind === 'video') {
-            pc.removeTrack(sender);
+        if (videoTracks.length > 0) {
+          // 如果已有视频轨道，直接启用
+          videoTracks[0].enabled = true;
+          setHasLocalVideo(true);
+        } else {
+          // 如果没有视频轨道，获取新的视频轨道
+          try {
+            const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            localStreamRef.current = videoStream
+            const videoTrack = videoStream.getVideoTracks()[0];
+            localStream.addTrack(videoTrack);
+
+            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+
+            if (sender) {
+              await sender.replaceTrack(videoTrack); 
+            } else {
+              pc.addTrack(videoTrack, localStream); 
+            }
+            setHasLocalVideo(true);
+          } catch (error) {
+            console.error('获取视频轨道失败:', error);
+            setHasLocalVideo(false);
           }
-        });
+        }
+      } else {
+        // 如果没有本地流，创建包含视频的新流
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          localStreamRef.current = localStream;
+
+          if (pc) {
+            localStream.getTracks().forEach(track => {
+              pc.addTrack(track, localStream);
+            });
+          }
+          setHasLocalVideo(true);
+        } catch (error) {
+          console.error('获取媒体流失败:', error);
+          setHasLocalVideo(false);
+        }
       }
-      
+    } else {
+      // 关闭视频 - 禁用轨道并从PeerConnection中移除
+      if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0]
+        if (videoTrack) {
+          videoTrack.enabled = false;
+          // 从PeerConnection中移除视频轨道
+          if (pc) {
+            const sender = pc.getSenders().find(s => s.track?.kind === "video");
+
+            if (sender) {
+              await sender.replaceTrack(null);
+            }
+          }
+          // 从本地流中移除视频轨道
+          localStream.removeTrack(videoTrack);
+          videoTrack.stop();
+        }
+      }
       setHasLocalVideo(false);
     }
   };
