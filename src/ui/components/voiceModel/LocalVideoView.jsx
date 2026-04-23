@@ -5,11 +5,12 @@ import { useUserAvatar } from "../../hooks/useAvatar";
 export const LocalVideoView = ({ localStream, hasLocalVideo, userId }) => {
   const { getAvatarUrl } = useUserAvatar();
   const videoRef = useRef(null);
+
   useEffect(() => {
-    if (videoRef.current && localStream) {
+    if (videoRef.current && localStream && hasLocalVideo) {
       videoRef.current.srcObject = localStream;
     }
-  }, [localStream]);
+  }, [localStream, hasLocalVideo]);
 
   if (hasLocalVideo && localStream) {
     return (

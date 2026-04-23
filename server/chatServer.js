@@ -1204,6 +1204,15 @@ io.on('connection', (socket) => {
         await syncGroupMessages(socket, groupId, messageVersion);
     });
 
+    socket.on('close-video', async ({ roomId, targetId }) => {
+        if (targetId) {
+            socket.to(targetId).emit('close-video', { roomId });
+        }
+        else {
+            socket.to(roomId).emit('close-video', { roomId });
+        }
+    })
+
 });
 
 // 静态文件服务（用于文件下载）

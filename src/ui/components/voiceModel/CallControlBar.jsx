@@ -44,7 +44,7 @@ export const CallControlBar = ({
             >
               {openMicrophone ? <AudioOutlined /> : <AudioMutedOutlined />}
             </button>
-            <button className="reject-call-btn round-btn" onClick={onHangup}>
+            <button className={`reject-call-btn round-btn`} onClick={onHangup}>
               <CloseCircleOutlined />{t('voiceApp.hangup')}
             </button>
             <button

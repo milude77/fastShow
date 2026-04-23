@@ -10,7 +10,9 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
   const [callStatus, setCallStatus] = useState("idle");
   const [remotePeerId, setRemotePeerId] = useState(null);
   const [hasLocalVideo, setHasLocalVideo] = useState(callMode === "video");
+  const [openMicrophone, setOpenMicrophone] = useState(true);
   const [isVideoMode, setIsVideoMode] = useState(callMode === "video");
+  const [remoteVideoTrackId, setRemoteVideoTrackId] = useState(null);
   const [voiceStreamStatus, setVoiceStreamStatus] = useState({
     rtt: null,
     jitter: null,
@@ -23,12 +25,11 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
     timestamp: 0
   });
 
-
   // 获取本地媒体流
   const getLocalVoiceStream = async () => {
     if (!localStreamRef.current) {
       try {
-        console.log(isVideoMode)
+        console.log("当前是否视频模式:", isVideoMode);
         localStreamRef.current = await navigator.mediaDevices.getUserMedia(
           isVideoMode ?
             { video: true, audio: true } :
@@ -36,7 +37,7 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
         );
         setHasLocalVideo(localStreamRef.current.getVideoTracks().length > 0);
       } catch (error) {
-        console.error('获取摄像头失败:', error);
+        console.error('获取音视频失败:', error);
         setHasLocalVideo(false);
       }
     }
@@ -82,9 +83,27 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
       };
 
       pc.ontrack = (event) => {
-        if (!remoteStreamRef.current.getTracks().find(t => t.id === event.track.id)) {
-          remoteStreamRef.current.addTrack(event.track);
+        const stream = remoteStreamRef.current;
+        const newTrack = event.track;
+
+        // 关键修复：如果是视频轨，移除掉旧的视频轨，保证 stream 中只有一个最新的视频轨
+        if (newTrack.kind === "video") {
+          stream.getVideoTracks().forEach(oldTrack => {
+            if (oldTrack.id !== newTrack.id) {
+              oldTrack.stop(); // 停止旧轨道
+              stream.removeTrack(oldTrack); // 从流中移除
+            }
+          });
         }
+
+        // 检查是否已经存在该轨道，不存在则添加
+        if (!stream.getTracks().find(t => t.id === newTrack.id)) {
+          stream.addTrack(newTrack);
+        }
+        if (event.track.kind === "video") {
+          setRemoteVideoTrackId(event.track.id + "_" + Date.now()); // 加时间戳确保即使 ID 一样也能触发
+        }
+
         setCallStatus("connected");
       };
 
@@ -112,6 +131,7 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
     localStreamRef.current = null;
     remoteStreamRef.current = new MediaStream();
     setCallStatus("idle");
@@ -171,9 +191,13 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
 
   // 处理 Offer
   const handleOffer = async ({ offer, senderId }) => {
-    console.log('收到Offer:', offer);
     setRemotePeerId(senderId);
-    await createPeerConnection(senderId);
+
+    // 🔥【关键修复】：防止重协商时重建 PC 导致断网
+    if (!peerConnectionRef.current) {
+      await createPeerConnection(senderId);
+    }
+
     const pc = peerConnectionRef.current;
     if (!pc) return;
     try {
@@ -188,7 +212,6 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
 
   // 处理呼叫请求
   const handleCallRequest = ({ callerId, offer }) => {
-    console.log('收到呼叫请求:', callerId);
     setRemotePeerId(callerId);
     setCallStatus("receiving");
     // 如果收到了offer，直接处理
@@ -223,6 +246,7 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
     };
   }, [socket]);
 
+  // 切换视频模式
   const toggleVideoMode = async () => {
     const pc = peerConnectionRef.current;
     const localStream = localStreamRef.current;
@@ -232,41 +256,74 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
 
     if (!pc || !localStream) return;
 
-    if (newMode) {
-      // 🔥 开视频
-      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      localStreamRef.current = videoStream
-      const videoTrack = videoStream.getVideoTracks()[0];
+    try {
+      if (newMode) {
+        // 🔥 开视频
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const videoTrack = videoStream.getVideoTracks()[0];
 
-      const sender = pc.getSenders().find(s => s.track?.kind === "video");
+        const sender = pc.getSenders().find(s => s.track?.kind === "video");
 
-      if (sender) {
-        await sender.replaceTrack(videoTrack);
-      } else {
+        if (sender) {
+          await sender.replaceTrack(videoTrack);
+        } else {
+          pc.addTrack(videoTrack, localStream);
+        }
+
         localStream.addTrack(videoTrack);
-        pc.addTrack(videoTrack, localStream);
+        setHasLocalVideo(true);
+
+      } else {
+        // 🔥 关视频
+        const sender = pc.getSenders().find(s => s.track?.kind === "video");
+
+        if (sender) {
+          await sender.replaceTrack(null);
+        }
+
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.stop();
+          localStream.removeTrack(videoTrack);
+        }
+
+        setHasLocalVideo(false);
       }
 
-      setHasLocalVideo(true);
+      // 🔥【关键修复】：向对方发送最新的 Offer 触发重新协商，让对方更新流状态
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit("offer", {
+        roomId,
+        targetId: remotePeerId,
+        offer
+      });
 
-    } else {
-      // 🔥 关视频
-      const sender = pc.getSenders().find(s => s.track?.kind === "video");
+      socket.emit('close-video', {
+        roomId,
+        targetId: remotePeerId,
+      })
 
-      if (sender) {
-        await sender.replaceTrack(null);
-      }
-
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.stop();
-        localStream.removeTrack(videoTrack);
-      }
-
-      setHasLocalVideo(false);
+    } catch (error) {
+      console.error("切换视频流失败:", error);
     }
   };
 
+  //切换麦克风模式
+  const toggleMicrophoneMode = useCallback(async () => {
+    const localStream = localStreamRef.current;
+    if (!localStream) return;
+
+    // 1. 获取音频轨道
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      // 2. 切换轨道状态 (enabled 为 false 时发送静音)
+      const newStatus = !openMicrophone;
+      audioTrack.enabled = newStatus;
+      setOpenMicrophone(newStatus);
+
+    }
+  }, [openMicrophone]);
 
   // 音频流状态监控
   const monitorstatus = async () => {
@@ -314,19 +371,21 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
     setVoiceStreamStatus({ rtt, jitter, loss, bitrate });
   }
 
-
   return {
     callStatus,
     remotePeerId,
     hasLocalVideo,
     isVideoMode,
+    openMicrophone,
     localStream: localStreamRef.current,
     remoteStream: remoteStreamRef.current,
     startCall,
     acceptCall,
     closeCall,
     toggleVideoMode,
+    toggleMicrophoneMode,
     voiceStreamStatus,
-    monitorstatus
+    monitorstatus,
+    remoteVideoTrackId
   };
 };

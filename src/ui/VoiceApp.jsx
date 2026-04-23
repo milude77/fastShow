@@ -24,7 +24,6 @@ const VoiceApp = () => {
   }
 
   const [showHeaderBar, setShowHeaderBar] = useState(false);
-  const [openMicrophone, setOpenMicrophone] = useState(true);
   const [voiceStreamStatusBarOpen, setVoiceStreamStatusBarOpen] = useState(false);
 
 
@@ -32,14 +31,17 @@ const VoiceApp = () => {
     callStatus,
     hasLocalVideo,
     isVideoMode,
+    openMicrophone,
     localStream,
     remoteStream,
     startCall,
     acceptCall,
     closeCall,
     toggleVideoMode,
+    toggleMicrophoneMode,
     voiceStreamStatus,
-    monitorstatus
+    monitorstatus,
+    remoteVideoTrackId
   } = useVoiceCall({ userId, contactId, callerId, callMode, roomId, offer });
 
   const [wifiStatusStyle, setWifiStatusStyle] = useState({
@@ -117,7 +119,7 @@ const VoiceApp = () => {
       />
       <div className="voice-container">
         {voiceStreamStatusBarOpen ? <VoiceStreamStatusBarOpenList /> : <VoiceStreamStatusBarCloseList />}
-        <RemoteVideoView remoteStream={remoteStream} contactId={contactId} />
+        <RemoteVideoView remoteStream={remoteStream} contactId={contactId} remoteVideoTrackId={remoteVideoTrackId} />
         <LocalVideoView localStream={localStream} hasLocalVideo={hasLocalVideo} userId={userId} />
       </div>
 
@@ -125,7 +127,7 @@ const VoiceApp = () => {
         callStatus={callStatus}
         isVideoMode={isVideoMode}
         openMicrophone={openMicrophone}
-        onToggleMicrophone={() => setOpenMicrophone(!openMicrophone)}
+        onToggleMicrophone={toggleMicrophoneMode}
         onHangup={closeCall}
         onAccept={acceptCall}
         onReject={closeCall}
