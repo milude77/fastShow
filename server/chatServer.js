@@ -35,7 +35,7 @@ dotenv.config({
 const githubConfig = {
     clientId: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackUrl: 'http://localhost:3001/api/auth/github/callback'
+    callbackUrl: process.env.GITHUB_CALLBACK_URL,
 };
 
 const JSON_WEB_TOKEN_SECRET = process.env.JWT || 'your_secret_key'; // 用于签名 JWT
@@ -1356,7 +1356,8 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
             fileUrl: newMessage.file_url,
             fileSize: fileSize,
             fileId: fileId,
-            status: 'success'
+            status: 'success',
+            timestamp: timestamp
         };
 
         if (isGroup) {

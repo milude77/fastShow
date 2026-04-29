@@ -474,7 +474,7 @@ const MessageList = ({ contact, messageListHook }) => {
                                 const AvatarSrc = getAvatarUrl(msg.sender_id);
                                 return (
                                     <React.Fragment key={msg.id} >
-                                        {msg.showTime && <span className="message-timestamp">{formatTime(msg.timestamp)}</span>}
+                                        {msg.showTime && <span className="message-timestamp">{formatTime(msg.timestamp) ?? formatTime(Date().now())}</span>}
                                         <MessageItem
                                             msg={msg}
                                             index={index}

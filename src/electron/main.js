@@ -624,8 +624,6 @@ app.on('before-quit', () => {
 
 
 app.whenReady().then(() => {
-
-
     logger.info('Application is ready. Creating windows and initializing components.');
 
     protocol.registerFileProtocol('avatar', (request, callback) => {
@@ -895,7 +893,7 @@ const handleNewMessage = async (msg) => {
         text: msg.content,
         sender: msg.senderId == currentUserId ? 'user' : 'other',
         sender_id: msg.senderId,
-        timestamp: new Date(msg.timestamp),
+        timestamp: msg.timestamp ? msg.timestamp : Date.now(),
         username: msg.username,
         fileName: msg.fileName,
         messageType: msg.messageType,

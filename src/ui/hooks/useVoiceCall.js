@@ -321,7 +321,11 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
       const newStatus = !openMicrophone;
       audioTrack.enabled = newStatus;
       setOpenMicrophone(newStatus);
+      console.log(`麦克风状态已切换为 ${newStatus}`);
 
+    }
+    else{
+      console.warn("没有找到音频轨道，无法切换麦克风状态");
     }
   }, [openMicrophone]);
 

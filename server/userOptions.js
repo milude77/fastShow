@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { setOnlineUser, removeOnlineUser, setOnlineUserId, getOnlineUserId, removeOnlineUserId } from './redisClient.js';
 import { io, db } from './chatServer.js';
-import logger from './logger.js'; 
+import logger from './logger.js';
 
 const JSON_WEB_TOKEN_SECRET = process.env.JWT || 'your_secret_key';
 
@@ -25,17 +25,14 @@ export const registerUser = async (socket, data) => {
         let formattedId;
 
         await db.transaction(async (trx) => {
-            const maxIdResult = await trx('users')
-                .max('id as maxId')
-                .first();
-
-            await trx('users')
-                .where('id', maxIdResult.maxId)
+            // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
+            const lastUser = await trx('users')
+                .orderBy('id', 'desc')
                 .first()
                 .forUpdate();
 
-            const nextId = (+maxIdResult.maxId || 0) + 1;
-            formattedId = String(nextId).padStart(6, '0')
+            const nextId = (parseInt(lastUser?.id || '0', 10)) + 1;
+            formattedId = nextId.toString().padStart(6, '0');
 
             // 插入新用户
             await trx('users').insert({
@@ -106,7 +103,7 @@ export const userLogin = async (socket, data) => {
         const refreshToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '7d' });
         await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
         await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
-        socket.emit('login-success', { userId: formattedId, username: user.username, refreshToken , token, email: user.email });
+        socket.emit('login-success', { userId: formattedId, username: user.username, refreshToken, token, email: user.email });
 
     } catch (error) {
         logger.error('登录失败:', { error, data });
