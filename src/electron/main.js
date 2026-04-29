@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, session, desktopCapturer } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, session, desktopCapturer, webContents } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
@@ -798,7 +798,6 @@ const handleContactUpdate = async () => {
 }
 
 const contactCompare = async (payload) => {
-    console.log('syne-contact-list')
     await handleContactCompareResult(payload)
     const groupList = await db('groups').select('id', 'message_version')
     groupList.forEach(group => {
@@ -822,6 +821,15 @@ ipcMain.on('start-revice-message', async (event, userId) => {
 
     socket.on('contact-compare-result', contactCompare)
     socket.on('group-compare-result', handleGroupCompareResult)
+    socket.on('contact-deleted', async ({ friendId }) => {
+        console.log('contact-deleted', { friendId });
+        await db('friends')
+            .where('id', friendId)
+            .del();
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('contact-deleted', { contactId:friendId });
+        });
+    });
 
     socket.emit('initial-data-success', { userId });
     socket.emit('sync-contacts-list', { version: userContactListVersion });
@@ -1490,11 +1498,6 @@ ipcMain.handle('delete-contact', async (event, { contactId }) => {
     }
     try {
         socket.emit('delete-contact', contactId);
-        const deleted = await db('friends')
-            .where('id', contactId)
-        event.sender.send('contact-deleted', { contactId });
-        return { success: true, deleted };
-
     } catch (error) {
         console.error('Failed to delete contact:', error);
         return { success: false, error: error.message };

@@ -71,7 +71,7 @@ export const handleContactsList = async (db, payload) => {
 
 
 export const handleContactCompareResult = async (payload) => {
-    if (!payload) return 
+    if (!payload) return
     const { contactListChange, contactVersion } = payload;
     const db = getDb();
     const currentUserId = getCurUserId();
@@ -100,23 +100,13 @@ export const handleContactCompareResult = async (payload) => {
                         create_time: createdTime,
                         is_group_invite: false,
                     })
-                    .onConflict('id')
-                    .merge(
-                        {
-                            inviter_id: inviterId,
-                            inviter_name: inviterName,
-                            status: 'pending',
-                            create_time: createdTime,
-                            is_group_invite: false,
-                        }
-                    )
-                    ;
+                    .onConflict('id').ignore()
                 BrowserWindow.getAllWindows().forEach(win => win.webContents.send('new-invite'));
             }
             //处理被好友删除
             if (action === 'friend_deleted') {
-                const { friend_id: contact_id } = event_data;
-                await db('friends').where('id', contact_id).update({
+                const { friendId } = event_data;
+                await db('friends').where('id', friendId).update({
                     status: 'deleted'
                 })
                 BrowserWindow.getAllWindows().forEach(win => win.webContents.send('contacts-list-updated'));

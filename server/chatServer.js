@@ -780,32 +780,57 @@ io.on('connection', (socket) => {
                 .update({ status: 'accepted' });
 
             if (updated > 0) {
-                const friendInformation = await db('friendships')
+                const { user_id, friend_id } = await db('friendships')
                     .where({ 'friendships.id': requesterId })
-                    .join('users', 'friendships.user_id', 'users.id')
-                    .select('users.id', 'users.username')
+                    .select('user_id', 'friend_id')
                     .first();
-                const infoVersion = await db('users').where({ id: senderInfo.userId }).first('inf_version');
+
+                const friendInformation = await db('users')
+                    .where({ 'users.id': user_id })
+                    .select('id', 'username', 'inf_version')
+                    .first();
+                const senderInformation = await db('users')
+                    .where({ 'users.id': friend_id })
+                    .select('id', 'username', 'inf_version')
+                    .first();
+
                 const idResult = await db('user_event')
                     .insert({
                         user_id: friendInformation.id,
                         action: 'friend_add',
                         event_data: JSON.stringify({
                             status: 'accepted',
-                            friend_id: senderInfo.userId,
-                            username: senderInfo.username,
-                            infoVersion: infoVersion.inf_version
+                            friend_id: senderInformation.id,
+                            username: senderInformation.username,
+                            infoVersion: senderInformation.inf_version
                         })
                     })
                     .returning('id');
                 const id = idResult[0].id;
+                const idResult_2 = await db('user_event')
+                    .insert({
+                        user_id: senderInformation.id,
+                        action: 'friend_add',
+                        event_data: JSON.stringify({
+                            status: 'accepted',
+                            friend_id: friendInformation.id,
+                            username: friendInformation.username,
+                            infoVersion: friendInformation.inf_version
+                        })
+                    })
+                    .returning('id');
+                const id_2 = idResult_2[0].id;
                 await updateUserContactVersion(friendInformation.id, id);
+                await updateUserContactVersion(senderInformation.id, id_2);
 
                 const targetSocketId = await getOnlineUserId(friendInformation.id);
+                const senderSocketId = await getOnlineUserId(senderInformation.id);
                 if (targetSocketId) {
                     io.to(targetSocketId.socketId).emit('contact-update');
                 }
-                socket.emit('friend-request-accepted', Object.assign(friendInformation, { type: 'friend', isOnline: targetSocketId }));
+                if (senderSocketId) {
+                    io.to(senderSocketId.socketId).emit('contact-update');
+                }
             }
         } catch (error) {
             console.error('Error accepting friend request:', error);
