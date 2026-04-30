@@ -8,7 +8,7 @@ import { Input, Button } from 'antd';
 
 
 
-export default function UserInformation( { onClose } ) {
+export default function UserInformation({ onClose }) {
 
     const currentUser = JSON.parse(localStorage.getItem('currentUser'))
     const { avatarSrc } = useUserAvatar();
@@ -54,9 +54,10 @@ export default function UserInformation( { onClose } ) {
             <form onSubmit={handleSubmitInfo}>
                 <div className='id-info'>
                     <label className='info-lable'>{t('avatarUploader.idLabel')}</label>
-                    <div className="id-content">
-                        <label>{currentUser.userId}</label>
-                    </div>
+                    <Input
+                        value={currentUser.userId}
+                        readOnly
+                    ></Input>
                 </div>
                 <div className='name-info'>
                     <label className='info-lable' htmlFor="user-name">{t('avatarUploader.nicknameLabel')}</label>
@@ -69,7 +70,10 @@ export default function UserInformation( { onClose } ) {
                 </div>
                 <div className='email-info'>
                     <label className='info-lable' htmlFor="user-email">{t('avatarUploader.emailLabel')}</label>
-                    <label style={{ color: `${currentUser?.email ? '' : 'red'}` }} >{currentUser?.email ? currentUser.email : t('avatarUploader.notBound')}</label>
+                    <Input
+                        value={currentUser?.email ? currentUser.email : t('avatarUploader.notBound')}
+                        readOnly
+                    ></Input>
                     <Button>{t('avatarUploader.bindEmail')}</Button>
                 </div>
                 <div className="modal-actions">

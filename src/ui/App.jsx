@@ -134,13 +134,14 @@ function App() {
   const handleLoginSuccess = useCallback((data) => {
     const { userId, username, refreshToken, token, email } = data;
     window.electronAPI.loginSuccess({ userId, username, token, email });
-    window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token, refreshToken });
-    window.electronAPI.saveUserListCredentials({ userId, userName: username, token, refreshToken });
+    window.electronAPI.saveCurrentUserCredentials({ userId, userName: username, token, refreshToken, email });
+    window.electronAPI.saveUserListCredentials({ userId, userName: username, token, refreshToken, email });
     localStorage.setItem('token', token);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('currentUser', JSON.stringify({
       userId: userId,
-      username: username
+      username: username,
+      email: email
     }));
   }, []);
 
