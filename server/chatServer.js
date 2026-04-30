@@ -15,7 +15,7 @@ import axios from 'axios';
 import { decryptMessage, encryptMessage } from './aseOptions.js';
 import { registerUser, userLogin, userLoginWithToken } from './userOptions.js';
 import { compareContactInformation, compareGroupMemberVersion } from './userContactCompare.js';
-import { sendEmailCode } from './sendEmailCode.js';
+// import { sendEmailCode } from './sendEmailCode.js';
 import {
     getOnlineUser,
     getAllOnlineUsers,
@@ -30,6 +30,7 @@ import {
     retryKey
 } from './redisClient.js';
 import logger from './logger.js'; // 引入外部日志工具类
+import { enqueueEmailCode } from './taskQueue/emailService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1831,7 +1832,13 @@ app.post('/api/get-verification-code', async (req, res) => {
 
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         await setEmailCode(email, code);
-        await sendEmailCode(email, code);
+        try {
+            await enqueueEmailCode(email, code);
+        } catch (err) {
+            // 入队失败 → 回滚
+            await deleteEmailCode(email);
+            throw err;
+        }
         res.json({ success: true, message: '验证码已发送，请注意查收' });
     }
     catch (error) {
