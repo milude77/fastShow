@@ -33,7 +33,7 @@ export async function initializeDatabase(db) {
         table.string('status').notNullable().defaultTo('normal');
         table.string('type').nullable().defaultTo('private');
       });
-      
+
       // 为 friends 表创建索引
       await db.schema.alterTable('friends', (table) => {
         table.index(['id'], 'friends_user_id_idx');
@@ -53,7 +53,7 @@ export async function initializeDatabase(db) {
         table.string('status').notNullable().defaultTo('normal');
         table.string('my_role').nullable().defaultTo('member');
       });
-      
+
       // 为 groups 表创建索引
       await db.schema.alterTable('groups', (table) => {
         table.index(['version'], 'groups_version_idx');

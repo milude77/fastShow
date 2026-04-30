@@ -827,7 +827,7 @@ ipcMain.on('start-revice-message', async (event, userId) => {
             .where('id', friendId)
             .del();
         BrowserWindow.getAllWindows().forEach(win => {
-            win.webContents.send('contact-deleted', { contactId:friendId });
+            win.webContents.send('contact-deleted', { contactId: friendId });
         });
     });
 
@@ -987,7 +987,6 @@ ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, isG
                 .where('id', sendMessageId)
                 .first()
                 .then(row => row.group_id);
-            // SQLite 不支持 raw 方法，改用直接计算最大值的方式
             const currentVersion = await senderDb('groups')
                 .where('id', groupId)
                 .first('message_version')

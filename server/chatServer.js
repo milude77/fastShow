@@ -179,25 +179,50 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
     }
 
     try {
+        let newGroupMessages;
         // 查询messageVersion之后的所有群消息
-        const newGroupMessages = await db('group_messages as gm')
-            .join('users as u', 'gm.sender_id', 'u.id')
-            .where('gm.group_id', groupId)
-            .andWhere('gm.id', '>', messageVersion)
-            .select(
-                'gm.id',
-                'gm.message_id',
-                'gm.sender_id',
-                'gm.group_id as receiver_id',
-                'gm.content',
-                'gm.timestamp',
-                'gm.message_type',
-                'gm.file_name',
-                'gm.file_url',
-                'gm.file_size',
-                'u.username as sender_username'
-            )
-            .orderBy('gm.timestamp', 'asc');
+        if (messageVersion == 0) {
+            // 首次同步，限制返回最新的30条消息
+            newGroupMessages = await db('group_messages as gm')
+                .join('users as u', 'gm.sender_id', 'u.id')
+                .where('gm.group_id', groupId)
+                .andWhere('gm.id', '>', messageVersion)
+                .select(
+                    'gm.id',
+                    'gm.message_id',
+                    'gm.sender_id',
+                    'gm.group_id as receiver_id',
+                    'gm.content',
+                    'gm.timestamp',
+                    'gm.message_type',
+                    'gm.file_name',
+                    'gm.file_url',
+                    'gm.file_size',
+                    'u.username as sender_username'
+                )
+                .limit(30)
+                .orderBy('gm.timestamp', 'asc');
+        }
+        else {
+            newGroupMessages = await db('group_messages as gm')
+                .join('users as u', 'gm.sender_id', 'u.id')
+                .where('gm.group_id', groupId)
+                .andWhere('gm.id', '>', messageVersion)
+                .select(
+                    'gm.id',
+                    'gm.message_id',
+                    'gm.sender_id',
+                    'gm.group_id as receiver_id',
+                    'gm.content',
+                    'gm.timestamp',
+                    'gm.message_type',
+                    'gm.file_name',
+                    'gm.file_url',
+                    'gm.file_size',
+                    'u.username as sender_username'
+                )
+                .orderBy('gm.timestamp', 'asc');
+        }
 
 
         // 发送群聊消息
