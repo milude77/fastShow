@@ -15,13 +15,19 @@ import axios from 'axios';
 import { decryptMessage, encryptMessage } from './aseOptions.js';
 import { registerUser, userLogin, userLoginWithToken } from './userOptions.js';
 import { compareContactInformation, compareGroupMemberVersion } from './userContactCompare.js';
+import { sendEmailCode } from './sendEmailCode.js';
 import {
     getOnlineUser,
     getAllOnlineUsers,
     getAllOnlineUserIds,
     getOnlineUserId,
     removeOnlineUserId,
-    removeOnlineUser
+    removeOnlineUser,
+    setEmailCode,
+    getEmailCode,
+    deleteEmailCode,
+    existEmailCooldown,
+    retryKey
 } from './redisClient.js';
 import logger from './logger.js'; // 引入外部日志工具类
 
@@ -1534,6 +1540,7 @@ app.get('/api/avatar/:userId/:userType', async (req, res) => {
             24 * 60 * 60
         );
         res.redirect(defaultAvatarUrl);
+        logger.error('获取头像失败:', error);
     }
 });
 
@@ -1802,6 +1809,72 @@ app.post('/api/refresh-token', async (req, res) => {
         }
     }
 });
+
+app.post('/api/get-verification-code', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ message: '邮箱不能为空' });
+        }
+
+        // 简单邮箱格式校验
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ message: '邮箱格式错误' });
+        }
+
+        // 防止频繁请求
+        if (await existEmailCooldown(email)) {
+            return res.status(429).json({ message: '请求过于频繁，请稍后再试' });
+        }
+
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        await setEmailCode(email, code);
+        await sendEmailCode(email, code);
+        res.json({ success: true, message: '验证码已发送，请注意查收' });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, message: '验证码发送失败' });
+        console.error('验证码发送失败', error);
+        logger.error('验证码发送失败', error);
+    }
+});
+
+app.post('/api/verify-verification-code', async (req, res) => {
+    try {
+        const { email, code } = req.body;
+
+        if (!email || !code) {
+            return res.status(400).json({ success: false, message: '参数不完整' });
+        }
+
+
+        const emailCode = await getEmailCode(email);
+
+        if (!emailCode) {
+            return res.status(400).json({ success: false, message: '验证码已过期' });
+        }
+
+        if (String(emailCode) === String(code)) {
+            await deleteEmailCode(email);
+            return res.json({ success: true, message: '验证成功' });
+
+        }
+        else {
+            const { locked, retry } = await retryKey(email);
+            if (locked) {
+                return res.status(429).json({ success: false, message: '错误次数过多，该邮箱已被锁定，请稍后再试' });
+            }
+            return res.status(401).json({ success: false, message: '验证码验证错误， 剩余尝试次数: ' + (6 - retry) });
+        }
+    }
+    catch (error) {
+        res.status(500).json({ success: false, message: '验证码验证失败' });
+        logger.error('验证码验证失败', error);
+    }
+}
+)
 
 
 // 启动服务器

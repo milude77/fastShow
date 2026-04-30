@@ -85,6 +85,56 @@ async function getAllOnlineUserIds() {
     return userIds;
 }
 
+async function setEmailCode(email, code) {
+    const key = `email:code:${email}`;
+    const cooldownKey = `email:cooldown:${email}`;
+    await redisClient.setEx(cooldownKey, 60, "1");
+    await redisClient.setEx(key, 300, code);
+}
+
+async function getEmailCode(email) {
+    const key = `email:code:${email}`;
+    return await redisClient.get(key);
+}
+
+
+async function existEmailCooldown(email) {
+    const cooldownKey = `email:cooldown:${email}`;
+    return await redisClient.exists(cooldownKey);
+}
+
+async function retryKey(email) {
+    const retryKey = `email:retry:${email}`;
+    const lockKey = `email:lock:${email}`;
+
+    // 已锁定
+    const isLocked = (await redisClient.exists(lockKey)) === 1;
+    if (isLocked) {
+        return { locked: true, retry: null };
+    }
+
+    const retry = await redisClient.incr(retryKey);
+
+    if (retry === 1) {
+        await redisClient.expire(retryKey, 300);
+    }
+
+    if (retry > 5) {
+        await redisClient.setEx(lockKey, 60 * 60, "1"); // 1小时
+        await redisClient.del(retryKey);
+
+        return { locked: true, retry };
+    }
+
+    return { locked: false, retry };
+}
+
+
+async function deleteEmailCode(email) {
+    const key = `email:code:${email}`;
+    await redisClient.del(key);
+}
+
 
 export {
     setOnlineUser,
@@ -95,4 +145,9 @@ export {
     getOnlineUserId,
     removeOnlineUserId,
     getAllOnlineUserIds,
+    setEmailCode,
+    getEmailCode,
+    deleteEmailCode,
+    existEmailCooldown,
+    retryKey,
 };

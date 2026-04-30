@@ -8,6 +8,9 @@ import { FaGithub } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { GlobalOutlined } from '@ant-design/icons'
 
+import LoginForm from './components/authPage/LoginForm';
+import RegisterForm from './components/authPage/RegisterForm';
+
 // 用户登录中
 const LoginLoading = ({ credentials }) => {
   const { getAvatarUrl } = useUserAvatar();
@@ -296,64 +299,28 @@ const AuthPage = () => {
           <h2 style={{ textAlign: 'center', marginBottom: '20px', color: '#333' }}>
             {isRegistering ? t('auth.userRegister') : t('auth.userLogin')}
           </h2>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {isRegistering ? (
-              <>
-                <input
-                  type="text"
-                  placeholder={t('auth.email')}
-                  value={email}
-                  maxLength={30}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className='input-box'
-                />
-                <input
-                  type="text"
-                  maxLength={20}
-                  placeholder={t('auth.username')}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
-                  className='input-box'
-                />
-              </>
-            ) : (
-              <input
-                type="text"
-                placeholder={t('auth.userIdOrEmail')}
-                value={username}
-                maxLength={20}
-                onChange={(e) => setUsername(e.target.value)}
-                className='input-box'
-              />
-            )}
-            <input
-              type="password"
-              placeholder={t('auth.password')}
-              maxLength={20}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className='input-box'
+          {isRegistering ? (
+            <RegisterForm
+              socket={socket}
+              email={email}
+              username={username}
+              password={password}
+              confirmPassword={confirmPassword}
+              setEmail={setEmail}
+              setUsername={setUsername}
+              setPassword={setPassword}
+              setConfirmPassword={setConfirmPassword}
+              onSubmit={handleSubmit}
             />
-            {isRegistering && (<input type="password"
-              placeholder={t('auth.confirmPassword')}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className='input-box'
-            />)}
-            <button
-              className='login-btn'
-              type="submit"
-            >
-              {isRegistering ? t('auth.register') : t('auth.login')}
-            </button>
-            <button className='login-btn git-btn' type="button" onClick={() => { window.electronAPI.githubOAuth() }}>
-              <span>
-                <FaGithub size={20} />
-                {t('auth.githubLoginRegister')}
-              </span>
-            </button>
-          </form>
+          ) : (
+            <LoginForm
+              username={username}
+              password={password}
+              setUsername={setUsername}
+              setPassword={setPassword}
+              onSubmit={handleSubmit}
+            />
+          )}
           <p style={{ textAlign: 'center', marginTop: '20px', color: '#666' }}>
             <Dropdown
               menu={{
