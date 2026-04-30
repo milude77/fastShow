@@ -49,8 +49,14 @@ const RegisterForm = ({
         });
     };
 
-    const registerUser = () => {
+    const registerUser = (e) => {
+        e.preventDefault();
+        if (password !== confirmPassword) {
+            messageApi.error('两次密码输入不一致');
+            return;
+        }
         socket.emit('register-user', { username, password, email });
+        onSubmit()
     }
 
     if (codeSended) {

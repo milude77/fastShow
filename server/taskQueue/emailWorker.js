@@ -26,7 +26,7 @@ const worker = new Worker(
         from: process.env.EMAIL_FROM, // 必须是已验证域名
         to: email,
         subject: 'fastShow verification code',
-        text: `您的验证码是 ${code}，5分钟内有效，请勿泄露。`,
+        text: `感谢您参与 fastShow！您的验证码是 ${code}，5分钟内有效，请勿泄露。`,
       });
 
       return res; // 返回结果给 BullMQ

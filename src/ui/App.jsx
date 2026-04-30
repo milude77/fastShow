@@ -307,7 +307,6 @@ function App() {
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
-      socket.off('user-registered', handleLoginSuccess);
       socket.off('new-message', handleNewMessage);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
@@ -416,7 +415,6 @@ function App() {
 
 
   if (!currentUser) {
-
     return (
       <div>
         <AppHeaderBar />

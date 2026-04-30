@@ -213,9 +213,7 @@ const AuthPage = () => {
 
     const credentials = { userId: username, password };
 
-    if (isRegistering) {
-      socket.emit('register-user', { username, password, email });
-    } else {
+    if (!isRegistering) {
       socket.emit('login-user', credentials);
     }
   };
