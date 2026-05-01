@@ -126,11 +126,11 @@
 .name-info,
 .email-info {
   display: flex;
+  padding-top: 5px;
   align-items: center;
   width: 100%;
   margin-bottom: 10px;
 }
-
 
 .info-lable {
   flex-shrink: 0;
@@ -139,7 +139,7 @@
   margin-right: 10px;
 }
 
-.id-info label:last-child,
+.id-info .ant-input,
 .name-info .ant-input,
 .email-info .ant-input,
 .email-info:not(:has(.ant-input)) div {

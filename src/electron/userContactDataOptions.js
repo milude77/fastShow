@@ -47,6 +47,7 @@ export const handleContactsList = async (db, payload) => {
                 version: f.version,
             }));
             await db('friends').insert(rows).onConflict('id').ignore();
+            console.log('情况2')
         }
 
         if (groupsToAdd.length > 0) {
@@ -81,7 +82,6 @@ export const handleContactCompareResult = async (payload) => {
             //处理新增好友
             if (action === 'friend_add') {
                 const { friend_id, username, infoVersion } = event_data;
-
                 await db('friends').insert({
                     id: friend_id,
                     userName: username,

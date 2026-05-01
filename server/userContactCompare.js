@@ -11,6 +11,7 @@ export async function compareContactInformation(userId, currentVersion) {
     // 获取自上次同步以来的所有事件
     const events = await db('user_event')
         .where('user_id', userId)
+        .andWhere('id', '>', currentVersion)
         .select('*')
         .orderBy('created_at', 'asc');
 

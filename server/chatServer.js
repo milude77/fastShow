@@ -1270,6 +1270,14 @@ io.on('connection', (socket) => {
         }
     })
 
+    socket.on('hangup', async ({ roomId, targetId }) => {
+        if (targetId) {
+            socket.to(targetId).emit('hangup', { roomId });
+        }
+        else {
+            socket.to(roomId).emit('hangup', { roomId });
+        }
+    })
 });
 
 // 静态文件服务（用于文件下载）

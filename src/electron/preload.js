@@ -83,6 +83,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   videoCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'video' }),
   receivedCallRequest: ({ callerUserId, callerId, roomId, offer, callMode }) => ipcRenderer.send('voice-call-to-contact', { contactId: callerUserId, callerId, roomId, offer, callMode }),
   hangupCall: () => ipcRenderer.send('hangup-call'),
+  closeCallWindow: () => ipcRenderer.send('close-voice-call'),
 
   //设置相关
   updateLanguage: (language) => ipcRenderer.send('update-language', language),

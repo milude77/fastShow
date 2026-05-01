@@ -19,6 +19,7 @@ const GroupMember = React.memo(({ members }) => {
                         <div className="group-member" key={member.member_id}>
                             <Avatar src={getAvatarUrl(member.member_id)} size={20} />
                             <span>{member.member_name}</span>
+                            {member.role == 'owner' && <span style={{ backgroundColor: 'var(--tool-bar-selected-color)', padding: '0 4px', borderRadius: '4px' }} className="member-role">群主</span>}
                         </div>
                     )}
                 />

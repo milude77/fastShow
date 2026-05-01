@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useSocket } from "./useSocket";
 
-export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) => {
+
+export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer, messageApi }) => {
   const socket = useSocket();
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
@@ -134,8 +135,11 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
     localStreamRef.current?.getTracks().forEach(track => track.stop());
     localStreamRef.current = null;
     remoteStreamRef.current = new MediaStream();
-    setCallStatus("idle");
     setRemotePeerId(null);
+    socket.emit("hangup", { roomId, targetId: remotePeerId });
+    setTimeout(() => {
+      window.electronAPI.closeCallWindow();
+    }, 500);
   }, []);
 
   // 接受呼叫
@@ -220,6 +224,13 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
     }
   };
 
+  const handleHangup = () => {
+    messageApi.info('对方已挂断,通话结束');
+    setTimeout(() => {
+      window.electronAPI.closeCallWindow();
+    }, 1500);
+  }
+
   // 初始化
   useEffect(() => {
     if (!socket) return;
@@ -236,15 +247,16 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
     socket.on("answer", handleAnswer);
     socket.on("ice-candidate", handleCandidate);
     socket.on("call-request", handleCallRequest);
+    socket.on('hangup', handleHangup)
 
     return () => {
       socket.off("offer", handleOffer);
       socket.off("answer", handleAnswer);
       socket.off("ice-candidate", handleCandidate);
       socket.off("call-request", handleCallRequest);
-      closeCall();
+      socket.off('hangup', handleHangup)
     };
-  }, [socket]);
+  }, []);
 
   // 切换视频模式
   const toggleVideoMode = async () => {
@@ -324,7 +336,7 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer }) =
       console.log(`麦克风状态已切换为 ${newStatus}`);
 
     }
-    else{
+    else {
       console.warn("没有找到音频轨道，无法切换麦克风状态");
     }
   }, [openMicrophone]);

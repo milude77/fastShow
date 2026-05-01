@@ -630,6 +630,7 @@ app.whenReady().then(() => {
         app.quit();
         return;
     }
+
     logger.info('Application is ready. Creating windows and initializing components.');
 
     protocol.registerFileProtocol('avatar', (request, callback) => {
@@ -696,6 +697,13 @@ ipcMain.on('close-window', () => {
         app.quit();
     }
 });
+
+ipcMain.on('close-voice-call', () => {
+    if (voiceWindow) {
+        voiceWindow.close();
+        voiceWindow = null;
+    }
+})
 
 ipcMain.on('resize-window', (event, { width, height }) => {
     const window = BrowserWindow.fromWebContents(event.sender);

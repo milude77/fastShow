@@ -6,6 +6,7 @@ import { LocalVideoView } from './components/voiceModel/LocalVideoView';
 import { RemoteVideoView } from './components/voiceModel/RemoteVideoView';
 import { CallControlBar } from './components/voiceModel/CallControlBar';
 import { WifiOutlined } from '@ant-design/icons';
+import { message } from "antd";
 
 const VoiceApp = () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -25,6 +26,7 @@ const VoiceApp = () => {
 
   const [showHeaderBar, setShowHeaderBar] = useState(false);
   const [voiceStreamStatusBarOpen, setVoiceStreamStatusBarOpen] = useState(false);
+  const [ messageApi, contextHolder ] = message.useMessage();
 
 
   const {
@@ -42,7 +44,7 @@ const VoiceApp = () => {
     voiceStreamStatus,
     monitorstatus,
     remoteVideoTrackId
-  } = useVoiceCall({ userId, contactId, callerId, callMode, roomId, offer });
+  } = useVoiceCall({ userId, contactId, callerId, callMode, roomId, offer, messageApi });
 
   const [wifiStatusStyle, setWifiStatusStyle] = useState({
     color: voiceStreamStatus?.rtt > 100 ? "red" : "green"
@@ -113,6 +115,7 @@ const VoiceApp = () => {
 
   return (
     <div>
+      {contextHolder}
       <AppHeaderBar
         ref={headerBarRef}
         style={{ background: showHeaderBar ? 'rgba(200, 200, 200, 0.3)' : 'transparent' }}
