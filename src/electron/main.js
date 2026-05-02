@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, session, desktopCapturer, webContents } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, session, desktopCapturer } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { io } from 'socket.io-client';
@@ -286,7 +286,7 @@ async function writeChatHistory(contactId, msg) {
             receiver_id: msg.sender == 'user' ? contactId : (msg.type == 'private' ? currentUserId : contactId),
             text: msg.text || '',
             username: msg.username || '',
-            timestamp: msg.timestamp || new Date(),
+            timestamp: msg.timestamp || Date().now(),
             sender: msg.sender || 'user',
             messageType: msg.messageType || 'text',
             fileName: msg.fileName || null,
@@ -915,7 +915,7 @@ const handleNewMessage = async (msg) => {
         text: msg.content,
         sender: msg.senderId == currentUserId ? 'user' : 'other',
         sender_id: msg.senderId,
-        timestamp: msg.timestamp ? msg.timestamp : Date.now(),
+        timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
         username: msg.username,
         fileName: msg.fileName,
         messageType: msg.messageType,
