@@ -32,10 +32,19 @@ export const avatarUpload = async (blob) => {
 
 export const groupAvatarUpload = async (blob, groupId) => {
     try {
-        const initiateResponse = await apiClient.post(`api/avatar/initiate`, {
-            isGroupAvatar: true,
-            groupId: groupId
-        });
+        let initiateResponse;
+        try {
+            initiateResponse = await apiClient.post(`api/avatar/initiate`, {
+                isGroupAvatar: true,
+                groupId: groupId
+            });
+        } catch (error) {
+            // 捕获错误并返回结构化错误对象
+            const status = error.response?.status || 0;
+            const data = error.response?.data || {};
+            console.log('Initiate failed:', status, data);
+            return { status, data };
+        }
         const { presignedUrl, objectName } = initiateResponse.data;
 
         await axios.put(presignedUrl, blob, {

@@ -86,7 +86,7 @@ const AvatarUploader = ({ onClose, imgSrc, isGroupAvatarUpload = false, groupId 
           refreshAvatar()
           onClose()
         } else {
-          messageApi.error(t('avatarUploader.uploadFailed'))
+          messageApi.error(`${t('avatarUploader.uploadFailed')},${message?.data?.error}`)
         }
 
       } catch (e) {
