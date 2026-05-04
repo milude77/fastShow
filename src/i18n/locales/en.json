@@ -203,5 +203,17 @@
     "noAccount": "Don't have an account?",
     "goToLogin": "Go to Login",
     "goToRegister": "Go to Register"
+  },
+  "time": {
+    "justNow": "Just now",
+    "secondsAgo": "seconds ago",
+    "minutesAgo": "minutes ago",
+    "hoursAgo": "hours ago",
+    "daysAgo": "days ago",
+    "weeksAgo": "weeks ago",
+    "monthsAgo": "months ago",
+    "yearsAgo": "years ago",
+    "yesterday": "Yesterday",
+    "weekdays": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
   }
 }

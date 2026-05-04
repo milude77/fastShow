@@ -207,5 +207,17 @@
   "yourFeature": {
     "title": "功能标题",
     "description": "功能描述"
+  },
+  "time": {
+    "justNow": "刚刚",
+    "secondsAgo": "秒前",
+    "minutesAgo": "分钟前",
+    "hoursAgo": "小时前",
+    "daysAgo": "天前",
+    "weeksAgo": "周前",
+    "monthsAgo": "月前",
+    "yearsAgo": "年前",
+    "yesterday": "昨天",
+    "weekdays": ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
   }
 }

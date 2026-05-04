@@ -58,8 +58,8 @@ const ContactInformation = ({ contactInformation, toSendMessage }) => {
                 src={`${serverUrl}/api/avatar/${contactInformation.id}/${contactInformation.type === 'group' ? 'group' : 'user'}`}
                 alt="avatar"
             />
-            <p style={{ textAlign: 'center' }}>id: {contactInformation?.id}</p>
-            <p style={{ textAlign: 'center' }}>Name: {contactInformation?.username}</p>
+            <p style={{ textAlign: 'center' }}>{t('avatarUploader.idLabel')}{contactInformation?.id}</p>
+            <p style={{ textAlign: 'center' }}>{t('avatarUploader.nicknameLabel')}{contactInformation?.username}</p>
             <Button className='contact-information-button' type="primary" onClick={() => toSendMessage(contactInformation)} >{t('contact.sendMessage')}</Button>
         </div>
     );

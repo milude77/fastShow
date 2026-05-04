@@ -2,7 +2,7 @@
     background-color: var(--information-bg-color);
     color: var(--text-color);
     scrollbar-color: transparent transparent;
-    scrollbar-width: 10px;
+    scrollbar-width: thin;
     overflow-x: hidden;
     flex-grow: 1;
 }
@@ -73,8 +73,6 @@
     background-color: var(--hover-contact-background-color);
 }
 
-
-
 .message-send-btn {
     position: absolute;
     width: 80px;
@@ -127,9 +125,9 @@
 }
 
 .message-content {
-    display: 1;
-    padding: 8px 12px;
-    border-radius: var(--border-radius);
+    min-width: 0;
+    padding: 8px 8px;
+    border-radius: var(--border-radius);  
 }
 
 .message-status {
@@ -157,6 +155,8 @@
     font-size: 16px;
     color: var(--text-color);
     overflow-wrap: break-word;
+    word-break: break-word;
+    display: inline-block;
 }
 
 .file-message-content {
@@ -182,13 +182,12 @@
     text-overflow: ellipsis;
     max-width: 120px;
     display: inline-block;
-
 }
 
 
 
 .message-send-box {
-    flex: 0 0 auto !important;
+    flex: 0 0 auto;
 }
 
 

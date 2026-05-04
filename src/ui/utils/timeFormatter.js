@@ -1,4 +1,5 @@
 // src/utils/timeFormatter.js
+import i18n from '../../i18n/index.js';
 export const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     const now = new Date();
@@ -20,13 +21,13 @@ export const formatTime = (timestamp) => {
     
     // 如果是昨天
     if (targetDate.getTime() === yesterday.getTime()) {
-        return '昨天 ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return i18n.t('time.yesterday') + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     
     // 如果是一周内的其他天
     if (diffDays <= 7) {
-        const daysOfWeek = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const dayName = daysOfWeek[date.getDay()];
+        const weekdays = i18n.t('time.weekdays', { returnObjects: true });
+        const dayName = weekdays[date.getDay()];
         return dayName + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     
