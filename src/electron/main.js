@@ -247,6 +247,15 @@ async function readChatHistory(
             .orderBy('timestamp', 'desc')
             .limit(pageSize);
 
+        history.forEach(message => {
+            message.timestamp = new Date(message.timestamp).getTime();
+        });
+
+        history.sort((a, b) => {
+            return b.timestamp - a.timestamp;
+        });
+
+
         return history.reverse();
     } catch (error) {
         console.error(`Failed to read chat history for contact ${contactId}:`, error);

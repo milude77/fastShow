@@ -71,7 +71,9 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer, mes
       });
 
       const pc = peerConnectionRef.current;
+
       remoteStreamRef.current = new MediaStream();
+
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
@@ -115,10 +117,15 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer, mes
         }
       };
 
-      // 添加本地轨道
-      localStreamRef.current?.getTracks().forEach((track) => {
-        pc.addTrack(track, localStreamRef.current);
-      });
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          pc.addTrack(track, localStreamRef.current);
+        });
+      } else {
+        console.warn("PC创建时本地流尚未准备好，将无法发送媒体轨道");
+      }
+
+
 
       return pc;
     } catch (error) {
@@ -147,7 +154,7 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer, mes
     if (!remotePeerId) return;
     setCallStatus("connecting");
     await getLocalVoiceStream();
-    handleOffer({ offer, senderId: remotePeerId });
+    await handleOffer({ offer, senderId: remotePeerId });
   };
 
   // 发起呼叫
@@ -235,11 +242,16 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer, mes
   useEffect(() => {
     if (!socket) return;
 
-    getLocalVoiceStream();
+    const init = async () => {
+      // 预先获取流，并确保按照初始模式获取
+      await getLocalVoiceStream();
 
-    if (callerId && callerId !== 'null' && callerId !== 'undefined') {
-      handleCallRequest({ callerId });
-    }
+      if (callerId && callerId !== 'null' && callerId !== 'undefined') {
+        handleCallRequest({ callerId });
+      }
+    };
+
+    init();
 
     socket.emit("join-room", roomId);
 
