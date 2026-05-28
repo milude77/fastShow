@@ -127,7 +127,10 @@
     "delete": "删除好友",
     "invite": "邀请",
     "sendMessage": "发消息",
-    "confirmDeleteMsg": "确定要删除该好友吗？"
+    "confirmDeleteMsg": "确定要删除该好友吗？",
+    "updateGroupName":"更改群名称为 {{newGroupName}} ?",
+    "updateGroupNameError": "更改群名称失败，请稍后再试",
+    "updateGroupNameSuccess": "群名称修改成功"
   },
   "file": {
     "tooLarge": "文件过大",

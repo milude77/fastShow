@@ -104,6 +104,7 @@ export const userLogin = async (socket, data) => {
         await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
         await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
         socket.emit('login-success', { userId: formattedId, username: user.username, refreshToken, token, email: user.email });
+        await userJoinGroupRoom(socket, formattedId); // 用户登录后加入群组房间
 
     } catch (error) {
         logger.error('登录失败:', { error, data });
@@ -152,6 +153,7 @@ export const userLoginWithToken = async (socket, data) => {
         await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
         await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
         socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken, refreshToken, email: user.email });
+        await userJoinGroupRoom(socket, formattedId);
 
     } catch (error) {
         logger.error('Token登录失败:', { error, data });
@@ -162,6 +164,14 @@ export const userLoginWithToken = async (socket, data) => {
             socket.emit('notification', { status: 'error', message: '登录失败，请稍后再试' });
             socket.emit('login-failed', { message: '登录失败，请稍后再试' });
         }
+    }
+}
+
+async function userJoinGroupRoom(socket, userId) {
+    const groupList = await db('group_members').where('user_id', userId).select('group_id');
+    if (!groupList.length) return
+    for (const group of groupList) {
+        socket.join(`group:${group.group_id}`);
     }
 }
 

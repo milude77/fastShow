@@ -78,6 +78,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   logout: () => ipcRenderer.send('logout'),
   writeLog: (logEntry) => ipcRenderer.send('write-log', logEntry),
 
+  //群聊相关
+  updateGroupName:(groupId, newGroupName) => ipcRenderer.invoke('update-group-name', { groupId, newGroupName }),
+
   //音视频通话功能配置
   voiceCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'audio' }),
   videoCallToContact: (contactId) => ipcRenderer.send('voice-call-to-contact', { contactId, callMode: 'video' }),

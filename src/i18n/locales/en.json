@@ -127,7 +127,10 @@
     "delete": "Delete Friend",
     "invite": "Invite",
     "sendMessage": "Send Message",
-    "confirmDeleteMsg": "Are you sure you want to delete this friend?"
+    "confirmDeleteMsg": "Are you sure you want to delete this friend?",
+    "updateGroupName": " Update Group Name, {{ newGroupName }} ? ",
+    "updateGroupNameError": "Group name update failed, please try again later",
+    "updateGroupNameSuccess": "Group name updated successfully"
   },
   "file": {
     "tooLarge": "File Too Large",
@@ -214,6 +217,14 @@
     "monthsAgo": "months ago",
     "yearsAgo": "years ago",
     "yesterday": "Yesterday",
-    "weekdays": ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    "weekdays": [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ]
   }
 }

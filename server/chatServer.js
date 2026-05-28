@@ -612,9 +612,6 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const groupMembers = await db('group_members')
-            .where({ group_id: groupId })
-            .select('user_id');
 
         const sendTimestamp = new Date();
 
@@ -646,13 +643,7 @@ io.on('connection', (socket) => {
         await updateGroupMessageVersion(groupId, id)
 
         socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId: group.id, isGroup: true, versionId: id });
-        const onlineUsersIds = await getAllOnlineUserIds();
-        for (const member of groupMembers) {
-            if (onlineUsersIds.has(member.user_id) && member.user_id !== senderInfo.userId) {
-                const targetSocketId = onlineUsersIds.get(member.user_id).socketId;
-                io.to(targetSocketId).emit('new-message', savedMessage);
-            }
-        }
+        io.to(`group:${groupId}`).emit('new-message', savedMessage);
     });
 
 
@@ -914,17 +905,7 @@ io.on('connection', (socket) => {
 
             await updateGroupMemberVersion(newMemberInformation.groupId, id);
 
-            const groupMembers = await db('group_invitations')
-                .where({ 'group_invitations.id': requesterId })
-                .join('group_members as gm', 'group_invitations.group_id', 'gm.group_id')
-                .select('gm.user_id');
-
-            const onlineUsersIds = await getAllOnlineUserIds();
-            groupMembers.map(member => {
-                if (onlineUsersIds.get(member.id)) {
-                    io.to(onlineUsersIds.get(member.id)).socketId.emit('group-member-update');
-                }
-            })
+            io.to(`group:${newMemberInformation.groupId}`).emit('group-member-update');
         } catch (error) {
             console.error('Error accepting group invite:', error);
         }
@@ -981,7 +962,6 @@ io.on('connection', (socket) => {
                 updated_at: new Date(),
             };
 
-            // 存储群组到数据库（假设有一个 groups 表）
             await db('groups').insert(group);
 
             await db('group_members').insert({
@@ -1042,14 +1022,21 @@ io.on('connection', (socket) => {
 
             const checkedContactIds = [...checkedContacts.map(c => c.id), senderInfo.userId];
             const onlineUsersIds = await getAllOnlineUserIds();
-            const onlineMemberSockets = checkedContactIds
-                .map(id => onlineUsersIds.get(id)?.socketId)
+            socket.join(`group:${nextId}`);
 
+            // 处理其他在线成员
+            for (const memberId of checkedContactIds) {
+                if (memberId === senderInfo.userId) continue; // 群主已处理
 
-            // 向所有在线群成员发送消息
-            onlineMemberSockets.forEach(socketId => {
-                io.to(socketId).emit('contact-update');
-            });
+                const userOnlineInfo = onlineUsersIds.get(memberId);
+                if (userOnlineInfo?.socketId) {
+                    const memberSocket = io.sockets.sockets.get(userOnlineInfo.socketId);
+                    if (memberSocket) {
+                        memberSocket.join(`group:${nextId}`);
+                    }
+                }
+            }
+            io.to(`group:${nextId}`).emit('group-member-update');
         } catch (error) {
             console.error('Error creating group:', error);
             socket.emit('notification', { status: 'error', message: '创建群组失败' });
@@ -1083,6 +1070,7 @@ io.on('connection', (socket) => {
             await db('groups').where({ id: groupId }).update({
                 member_version: id,
             });
+            socket.leave(groupId);
 
             socket.emit('leave-group-success', groupId);
         } catch (error) {
@@ -1278,6 +1266,57 @@ io.on('connection', (socket) => {
             socket.to(roomId).emit('hangup', { roomId });
         }
     })
+
+    socket.on('update-group-name', async ({ groupId, newGroupName }, ack) => {
+        const userInfo = await getOnlineUser(socket.id);
+        if (!userInfo) {
+            ack({
+                success: false,
+                message: '用户未登录'
+            });
+            return;
+        };
+        const groupInfo = await db('groups').where({ id: groupId }).first();
+        if (!groupInfo) {
+            ack({
+                success: false,
+                message: '群组不存在'
+            });
+            return;
+        }
+
+        const operatorInfo = await db('group_members').where({ group_id: groupId, user_id: userInfo.userId }).first();
+        if (!operatorInfo) {
+            ack({
+                success: false,
+                message: '用户未加入群组'
+            });
+            return;
+        }
+        if (operatorInfo.role !== 'owner') {
+            ack({
+                success: false,
+                message: '只有群主才能修改群名称'
+            });
+            return;
+        }
+        try {
+            await db('groups').where({ id: groupId }).update({ name: newGroupName });
+            socket.to(`group:${groupId}`).emit('group-info-update', { groupId, newGroupName });
+
+            ack({
+                success: true,
+                message: '群组名称更新成功'
+            });
+        } catch (error) {
+            logger.error('Error updating group name:', error);
+            ack({
+                success: false,
+                message: '群组名称更新失败'
+            });
+        }
+    })
+
 });
 
 // 静态文件服务（用于文件下载）
@@ -1432,16 +1471,8 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
             await updateGroupMessageVersion(receiverId, id);
 
             savedMessage.receiverId = receiverId
-            const groupMembers = await db('group_members')
-                .where({ group_id: receiverId })
-                .select('user_id');
-            const onlineUsersIds = await getAllOnlineUserIds();
-            for (const member of groupMembers) {
-                if (onlineUsersIds.has(member.user_id) && member.user_id !== senderId) {
-                    const targetSocketId = onlineUsersIds.get(member.user_id)?.socketId;
-                    io.to(targetSocketId).emit('new-message', savedMessage);
-                }
-            }
+            io.to(`group:${receiverId}`).emit('new-message', savedMessage);
+
         }
         else {
             newMessage.room_id = `private_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;

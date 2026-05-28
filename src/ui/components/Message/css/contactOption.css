@@ -1,5 +1,6 @@
 .contact-option {
     display: flex;
+    align-content: center;
     box-sizing: border-box;
     position: absolute;
     flex-direction: column;

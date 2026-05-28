@@ -1970,6 +1970,45 @@ ipcMain.on('update-group-member-version', async (event, { groupId, version, grou
     })
 })
 
+ipcMain.handle('update-group-name', async (event, { groupId, newGroupName }) => {
+    if (socket) {
+        try {
+            const response = await new Promise((resolve, reject) => {
+                socket.timeout(5000).emit('update-group-name', { groupId, newGroupName }, (err, res) => {
+                    if (err) {
+                        reject(err);
+                        return
+                    } else {
+                        resolve(res);
+                    }
+                })
+            })
+
+            if (!response.success) {
+                return {
+                    success: false,
+                    error: response.error
+                }
+            }
+            return {
+                success: true,
+                data: response
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            }
+        }
+    }
+    else {
+        return {
+            success: false,
+            error: '未连接服务器'
+        }
+    }
+})
+
 
 
 const loginId = uuidv4();

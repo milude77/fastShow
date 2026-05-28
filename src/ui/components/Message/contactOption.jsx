@@ -5,6 +5,7 @@ import Avatar from '../avatar.jsx';
 import { useGlobalModal } from '../../hooks/useModalManager.js';
 import { useTranslation } from 'react-i18next';
 import { useUserAvatar } from '../../hooks/useAvatar.js';
+import { Input } from 'antd';
 
 const ContactOption = ({ contact, currentUser, openContactOptions, onClose, groupMemberList, messageApi }) => {
     const { t } = useTranslation();
@@ -13,6 +14,13 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
     const [serverUrl, setServerUrl] = useState('');
     const { openModal } = useGlobalModal();
     const { getAvatarUrl } = useUserAvatar();
+    const editableGroupName = useRef(contact.username);
+    const [changeGroupName, setChangeGroupName] = useState(contact.username);
+
+    useEffect(() => {
+        editableGroupName.current = changeGroupName;
+    }, [changeGroupName]);
+
 
 
     useEffect(() => {
@@ -22,6 +30,9 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
         const handleClickOutside = (event) => {
             if (event.target.closest('.ant-modal-root') || event.target.closest('#contact-options-btn')) {
                 return;
+            }
+            if (editableGroupName.current !== contact.username) {
+                return
             }
             if (optionRef.current && !optionRef.current.contains(event.target)) {
                 onClose();
@@ -113,6 +124,39 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
         }
     };
 
+    const handleGroupNameBlur = async () => {
+        if (editableGroupName.current.trim() && editableGroupName.current !== contact.username) {
+            try {
+                modal.confirm({
+                    zIndex: 2000,
+                    centered: true,
+                    maskClosable: false,
+                    title: (
+                        <>
+                            {t('contact.updateGroupName', { newGroupName: editableGroupName.current })}
+                        </>
+                    ),
+                    onOk: async () => {
+                        const res = await window.electronAPI.updateGroupName(contact.id, editableGroupName.current)
+                        if (res.success){
+                            messageApi.success(t('contact.updateGroupNameSuccess'))
+                        }
+                        else{
+                            messageApi.error(t('contact.updateGroupNameError'))
+                        }
+                    },
+                    onCancel: () => {
+                        setChangeGroupName(contact.username)
+                    },
+                });
+            }
+            catch {
+                messageApi.error(t('contact.updateGroupNameError'))
+            }
+
+        }
+    }
+
     return (
         <div ref={optionRef} className={`contact-option ${openContactOptions ? 'visible' : ''}`} >
             {modalContextHolder}
@@ -181,6 +225,18 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
                     </div>
                 </div>
             }
+
+            {contact.type === 'group' && (
+                <div style={{ margin: '0px 10px', padding: '10px 0px' }} >
+                    <span className="group-name-input">群聊名称</span>
+                    <Input readOnly={contact.myRole == 'member'}
+                        value={changeGroupName}
+                        onChange={(e) => setChangeGroupName(e.target.value)}
+                        onBlur={handleGroupNameBlur}
+                    />
+                </div>
+            )}
+
             <button className="delete-message-history" onClick={() => handleDeleteContactMessageHistory(contact)} >{t('contact.clearHistory')}</button>
             {contact.type === 'group' ?
                 <button className="delete-message-history" onClick={() => handleLeaveGroup(contact)} >{t('group.leave')}</button>
