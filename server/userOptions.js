@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { setOnlineUser, removeOnlineUser, setOnlineUserId, getOnlineUserId, removeOnlineUserId } from './redisClient.js';
-import { io, db } from './chatServer.js';
+import { setOnlineUser, setOnlineUserId } from './redisClient.js';
+import { db } from './chatServer.js';
 import logger from './logger.js';
 
 const JSON_WEB_TOKEN_SECRET = process.env.JWT || 'your_secret_key';
@@ -25,16 +25,16 @@ export const registerUser = async (socket, data) => {
         let formattedId;
 
         await db.transaction(async (trx) => {
-            // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
-            const lastUser = await trx('users')
-                .orderBy('id', 'desc')
-                .first()
-                .forUpdate();
+            const result = await trx.raw(`
+                SELECT LPAD(
+                    nextval('user_id_seq')::text,
+                    6,
+                    '0'
+                ) as id
+            `);
 
-            const nextId = (parseInt(lastUser?.id || '0', 10)) + 1;
-            formattedId = nextId.toString().padStart(6, '0');
+            formattedId = result.rows[0].id;
 
-            // 插入新用户
             await trx('users').insert({
                 id: formattedId,
                 username,
@@ -82,28 +82,13 @@ export const userLogin = async (socket, data) => {
             return;
         }
 
-        const existingSocketInfo = await getOnlineUserId(userId);
-
-        // 检查用户是否已登录
-        if (existingSocketInfo) {
-            const targetSocketId = existingSocketInfo.socketId;
-            const targetSocket = io.sockets.sockets.get(targetSocketId);
-            if (targetSocket) {
-                targetSocket.emit('strong-logout-warning', { message: '在其他设备登录,已强制下线' });
-            }
-
-            // 清理用户数据
-            await removeOnlineUserId(userId);
-            await removeOnlineUser(targetSocketId);
-        }
-
-        // 登录成功
         const formattedId = String(user.id).padStart(6, '0');
         const token = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
         const refreshToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '7d' });
         await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
         await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
         socket.emit('login-success', { userId: formattedId, username: user.username, refreshToken, token, email: user.email });
+        socket.join(`user:${formattedId}`);
         await userJoinGroupRoom(socket, formattedId); // 用户登录后加入群组房间
 
     } catch (error) {
@@ -131,21 +116,6 @@ export const userLoginWithToken = async (socket, data) => {
             return;
         }
 
-        const userId = decoded.userId;
-        const existingSocketInfo = await getOnlineUserId(userId);
-
-        // 检查用户是否已登录
-        if (existingSocketInfo) {
-            const targetSocketId = existingSocketInfo.socketId;
-            const targetSocket = io.sockets.sockets.get(targetSocketId);
-            if (targetSocket) {
-                targetSocket.emit('strong-logout-warning', { message: '在其他设备登录,已强制下线' });
-            }
-            // 清理用户数据
-            await removeOnlineUserId(userId);
-            await removeOnlineUser(targetSocketId);
-        }
-
         const formattedId = String(user.id).padStart(6, '0');
 
         const newToken = jwt.sign({ userId: formattedId, username: user.username }, JSON_WEB_TOKEN_SECRET, { expiresIn: '2d' });
@@ -153,6 +123,7 @@ export const userLoginWithToken = async (socket, data) => {
         await setOnlineUser(socket.id, { userId: formattedId, username: user.username, email: user.email });
         await setOnlineUserId(formattedId, { socketId: socket.id, username: user.username, email: user.email });
         socket.emit('login-success', { userId: formattedId, username: user.username, token: newToken, refreshToken, email: user.email });
+        socket.join(`user:${formattedId}`);
         await userJoinGroupRoom(socket, formattedId);
 
     } catch (error) {

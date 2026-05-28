@@ -935,111 +935,117 @@ io.on('connection', (socket) => {
 
 
     socket.on('create-group', async ({ checkedContacts }) => {
-        const senderInfo = await getOnlineUser(socket.id);
-        if (!senderInfo || !checkedContacts || checkedContacts.length === 0) return;
 
-        let groupName = '';
+        const senderInfo = await getOnlineUser(socket.id);
+
+        if (!senderInfo || !checkedContacts?.length) {
+            return;
+        }
+
         const nowDate = new Date();
 
+        let groupName = '';
+
         if (checkedContacts.length < 2) {
-            groupName = `${senderInfo.username},${checkedContacts[0].username}`;
-        }
-        else {
-            groupName = `${senderInfo.username},${checkedContacts.slice(0, 2).map(c => c.username).join(',')}`;
+
+            groupName =
+                `${senderInfo.username},${checkedContacts[0].username}`;
+
+        } else {
+
+            groupName =
+                `${senderInfo.username},${checkedContacts
+                    .slice(0, 2)
+                    .map(c => c.username)
+                    .join(',')
+                }`;
         }
 
         if (checkedContacts.length > 2) {
-            groupName += `等人的群聊`;
+            groupName += '等人的群聊';
         }
 
         try {
-            const maxIdResult = await db('groups').max('id as maxId').first();
-            const nextId = (+maxIdResult.maxId || 100000) + 1;
-            const group = {
-                id: nextId,
-                name: groupName,
-                created_at: new Date(),
-                updated_at: new Date(),
-            };
 
-            await db('groups').insert(group);
+            let groupId = '';
 
-            await db('group_members').insert({
-                group_id: nextId,
-                user_id: senderInfo.userId,
-                user_name: senderInfo.username,
-                created_at: nowDate,
-                updated_at: nowDate,
-                role: 'owner'
-            },
-            );
+            await db.transaction(async (trx) => {
+                const result = await trx.raw(`
+                SELECT LPAD(
+                    nextval('group_id_seq')::text,
+                    6,
+                    '0'
+                ) as id
+            `);
+                groupId = result.rows[0].id;
 
-            const idResult = await db('user_event')
-                .insert({
-                    user_id: senderInfo.userId,
-                    action: 'group_added',
-                    event_data: JSON.stringify({
-                        groupId: nextId,
-                        groupName,
-                        createdAt: nowDate,
-                        joinedAt: nowDate,
-                        type: 'group',
-                        role: 'owner'
-                    })
-                })
-                .returning('id');
-            const id = idResult[0].id;
-            await updateUserContactVersion(senderInfo.userId, id);
-
-
-            for (const contact of checkedContacts) {
-                await db('group_members').insert({
-                    group_id: nextId,
-                    user_id: contact.id,
-                    user_name: contact.username,
+                await trx('groups').insert({
+                    id: groupId,
+                    name: groupName,
                     created_at: nowDate,
-                    updated_at: nowDate,
-                    role: 'member'
+                    updated_at: nowDate
                 });
-                const idResult = await db('user_event').insert({
-                    user_id: contact.id,
+
+                const allMembers = [
+                    {
+                        group_id: groupId,
+                        user_id: senderInfo.userId,
+                        user_name: senderInfo.username,
+                        created_at: nowDate,
+                        updated_at: nowDate,
+                        role: 'owner'
+                    },
+                    ...checkedContacts.map(contact => ({
+                        group_id: groupId,
+                        user_id: contact.id,
+                        user_name: contact.username,
+                        created_at: nowDate,
+                        updated_at: nowDate,
+                        role: 'member'
+                    }))
+                ];
+                await trx('group_members')
+                    .insert(allMembers);
+
+                const events = allMembers.map(member => ({
+                    user_id: member.user_id,
                     action: 'group_added',
                     event_data: JSON.stringify({
-                        groupId: nextId,
+                        groupId,
                         groupName,
                         createdAt: nowDate,
                         joinedAt: nowDate,
                         type: 'group',
-                        role: 'member'
+                        role: member.role
                     })
-                }).returning('id');
-                const id = idResult[0].id;
-                await updateUserContactVersion(contact.id, id);
-            }
+                }));
 
+                await trx('user_event')
+                    .insert(events);
+            });
+
+            const memberIds = [
+                senderInfo.userId,
+                ...checkedContacts.map(c => c.id)
+            ];
+            for (const memberId of memberIds) {
+
+                io.to(`user:${memberId}`)
+                    .socketsJoin(`group:${groupId}`);
+            }
+            io.to(`group:${groupId}`)
+                .emit('group-member-update');
             socket.emit('grops-create-success');
-            socket.emit('notification', { status: 'success', message: `群聊创建成功` });
-
-            const checkedContactIds = [...checkedContacts.map(c => c.id), senderInfo.userId];
-            const onlineUsersIds = await getAllOnlineUserIds();
-            socket.join(`group:${nextId}`);
-
-            // 处理其他在线成员
-            for (const memberId of checkedContactIds) {
-                if (memberId === senderInfo.userId) continue; // 群主已处理
-
-                const userOnlineInfo = onlineUsersIds.get(memberId);
-                if (userOnlineInfo?.socketId) {
-                    const memberSocket = io.sockets.sockets.get(userOnlineInfo.socketId);
-                    if (memberSocket) {
-                        memberSocket.join(`group:${nextId}`);
-                    }
-                }
-            }
-            io.to(`group:${nextId}`).emit('group-member-update');
+            socket.emit('notification', {
+                status: 'success',
+                message: '群聊创建成功'
+            });
         } catch (error) {
-            console.error('Error creating group:', error);
-            socket.emit('notification', { status: 'error', message: '创建群组失败' });
+            console.error(error);
+            socket.emit('notification', {
+                status: 'error',
+                message: '创建群组失败'
+            });
         }
     });
 
@@ -1772,14 +1778,15 @@ async function githubCallback(req, res) {
 
         if (!user) {
             await db.transaction(async (trx) => {
-                // 使用 FOR UPDATE 锁定行（PostgreSQL/MySQL）
-                const lastUser = await trx('users')
-                    .orderBy('id', 'desc')
-                    .first()
-                    .forUpdate();
+                const result = await trx.raw(`
+                    SELECT LPAD(
+                        nextval('user_id_seq')::text,
+                        6,
+                        '0'
+                    ) as id
+                `);
 
-                const nextId = (parseInt(lastUser?.id || '0', 10)) + 1;
-                const formattedId = nextId.toString().padStart(6, '0');
+                formattedId = result.rows[0].id;
 
                 // 插入新用户
                 await trx('users').insert({
