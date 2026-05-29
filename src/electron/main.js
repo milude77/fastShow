@@ -9,7 +9,6 @@ import axios from 'axios';
 import { initializeDatabase, migrateUserDb } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
-import { handleContactsList, handleContactCompareResult, handleGroupCompareResult } from './userContactDataOptions.js';
 import { protocol } from 'electron';
 import { decryptMessage, wrapSocket } from './aseOptions.js'
 import logger from './logger.js'; // 引入外部日志工具类
@@ -26,6 +25,9 @@ import {
 } from './store.js';
 
 import { initUpdater } from './updater.js';
+
+//注册监听器函数
+import { registerSocketListeners } from './listeners/registerListeners.js'
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -156,7 +158,7 @@ function connectSocket() {
 
     socket.onAny((event, ...args) => {
         // 对于需要解密的事件，先解密再发送
-        const sensitiveEvents = ['new-message', 'notification', 'user-registered', 'login-success', 'add-friends-msg'];
+        const sensitiveEvents = ['new-message', 'notification', 'user-registered', 'login-success'];
 
         if (sensitiveEvents.includes(event) && args.length > 0) {
             let processedArgs = [...args];
@@ -176,7 +178,7 @@ function connectSocket() {
             BrowserWindow.getAllWindows().forEach(win => {
                 win.webContents.send('socket-event', {
                     event,
-                    args: processedArgs  // 发送可能已解密的参数
+                    args: processedArgs  
                 });
             });
         } else {
@@ -739,16 +741,6 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
     return false;
 });
 
-const revicedContactList = async (payload) => {
-    await handleContactsList(db, payload);
-    const groupList = await db('groups').select('id', 'message_version')
-    groupList.forEach(group => {
-        socket.emit('sync-group-messages', {
-            groupId: group.id,
-            messageVersion: group.message_version || 0,
-        })
-    })
-}
 
 
 
@@ -789,12 +781,8 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
             });
         }
 
+        await registerSocketListeners(socket, db);
 
-        socket.on('disconnect-message-send-comple', (userId) => {
-            event.sender.send('disconnect-message-send-comple', userId);
-            socket.off('disconnect-message-send-comple');
-        })
-        // 创建托盘 - 同样需要更新托盘图标路径
         createTray(mainWindow);
         socket.on('new-message', handleNewMessage)
         event.sender.send('db-initialized-success', { userId, username, token, email });
@@ -813,46 +801,11 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
     }
 })
 
-const handleContactUpdate = async () => {
-    const userContactListVersion = userCredentialsManager.getUserContactListVersion(currentUserId);
-    socket.emit('sync-contacts-list', {
-        version: userContactListVersion,
-    });
-}
 
-const contactCompare = async (payload) => {
-    await handleContactCompareResult(payload)
-    const groupList = await db('groups').select('id', 'message_version')
-    groupList.forEach(group => {
-        socket.emit('sync-group-messages', {
-            groupId: group.id,
-            messageVersion: group.message_version || 0,
-        })
-    })
-}
+
 
 ipcMain.on('start-revice-message', async (event, userId) => {
     const userContactListVersion = userCredentialsManager.getUserContactListVersion(userId);
-
-    if (await db.schema.hasTable('friends')) {
-        if (socket && revicedContactList) {
-            socket.off('const-list', revicedContactList);
-        }
-        socket.on('const-list', revicedContactList);
-    }
-    socket.on('contact-update', handleContactUpdate)
-
-    socket.on('contact-compare-result', contactCompare)
-    socket.on('group-compare-result', handleGroupCompareResult)
-    socket.on('contact-deleted', async ({ friendId }) => {
-        console.log('contact-deleted', { friendId });
-        await db('friends')
-            .where('id', friendId)
-            .del();
-        BrowserWindow.getAllWindows().forEach(win => {
-            win.webContents.send('contact-deleted', { contactId: friendId });
-        });
-    });
 
     socket.emit('initial-data-success', { userId });
     socket.emit('sync-contacts-list', { version: userContactListVersion });

@@ -14,6 +14,7 @@ const ContactList = memo(({ contacts, selectedContact, onSelectContact }) => {
     fetchServerUrl();
   }, []);
 
+
   const handleSelectContact = useCallback((contact) => {
     onSelectContact(contact);
   }, [onSelectContact]);

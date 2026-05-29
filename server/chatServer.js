@@ -546,6 +546,7 @@ io.on('connection', (socket) => {
             return;
         }
         const sendMessageId = message.id
+        const nowTime = new Date(); 
 
         const newMessage = {
             message_id: sendMessageId,
@@ -553,7 +554,7 @@ io.on('connection', (socket) => {
             receiver_id: receiverUser.id,
             room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`,
             content: message.text,
-            timestamp: new Date(),
+            timestamp: nowTime,
             status: 'sent'
         };
 
@@ -566,7 +567,7 @@ io.on('connection', (socket) => {
             message_id: sendMessageId,
             username: senderInfo.username,
             content: newMessage.content,
-            timestamp: newMessage.timestamp,
+            timestamp: nowTime,
             senderId: newMessage.sender_id,
             receiverId: newMessage.receiver_id,
             receiverUsername: receiverUser.username,
@@ -1206,22 +1207,22 @@ io.on('connection', (socket) => {
         const targetId = await getOnlineUserId(contactId);
         const callerUserId = await getOnlineUserId(socket.id);
         if (targetId) {
-            socket.to(targetId.socketId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
+            io.to(targetId.socketId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
         }
         else {
-            socket.to(roomId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
+            io.to(roomId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
         }
     });
 
     // 处理offer时指定接收者
     socket.on('offer', ({ roomId, offer, targetId }) => {
         if (targetId) {
-            socket.to(targetId).emit('offer', {
+            io.to(targetId).emit('offer', {
                 offer,
                 senderId: socket.id
             });
         } else {
-            socket.to(roomId).emit('offer', {
+            io.to(roomId).emit('offer', {
                 offer,
                 senderId: socket.id
             });
@@ -1231,19 +1232,19 @@ io.on('connection', (socket) => {
     // 处理answer时指定接收者
     socket.on('answer', ({ roomId, answer, targetId }) => {
         if (targetId) {
-            socket.to(targetId).emit('answer', { answer });
+            io.to(targetId).emit('answer', { answer });
         } else {
-            socket.to(roomId).emit('answer', { answer });
+            io.to(roomId).emit('answer', { answer });
         }
     });
 
     socket.on("ice-candidate", ({ roomId, candidate, targetId }) => {
         console.log('接受', roomId, candidate, targetId)
         if (targetId) {
-            socket.to(targetId).emit("ice-candidate", { candidate });
+            io.to(targetId).emit("ice-candidate", { candidate });
         }
         else {
-            socket.to(roomId).emit("ice-candidate", { candidate });
+            io.to(roomId).emit("ice-candidate", { candidate });
         }
     });
 
@@ -1257,19 +1258,19 @@ io.on('connection', (socket) => {
 
     socket.on('close-video', async ({ roomId, targetId }) => {
         if (targetId) {
-            socket.to(targetId).emit('close-video', { roomId });
+            io.to(targetId).emit('close-video', { roomId });
         }
         else {
-            socket.to(roomId).emit('close-video', { roomId });
+            io.to(roomId).emit('close-video', { roomId });
         }
     })
 
     socket.on('hangup', async ({ roomId, targetId }) => {
         if (targetId) {
-            socket.to(targetId).emit('hangup', { roomId });
+            io.to(targetId).emit('hangup', { roomId });
         }
         else {
-            socket.to(roomId).emit('hangup', { roomId });
+            io.to(roomId).emit('hangup', { roomId });
         }
     })
 
@@ -1307,8 +1308,8 @@ io.on('connection', (socket) => {
             return;
         }
         try {
-            await db('groups').where({ id: groupId }).update({ name: newGroupName });
-            socket.to(`group:${groupId}`).emit('group-info-update', { groupId, newGroupName });
+            await db('groups').where({ id: groupId }).update({ name: newGroupName, version: groupInfo.version + 1, updated_at:  new Date() });
+            io.to(`group:${groupId}`).emit('group-info-update', { groupId, newGroupName });
 
             ack({
                 success: true,

@@ -80,7 +80,6 @@ function App() {
   const [selectedContactInformation, setSelectedContactInformation] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [contacts, setContacts] = useState([]);
-  // 新增：LRU 缓存，存储联系人 ID 的访问顺序
   const contactLruOrderRef = useRef([]);
   // 新增：联系人 Map，用于快速查找
   const contactMapRef = useRef(new Map());
@@ -274,6 +273,7 @@ function App() {
     window.electronAPI.ipcRenderer.on('theme-updated', handleThemeUpdated);
     window.electronAPI.ipcRenderer.on('disconnect-message-send-comple', handleReceivedMessageComple);
     window.electronAPI.ipcRenderer.on('start-revice-message', handleStartReviceMessage);
+    window.electronAPI.ipcRenderer.on('group-info-update', handleGroupNameUpdate);
 
     return () => {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
@@ -286,6 +286,7 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('theme-updated', handleThemeUpdated);
       window.electronAPI.ipcRenderer.removeListener('disconnect-message-send-comple', handleReceivedMessageComple);
       window.electronAPI.ipcRenderer.removeListener('start-revice-message', handleStartReviceMessage);
+      window.electronAPI.ipcRenderer.removeListener('group-info-update', handleGroupNameUpdate);
     }
   }, [])
 
@@ -347,6 +348,18 @@ function App() {
     contactMapRef.current.delete(key);
     messageApi.success(t('app.deleteFriendSuccess'));
   }, [setSelectedContactInformation, setSelectedContact, setContacts, messageApi]);
+
+  const handleGroupNameUpdate = useCallback((event, { groupId, newGroupName }) => {
+    console.log('handleGroupNameUpdate', groupId, newGroupName);
+    setContacts(prevContacts => {
+      prevContacts.forEach(contact => {
+        if (contact.id === groupId && contact.type === 'group' ) {
+          contact.username = newGroupName;
+        }
+      });
+      return prevContacts;
+    });
+  }, []);
 
   const renderFeature = () => {
     switch (selectFeatures) {
