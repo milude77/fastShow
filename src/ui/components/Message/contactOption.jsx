@@ -21,6 +21,10 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
         editableGroupName.current = changeGroupName;
     }, [changeGroupName]);
 
+    useEffect(() => {
+        setChangeGroupName(contact.username)
+    }, [contact])
+
 
 
     useEffect(() => {
@@ -138,10 +142,10 @@ const ContactOption = ({ contact, currentUser, openContactOptions, onClose, grou
                     ),
                     onOk: async () => {
                         const res = await window.electronAPI.updateGroupName(contact.id, editableGroupName.current)
-                        if (res.success){
+                        if (res.success) {
                             messageApi.success(t('contact.updateGroupNameSuccess'))
                         }
-                        else{
+                        else {
                             messageApi.error(t('contact.updateGroupNameError'))
                         }
                     },

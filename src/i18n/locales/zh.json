@@ -27,6 +27,12 @@
     "resume": "恢复",
     "hangup": "挂断"
   },
+  "voiceStreamStatus": {
+    "rtt": "延迟",
+    "jitter": "抖动",
+    "loss": "丢包率",
+    "bitrate": "码率"
+  },
   "settings": {
     "title": "设置",
     "language": "语言",
@@ -85,7 +91,11 @@
   },
   "search": {
     "placeholder": "按 用户名/id 搜索",
-    "noResults": "搜索结果无用户/群聊"
+    "noResults": "搜索结果无用户/群聊",
+    "friends": "好友",
+    "groups": "群聊",
+    "messages":"消息",
+    "searchButtonLabel":"搜索内容 {{searchContent}}"
   },
   "friendsRequest": {
     "title": "好友请求",

@@ -27,6 +27,12 @@
     "resume": "Resume",
     "hangup": "Hang Up"
   },
+  "voiceStreamStatus": {
+    "rtt": "Round Trip Time",
+    "jitter": "Jitter",
+    "loss": "Packet Loss",
+    "bitrate": "Bitrate"
+  },
   "settings": {
     "title": "Settings",
     "language": "Language",
@@ -85,7 +91,11 @@
   },
   "search": {
     "placeholder": "Search by username/id",
-    "noResults": "No users/groups found"
+    "noResults": "No users/groups found",
+    "friends": "Friends",
+    "groups": "Groups",
+    "messages": "Messages",
+    "searchButtonLabel": "Search for {{searchContent}}"
   },
   "friendsRequest": {
     "title": "Friend Requests",

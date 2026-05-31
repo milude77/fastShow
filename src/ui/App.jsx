@@ -13,6 +13,7 @@ import CustomModal from './components/custoModal/customModal.jsx';
 import ToolBar from './components/toolBar/toolBar.jsx';
 import AuthPage from './AuthPage';
 import AddressBook from './components/addressBook/addressBook.jsx';
+import SearchList from './components/searchList.jsx';
 import { useAuth } from './hooks/useAuth';
 import { useSocket } from './hooks/useSocket';
 import { useGlobalMessage } from './hooks/useGlobalMessage';
@@ -22,31 +23,68 @@ import { useUserAvatar } from './hooks/useAvatar';
 import i18n from '../i18n/index.js';
 import { useTranslation } from 'react-i18next';
 import titleImage from './assets/title.png';
+import { debounce } from './utils/universalFunction.js'
 
 const SearchBar = ({ currentUser, onCreateGroup }) => {
   const { t } = useTranslation();
 
   const [searchTerm, setSearchTerm] = useState('');
-
-  const handleKeyDown = (event) => {
-    if (event.key === 'Enter' && searchTerm.trim()) {
-      window.electronAPI.openSearchWindow(currentUser.id, searchTerm);
+  const [openSearchList, setOpenSearchList] = useState(false);
+  const [searchMessage, setSearchMessage] = useState('');
+  const latestSearchTerm = useRef('');
+  const searchListRef = useRef(null);
+  const searchFuction = () => {
+    if (latestSearchTerm.current && latestSearchTerm.current.trim() !== '') {
+      setOpenSearchList(true);
+      setSearchMessage(latestSearchTerm.current);
     }
   };
 
+  const dedouncedSearch = debounce(searchFuction, 1000);
+
+
+  const handleSearch = (e) => {
+    const currentValue = e.target.value;
+    setSearchTerm(currentValue);
+    latestSearchTerm.current = currentValue; // 同步到 ref
+
+    if (!currentValue || currentValue.trim() === '') {
+      setOpenSearchList(false);
+      return;
+    }
+
+    dedouncedSearch();
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchListRef.current && !searchListRef.current.contains(event.target)) {
+        setOpenSearchList(false);
+      }
+    };
+
+    if (searchListRef) {
+      setTimeout(() => document.addEventListener('mousedown', handleClickOutside), 0);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [searchListRef]);
+
   const MenuItem = (
-    <Menu>
-      <Menu.Item className='menu-item' key="1">
+    <Menu className="custom-dropdown-menu">
+      <Menu.Item key="1">
         <Button type="link" onClick={onCreateGroup}><CommentOutlined />{t('app.createGroup')}</Button>
       </Menu.Item>
-      <Menu.Item className='menu-item' key="2">
+      <Menu.Item key="2">
         <Button type="link" onClick={() => { window.electronAPI.openSearchWindow(currentUser.id, searchTerm) }}><UsergroupAddOutlined />{t('app.addFriend')}</Button>
       </Menu.Item>
     </Menu>
   );
 
   return (
-    <div className="search-bar-container" style={{ display: 'flex', alignItems: 'center' }}>
+    <div className="search-bar-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
       <div className='search-input-bar'>
         <SearchOutlined />
         <input
@@ -54,9 +92,8 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
           className='search-input'
           type="search"
           placeholder={t('app.search')}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={handleSearch}
           value={searchTerm}
-          onKeyDown={handleKeyDown}
         />
       </div>
       <div className='search-tool-btn'>
@@ -67,6 +104,7 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
           <Button style={{ color: 'var(--text-color)' }} type="text" icon={<PlusOutlined />} />
         </Dropdown>
       </div>
+      {openSearchList && <SearchList ref={searchListRef} searchMessage={searchMessage} />}
     </div>
   );
 };
@@ -353,7 +391,7 @@ function App() {
     console.log('handleGroupNameUpdate', groupId, newGroupName);
     setContacts(prevContacts => {
       prevContacts.forEach(contact => {
-        if (contact.id === groupId && contact.type === 'group' ) {
+        if (contact.id === groupId && contact.type === 'group') {
           contact.username = newGroupName;
         }
       });

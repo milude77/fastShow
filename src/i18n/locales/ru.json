@@ -27,6 +27,12 @@
     "resume": "Возобновить",
     "hangup": "Завершить"
   },
+  "voiceStreamStatus": {
+    "rtt": "Задержка",
+    "jitter": "Джиттер",
+    "loss": "Потеря пакетов",
+    "bitrate": "Битрейт"
+  },
   "settings": {
     "title": "Настройки",
     "language": "Язык",
@@ -85,7 +91,11 @@
   },
   "search": {
     "placeholder": "Поиск по имени пользователя/id",
-    "noResults": "Пользователи/группы не найдены"
+    "noResults": "Пользователи/группы не найдены",
+    "friends": "Друзья",
+    "groups": "Группы",
+    "messages": "Сообщения",
+    "searchButtonLabel": "Найти {{searchContent}}"
   },
   "friendsRequest": {
     "title": "Запросы в друзья",

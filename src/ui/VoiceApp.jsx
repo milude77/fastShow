@@ -7,6 +7,7 @@ import { RemoteVideoView } from './components/voiceModel/RemoteVideoView';
 import { CallControlBar } from './components/voiceModel/CallControlBar';
 import { WifiOutlined } from '@ant-design/icons';
 import { message } from "antd";
+import { useTranslation } from 'react-i18next';
 
 const VoiceApp = () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -14,6 +15,7 @@ const VoiceApp = () => {
   const userId = urlParams.get('userId');
   const callerId = urlParams.get('callerId');
   const callMode = urlParams.get('callMode') || "audio";
+  const { t } = useTranslation();
   let offer = urlParams.get('offer');
   if (offer) {
     offer = JSON.parse(offer);
@@ -70,16 +72,16 @@ const VoiceApp = () => {
     return (
       <ui onClick={() => setVoiceStreamStatusBarOpen(false)} className="voice-stream-status">
         <li>
-          <span>{`延迟 : ${voiceStreamStatus.rtt} ms`}</span>
+          <span>{`${t('voiceStreamStatus.rtt')} : ${voiceStreamStatus.rtt} ms`}</span>
         </li>
         <li>
-          <span>{`抖动 : ${voiceStreamStatus.jitter}`}</span>
+          <span>{`${t('voiceStreamStatus.jitter')} : ${voiceStreamStatus.jitter}`}</span>
         </li>
         <li>
-          <span>{`丢包率:  ${voiceStreamStatus.loss}`}</span>
+          <span>{`${t('voiceStreamStatus.loss')}:  ${voiceStreamStatus.loss}`}</span>
         </li>
         <li>
-          <span>{`码率: ${voiceStreamStatus.bitrate} kbps `}</span>
+          <span>{`${t('voiceStreamStatus.bitrate')}: ${voiceStreamStatus.bitrate} kbps `}</span>
         </li>
       </ui>
     )

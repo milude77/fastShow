@@ -88,3 +88,52 @@
   flex: 1;
   flex-direction: column;
 }
+
+/* 搜索弹窗样式 */
+.search-popover {
+  max-height: 500px;
+}
+
+.search-popover .ant-popover-inner-content {
+  padding: 0;
+  max-height: 500px;
+  overflow: hidden;
+}
+
+.search-popover-content {
+  width: 380px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+/* 自定义滚动条样式 */
+.search-popover-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.search-popover-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.search-popover-content::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.search-popover-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Dropdown Menu 样式 */
+.custom-dropdown-menu {
+  background-color: var(--background-color) !important;
+  border: 2px solid var(--border-color) !important;
+}
+
+.custom-dropdown-menu .ant-btn-link {
+  color: var(--text-color) !important;
+}
+
+.custom-dropdown-menu .ant-btn-link:hover {
+  background-color: var(--hover-contact-background-color) !important;
+}

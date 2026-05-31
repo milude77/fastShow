@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.send('download-update'),
   quitAndInstall: () => ipcRenderer.send('quit-and-install'),
   getInviteInformationList: () => ipcRenderer.invoke('get-invite-information-list'),
-  openSearchWindow: (userId, selectInformation) => ipcRenderer.send('open-search-window', { userId, selectInformation }),
+  openSearchWindow: (selectInformation) => ipcRenderer.send('open-search-window', { selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
   deleteContact: (contactId) => ipcRenderer.invoke('delete-contact', { contactId }),
   deleteContactMessageHistory: (contact) => ipcRenderer.invoke('delete-contact-message-history', { contact }),
@@ -77,6 +77,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   strongLogoutWaring: (message) => ipcRenderer.send('strong-logout-waring', message),
   logout: () => ipcRenderer.send('logout'),
   writeLog: (logEntry) => ipcRenderer.send('write-log', logEntry),
+  searchLocalHistory:(searchMessage) => ipcRenderer.invoke('search-local-history', searchMessage),
 
   //群聊相关
   updateGroupName:(groupId, newGroupName) => ipcRenderer.invoke('update-group-name', { groupId, newGroupName }),

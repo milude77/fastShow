@@ -66,7 +66,7 @@ export const UserAvatarProvider = ({ children }) => {
     }, [userId]);
 
     // 计算头像URL的函数
-    const getAvatarUrl = useCallback((targetUserId) => {
+    const getAvatarUrl = useCallback((targetUserId, targetType = 'user') => {
         if (targetUserId === userId) {
             // 当前用户头像
             if (avatarSrc) {
@@ -74,14 +74,14 @@ export const UserAvatarProvider = ({ children }) => {
                 return avatarSrc;
             } else if (!loading && hasCheckedLocal && serverUrl) {
                 // 如果不在加载中且已经检查过本地路径，使用网络路径
-                return `${serverUrl}/api/avatar/${targetUserId}/user`;
+                return `${serverUrl}/api/avatar/${targetUserId}/${targetType}`;
             } else {
                 // 如果还在加载或尚未检查本地路径，暂时使用网络路径
-                return `${serverUrl}/api/avatar/${targetUserId}/user`;
+                return `${serverUrl}/api/avatar/${targetUserId}/${targetType}`;
             }
         } else {
             // 其他用户头像
-            return `${serverUrl}/api/avatar/${targetUserId}/user`;
+            return `${serverUrl}/api/avatar/${targetUserId}/${targetType}`;
         }
     }, [avatarSrc, loading, hasCheckedLocal, serverUrl, userId]);
 

@@ -178,7 +178,7 @@ function connectSocket() {
             BrowserWindow.getAllWindows().forEach(win => {
                 win.webContents.send('socket-event', {
                     event,
-                    args: processedArgs  
+                    args: processedArgs
                 });
             });
         } else {
@@ -998,8 +998,8 @@ ipcMain.handle('get-server-url', () => {
 });
 
 
-ipcMain.on('open-search-window', (event, { userId, selectInformation }) => {
-    createSearchWindow(userId, selectInformation);
+ipcMain.on('open-search-window', (event, { selectInformation }) => {
+    createSearchWindow(currentUserId, selectInformation);
 });
 
 ipcMain.on('open-settings-window', () => {
@@ -1960,6 +1960,40 @@ ipcMain.handle('update-group-name', async (event, { groupId, newGroupName }) => 
             error: '未连接服务器'
         }
     }
+})
+
+ipcMain.handle('search-local-history', async (event, searchMessage) => {
+    const result = {}
+    const friends = await db('friends')
+        .select('id', 'userName as username')
+        .where('userName', 'like', `%${searchMessage}%`)
+        .orWhere('id', 'like', `%${searchMessage}%`)
+    const groups = await db('groups')
+        .select('id', 'groupName as username')
+        .where('groupName', 'like', `%${searchMessage}%`)
+        .orWhere('id', 'like', `%${searchMessage}%`)
+    const messages = await db('messages')
+        .select('id', 'text', 'sender_id', 'receiver_id', 'timestamp')
+        .where('text', 'like', `%${searchMessage}%`)
+    const rawGroupMembers = await db('group_member')
+        .select('group_id', 'member_id', 'member_name')
+        .where('member_name', 'like', `%${searchMessage}%`)
+        .orWhere('member_id', 'like', `%${searchMessage}%`)
+
+    const seen = new Set();
+    const groupMembers = rawGroupMembers.filter(member => {
+        if (seen.has(member.member_id)) {
+            return false;
+        }
+        seen.add(member.member_id);
+        return true;
+    });
+
+    result.friends = friends;
+    result.groups = groups;
+    result.messages = messages;
+    result.groupMembers = groupMembers;
+    return result;
 })
 
 
