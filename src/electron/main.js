@@ -635,12 +635,6 @@ app.on('before-quit', () => {
 
 
 app.whenReady().then(() => {
-    const gotTheLock = app.requestSingleInstanceLock();
-    if (!gotTheLock) {
-        logger.warn('Another instance is already running. Quitting.');
-        app.quit();
-        return;
-    }
 
     logger.info('Application is ready. Creating windows and initializing components.');
 
@@ -1995,6 +1989,10 @@ ipcMain.handle('search-local-history', async (event, searchMessage) => {
     result.groupMembers = groupMembers;
     return result;
 })
+
+ipcMain.on('user-login', (event, credentials) => {
+    socket.emit('user-login', credentials);
+});
 
 
 

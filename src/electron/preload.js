@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getChatHistory: (contactId, currentUserID, pageSize, isGroup, beforeTimestamp) => ipcRenderer.invoke('get-chat-history', { contactId, currentUserID, pageSize, isGroup, beforeTimestamp }),
   getServerUrl: () => ipcRenderer.invoke('get-server-url'),
+
   // 添加检查更新的方法
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: () => ipcRenderer.send('download-update'),
@@ -69,6 +70,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getInviteinformationList: () => ipcRenderer.invoke('get-invite-information-list'),
   saveInviteinformationList: (credentials) => ipcRenderer.send('save-invite-information-list', credentials),
   startReviceMessage: (userId) => ipcRenderer.send('start-revice-message', userId),
+  userLogin:(credentials) => ipcRenderer.send('user-login', credentials),
 
   saveUserListCredentials: (credentials) => ipcRenderer.send('save-user-credentials-list', credentials),
   getUserListCredentials: () => ipcRenderer.invoke('get-user-credentials-list'),

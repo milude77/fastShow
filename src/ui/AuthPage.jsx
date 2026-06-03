@@ -191,7 +191,7 @@ const AuthPage = () => {
     }
   }, [socket]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (socket == null) {
       setMessage(t('auth.serverConnectionError'));
@@ -214,7 +214,7 @@ const AuthPage = () => {
     const credentials = { userId: username, password };
 
     if (!isRegistering) {
-      socket.emit('login-user', credentials);
+      await window.electronAPI.userLogin(credentials);
     }
   };
 
