@@ -1991,7 +1991,7 @@ ipcMain.handle('search-local-history', async (event, searchMessage) => {
 })
 
 ipcMain.on('user-login', (event, credentials) => {
-    socket.emit('user-login', credentials);
+    socket.emit('login-user', credentials);
 });
 
 
@@ -2092,7 +2092,7 @@ ipcMain.on('write-log', (event, logEntry) => {
 })
 
 ipcMain.handle('get-voice-chat-server-url', async () => {
-    return { voiceServerUrl: config.SOCKET_VOICE_SERVER_URL, username: config.VOICE_SERVER_USERNAME, credential: config.VOICE_SERVER_CREDENTIAL }
+    return { turnsVoiceServerUrl: config.TURNS_VOICE_SERVER_URL, voiceServerUrl: config.SOCKET_VOICE_SERVER_URL, username: config.VOICE_SERVER_USERNAME, credential: config.VOICE_SERVER_CREDENTIAL }
 })
 
 // --- End Socket.IO IPC ---

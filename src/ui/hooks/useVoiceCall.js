@@ -47,7 +47,7 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer, mes
   // 创建 PeerConnection
   const createPeerConnection = useCallback(async (targetId = null) => {
     try {
-      const { voiceServerUrl, username, credential } = await window.electronAPI.getVoiceChatServerUrl();
+      const { turnsVoiceServerUrl, voiceServerUrl, username, credential } = await window.electronAPI.getVoiceChatServerUrl();
 
       peerConnectionRef.current = new RTCPeerConnection({
         iceServers: [
@@ -63,9 +63,14 @@ export const useVoiceCall = ({ contactId, callerId, callMode, roomId, offer, mes
             credentialType: "password"
           },
           {
-            urls: `turn:${voiceServerUrl}`,
+            urls: `turns:${turnsVoiceServerUrl}`,
             username: username,
             credential: credential
+          },
+          {
+            urls: `turn:${voiceServerUrl}`,
+            username: 'fastshow',
+            credential: 'milude77'
           }
         ]
       });
