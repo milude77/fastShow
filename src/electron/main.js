@@ -6,7 +6,7 @@ import knex from 'knex';
 import fs from 'fs';
 import apiClient from './api.js';
 import axios from 'axios';
-import { initializeDatabase, migrateUserDb } from './dbOptions.js';
+import { initializeDatabase, migrateUserDb, migrateOldDataIfNeeded, getOrCreateDatabaseKey } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
 import { protocol } from 'electron';
@@ -742,6 +742,12 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
     logger.info('Login success received', { userId, username, email });
     currentUserId = userId;
     currentUserToken = token;
+
+    BrowserWindow.getAllWindows().forEach(win => {
+        win.webContents.send('init-start');
+    });
+
+
     try {
         const userDbPath = path.join(app.getPath('userData'), `${userId}`);
 
@@ -749,22 +755,33 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
             fs.mkdirSync(userDbPath, { recursive: true });
         }
 
-        dbPath = path.join(userDbPath, 'chat_history.sqlite3');
+        const dbKey = getOrCreateDatabaseKey(userDbPath);
+        migrateOldDataIfNeeded(userDbPath, dbKey);
+
+        dbPath = path.join(userDbPath, 'secure.db');
 
         if (!fs.existsSync(dbPath)) {
             fs.mkdirSync(path.dirname(dbPath), { recursive: true });
         }
 
-        // 创建数据库连接
         db = knex({
-            client: 'sqlite3',
+            client: 'better-sqlite3',
             connection: {
-                filename: dbPath,
+                filename: dbPath
             },
-            useNullAsDefault: true
+            useNullAsDefault: true,
+            pool: {
+                afterCreate: (conn, cb) => {
+                    try {
+                        conn.pragma(`key='${dbKey}'`); // 注入密钥解锁
+                        cb(null, conn);
+                    } catch (err) {
+                        cb(err, conn);
+                    }
+                }
+            }
         });
 
-        // 初始化数据库（确保表存在）
         await initializeDatabase(db);
         try {
             await migrateUserDb(db, userId);
@@ -791,6 +808,9 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
             errno: error.errno,
             sql: error.sql,
             bindings: error.bindings
+        });
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('login-failed', { error: error.message });
         });
     }
 })
