@@ -6,7 +6,7 @@ import knex from 'knex';
 import fs from 'fs';
 import apiClient from './api.js';
 import axios from 'axios';
-import { initializeDatabase, migrateUserDb, migrateOldDataIfNeeded, getOrCreateDatabaseKey } from './dbOptions.js';
+import { migrateOldDataIfNeeded, getOrCreateDatabaseKey } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
 import { snowflake } from './snowFlake.js';
 import { protocol } from 'electron';
@@ -28,6 +28,9 @@ import { initUpdater } from './updater.js';
 
 //注册监听器函数
 import { registerSocketListeners } from './listeners/registerListeners.js'
+import { runDatabaseMigrations } from './dbMigrate/running.cjs'
+import Database from 'better-sqlite3-multiple-ciphers'
+import Client_BetterSQLite3 from 'knex/lib/dialects/better-sqlite3/index.js';
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +55,26 @@ let mainWindow = null;
 let voiceWindow = null;
 let currentUserId;
 let currentUserToken;
+class CipherClient extends Client_BetterSQLite3 {
+    _driver() {
+        return Database;
+    }
+
+    async acquireRawConnection() {
+        const conn = new Database(
+            this.connectionSettings.filename
+        );
+
+        conn.pragma(`key='${this.connectionSettings.dbKey}'`);
+
+        // 验证解密是否成功
+        conn.prepare(
+            "SELECT count(*) FROM sqlite_master"
+        ).get();
+
+        return conn;
+    }
+}
 
 
 protocol.registerSchemesAsPrivileged([
@@ -216,15 +239,6 @@ async function readChatHistory(
     try {
         const tableName = isGroup ? 'group_messages' : 'messages';
 
-        const exists = await db.schema.hasTable(tableName);
-        if (!exists) {
-            await initializeDatabase(db);
-            if (!(await db.schema.hasTable(tableName))) {
-                console.error(`Failed to create ${tableName} table`);
-                return [];
-            }
-        }
-
         let query = db(tableName).select('*');
 
         if (isGroup) {
@@ -284,13 +298,7 @@ async function updateContactLastMessagetimestamp(contactId, isGroup) {
 // 写入指定联系人的聊天记录
 async function writeChatHistory(contactId, msg) {
     try {
-        // 确保数据库已初始化
-        const exists = await db.schema.hasTable('messages') && await db.schema.hasTable('group_messages');
-        if (!exists) {
-            await initializeDatabase(db);
-        }
 
-        // 确保所有必需字段都存在并转换为正确的类型
         const messageData = {
             id: msg.id,
             sender_id: msg.sender == 'user' ? currentUserId : msg.sender_id,
@@ -750,48 +758,50 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
 
     try {
         const userDbPath = path.join(app.getPath('userData'), `${userId}`);
+        dbPath = path.join(userDbPath, 'secure.db');
 
         if (!fs.existsSync(userDbPath)) {
             fs.mkdirSync(userDbPath, { recursive: true });
         }
 
+        //如果本地为旧数据库， 迁移至新的加密的数据库
         const dbKey = getOrCreateDatabaseKey(userDbPath);
         migrateOldDataIfNeeded(userDbPath, dbKey);
 
-        dbPath = path.join(userDbPath, 'secure.db');
 
-        if (!fs.existsSync(dbPath)) {
-            fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+        //数据库迁移函数
+        const dbInstance = new Database(dbPath);
+        dbInstance.pragma(`key='${dbKey}'`);
+        try {
+            runDatabaseMigrations(dbInstance);
+        } catch (migError) {
+            console.error('[DB] 迁移脚本执行中途崩溃:', migError);
+            throw migError;
+        } finally {
+            dbInstance.close();
+            console.log('[DB] 原生迁移连接已安全关闭。');
         }
+
+
 
         db = knex({
-            client: 'better-sqlite3',
+            client: CipherClient,
             connection: {
-                filename: dbPath
+                filename: dbPath,
+                dbKey: dbKey
             },
-            useNullAsDefault: true,
-            pool: {
-                afterCreate: (conn, cb) => {
-                    try {
-                        conn.pragma(`key='${dbKey}'`); // 注入密钥解锁
-                        cb(null, conn);
-                    } catch (err) {
-                        cb(err, conn);
-                    }
-                }
-            }
+            useNullAsDefault: true
         });
 
-        await initializeDatabase(db);
         try {
-            await migrateUserDb(db, userId);
-        } catch (e) {
-            logger.error('User DB migration failed:', {
-                error: e.message,
-                stack: e.stack
-            });
+            // 这条语句会强制 Knex 立刻从连接池里取一条连接，从而必然走完 afterCreate 钩子
+            await db.raw("PRAGMA integrity_check;");
+            console.log('--- 2. [Knex] 数据库握手及加锁状态验证通过！ ---');
+        } catch (error) {
+            console.error('数据库验证失败，密钥可能错误或文件损坏:', error);
+            throw error;
         }
-
+        console.log('init listener')
         await registerSocketListeners(socket, db);
 
         createTray(mainWindow);
