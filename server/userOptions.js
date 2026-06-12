@@ -146,3 +146,15 @@ async function userJoinGroupRoom(socket, userId) {
     }
 }
 
+export const userLoginRegister = async (socket, userId, device_id, device_name, identity_public_key) => {
+    const userDeviceExit = await db('user_devices').where({ user_id: userId, device_id }).first();
+    if (!userDeviceExit) {
+        await db('user_devices').insert({ user_id: userId, device_id, device_name, identity_public_key });
+    } else {
+        await db('user_devices').where({ user_id: userId, device_id }).update({ last_active_at: new Date(), identity_public_key, device_name });
+    }
+    socket.join(`user:${userId}`);
+}
+
+
+

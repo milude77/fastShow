@@ -12,7 +12,7 @@ import * as Minio from 'minio';
 import dotenv from 'dotenv';
 import axios from 'axios';
 
-import { registerUser, userLogin, userLoginWithToken } from './userOptions.js';
+import { registerUser, userLogin, userLoginWithToken, userLoginRegister } from './userOptions.js';
 import { compareContactInformation, compareGroupMemberVersion } from './userContactCompare.js';
 // import { sendEmailCode } from './sendEmailCode.js';
 import {
@@ -424,7 +424,7 @@ io.on('connection', (socket) => {
         // 检查 data 是否为对象以及是否包含 userId
         if (data && typeof data === 'object' && 'userId' in data) {
             userId = data.userId;
-        } 
+        }
 
         if (!userId) {
             console.error('userId 为空或未定义:', userId);
@@ -486,7 +486,7 @@ io.on('connection', (socket) => {
             return;
         }
         const sendMessageId = message.id
-        const nowTime = new Date(); 
+        const nowTime = new Date();
 
         const newMessage = {
             message_id: sendMessageId,
@@ -1248,7 +1248,7 @@ io.on('connection', (socket) => {
             return;
         }
         try {
-            await db('groups').where({ id: groupId }).update({ name: newGroupName, version: groupInfo.version + 1, updated_at:  new Date() });
+            await db('groups').where({ id: groupId }).update({ name: newGroupName, version: groupInfo.version + 1, updated_at: new Date() });
             io.to(`group:${groupId}`).emit('group-info-update', { groupId, newGroupName });
 
             ack({
@@ -1260,6 +1260,23 @@ io.on('connection', (socket) => {
             ack({
                 success: false,
                 message: '群组名称更新失败'
+            });
+        }
+    })
+
+    socket.on('login-info', async ({ device_id, device_name, identity_public_key }, ack) => {
+        const userInfo = await getOnlineUser(socket.id);
+        if (userInfo) {
+            await userLoginRegister(socket, userInfo.userId, device_id, device_name, identity_public_key)
+            ack({
+                success: true,
+                message: '登录成功'
+            });
+        }
+        else {
+            ack({
+                success: false,
+                message: '用户未登录'
             });
         }
     })

@@ -30,6 +30,7 @@ import { registerSocketListeners } from './listeners/registerListeners.js'
 import { runDatabaseMigrations } from './dbMigrate/running.cjs'
 import Database from 'better-sqlite3-multiple-ciphers'
 import Client_BetterSQLite3 from 'knex/lib/dialects/better-sqlite3/index.js';
+import { getElectronLoginParams } from './userOptions/userRSAkeyOptions.js'
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -775,8 +776,25 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
 
         createTray(mainWindow);
         socket.on('new-message', handleNewMessage)
+        const { device_id, device_name, identity_public_key } = getElectronLoginParams(userDbPath);
+
+        const response = await new Promise((resolve, reject) => {
+            socket.timeout(5000).emit('login-info', { device_id, device_name, identity_public_key }, (err, res) => {
+                if (err) {
+                    reject(err);
+                    return
+                } else {
+                    resolve(res);
+                }
+            });
+        });
+        if (!response.success) {
+            throw new Error(response.message);
+        }
+
         event.sender.send('db-initialized-success', { userId, username, token, email });
         event.sender.send('start-revice-message');
+
 
         await downLoadUserAvatar();
     }
