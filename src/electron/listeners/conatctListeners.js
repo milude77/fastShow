@@ -1,10 +1,10 @@
 import { BrowserWindow } from "electron";
-import { handleContactsList, handleContactCompareResult } from '../userContactDataOptions.js';
+import { handleContactsList, handleContactCompareResult } from '../userOptions/userContactDataOptions.js';
 import { getCurUserId } from '../main.js'
 
 import {
     userCredentialsManager,
-} from '../store.js';
+} from '../userOptions/store.js';
 
 const revicedContactList = async (db, socket, payload) => {
     await handleContactsList(db, payload);

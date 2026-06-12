@@ -1,5 +1,5 @@
 import { BrowserWindow } from "electron";
-import { handleGroupCompareResult } from '../userContactDataOptions.js';
+import { handleGroupCompareResult } from '../userOptions/userContactDataOptions.js';
 
 export async function registerGroupListeners(socket, db) {
 

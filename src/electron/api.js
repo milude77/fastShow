@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { userCredentialsManager } from './store.js';
+import { userCredentialsManager } from './userOptions/store.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';

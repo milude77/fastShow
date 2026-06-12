@@ -12,7 +12,6 @@ import * as Minio from 'minio';
 import dotenv from 'dotenv';
 import axios from 'axios';
 
-import { decryptMessage, encryptMessage } from './aseOptions.js';
 import { registerUser, userLogin, userLoginWithToken } from './userOptions.js';
 import { compareContactInformation, compareGroupMemberVersion } from './userContactCompare.js';
 // import { sendEmailCode } from './sendEmailCode.js';
@@ -402,51 +401,6 @@ logger.info('Socket.IO server initialized, waiting for connections...');
 io.on('connection', (socket) => {
     logger.info('User connected', { socketId: socket.id });
 
-    const originalEmit = socket.emit;
-    socket.emit = function (event, data) {
-        // 对于敏感事件启用加密
-        const sensitiveEvents = ['user-registered', 'login-success', 'new-message'];
-
-        if (sensitiveEvents.includes(event) && data && typeof data === 'object') {
-            const encryptedData = encryptMessage(data);
-            return originalEmit.call(this, event, encryptedData);
-        }
-
-        return originalEmit.apply(this, arguments);
-    };
-
-    // 包装socket.on以支持解密
-    const originalOn = socket.on;
-    socket.on = function (event, handler) {
-        const sensitiveEvents = ['register-user', 'login-user', 'send-private-message', 'send-group-message'];
-
-        if (sensitiveEvents.includes(event)) {
-            return originalOn.call(this, event, (data) => {
-                let decryptedData = data;
-
-                // 如果是加密的消息，先解密
-                if (typeof data === 'string' && data.startsWith('ENC$')) {
-                    try {
-                        decryptedData = decryptMessage(data);
-
-                        // 检查解密结果是否有效
-                        if (decryptedData === null) {
-                            console.error('解密失败，数据为null');
-                            return;
-                        }
-                    } catch (e) {
-                        console.error('解密事件数据失败:', e);
-                        return;
-                    }
-                }
-
-                handler(decryptedData);
-            });
-        }
-
-        // 对于非敏感事件，直接使用原始处理器
-        return originalOn.apply(this, arguments);
-    };
 
     // 用户注册
     socket.on('register-user', (data) => {
@@ -470,21 +424,7 @@ io.on('connection', (socket) => {
         // 检查 data 是否为对象以及是否包含 userId
         if (data && typeof data === 'object' && 'userId' in data) {
             userId = data.userId;
-        } else if (typeof data === 'string') {
-            // 如果数据是字符串（可能是加密的），尝试解密
-            try {
-                const decrypted = decryptMessage(data);
-                userId = decrypted.userId;
-            } catch (e) {
-                console.error('解析数据失败:', e);
-                socket.emit('notification', { status: 'error', message: '数据解析失败' });
-                return;
-            }
-        } else {
-            console.error('无法从数据中提取 userId:', data);
-            socket.emit('notification', { status: 'error', message: '数据格式错误' });
-            return;
-        }
+        } 
 
         if (!userId) {
             console.error('userId 为空或未定义:', userId);

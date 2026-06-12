@@ -1,10 +1,10 @@
 import { BrowserWindow } from "electron";
-import apiClient from './api.js';
+import apiClient from '../api.js';
 import {
     userCredentialsManager,
 } from './store.js';
 
-import { getDb, getCurUserId } from './main.js'
+import { getDb, getCurUserId } from '../main.js'
 
 
 

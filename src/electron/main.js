@@ -8,9 +8,8 @@ import apiClient from './api.js';
 import axios from 'axios';
 import { migrateOldDataIfNeeded, getOrCreateDatabaseKey } from './dbOptions.js';
 import { Tray, Menu } from 'electron';
-import { snowflake } from './snowFlake.js';
+import { snowflake } from './utils/snowFlake.js';
 import { protocol } from 'electron';
-import { decryptMessage, wrapSocket } from './aseOptions.js'
 import logger from './logger.js'; // 引入外部日志工具类
 
 import { v4 as uuidv4 } from 'uuid';
@@ -22,9 +21,9 @@ import {
     unreadMessageManager,
     userAssetsManager,
     userMessageDraftManager
-} from './store.js';
+} from './userOptions/store.js';
 
-import { initUpdater } from './updater.js';
+import { initUpdater } from './utils/updater.js';
 
 //注册监听器函数
 import { registerSocketListeners } from './listeners/registerListeners.js'
@@ -110,7 +109,11 @@ function connectSocket() {
         reconnection: false,
     });
 
-    socket = wrapSocket(socket);
+    socket.onAny((event, ...args) => {
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('socket-event', { event, args });
+        });
+    });
 
     // Add a listener for connection errors
     socket.on('connect_error', (err) => {
@@ -176,39 +179,6 @@ function connectSocket() {
     socket.on('heartbeat', (payload) => {
         if (payload === 'pong') {
             clearTimeout(heartbeatTimeout); // Pong received, clear timeout
-        }
-    });
-
-    socket.onAny((event, ...args) => {
-        // 对于需要解密的事件，先解密再发送
-        const sensitiveEvents = ['new-message', 'notification', 'user-registered', 'login-success'];
-
-        if (sensitiveEvents.includes(event) && args.length > 0) {
-            let processedArgs = [...args];
-
-            // 检查第一个参数是否为加密数据
-            if (typeof args[0] === 'string' && args[0].startsWith('ENC$')) {
-                try {
-                    const decryptedData = decryptMessage(args[0]);
-                    if (decryptedData !== null) {
-                        processedArgs[0] = decryptedData;
-                    }
-                } catch (e) {
-                    console.error(`解密 ${event} 事件数据失败:`, e);
-                }
-            }
-
-            BrowserWindow.getAllWindows().forEach(win => {
-                win.webContents.send('socket-event', {
-                    event,
-                    args: processedArgs
-                });
-            });
-        } else {
-            // 非敏感事件直接发送
-            BrowserWindow.getAllWindows().forEach(win => {
-                win.webContents.send('socket-event', { event, args });
-            });
         }
     });
 }
@@ -801,7 +771,6 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
             console.error('数据库验证失败，密钥可能错误或文件损坏:', error);
             throw error;
         }
-        console.log('init listener')
         await registerSocketListeners(socket, db);
 
         createTray(mainWindow);
