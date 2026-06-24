@@ -526,7 +526,6 @@ io.on('connection', (socket) => {
         }
 
         socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId, isGroup: false });
-
     });
 
     socket.on('send-group-message', async (message) => {
@@ -1357,9 +1356,10 @@ app.get('/api/download/:fileId', authenticateToken, async (req, res) => {
 // --- 新的 MinIO 文件上传流程 ---
 
 // 初始化上传，获取预签名URL
-app.post('/api/upload/initiate', authenticateToken, (req, res) => {
-    const { fileName, senderId, isGroup, receiverId } = req.body;
-    if (!fileName || !senderId) {
+app.post('/api/upload/initiate', authenticateToken, async (req, res) => {
+    const userId = req.user.userId
+    const { fileName, isGroup, receiverId, fileSize, messageId } = req.body;
+    if (!fileName || !userId) {
         return res.status(400).json({ error: '文件名和发送者ID是必需的' });
     }
 
@@ -1367,8 +1367,35 @@ app.post('/api/upload/initiate', authenticateToken, (req, res) => {
     const fileExtension = path.extname(fileName);
     // 在对象名前加上用户ID路径
     const objectName = isGroup
-        ? `files/group-${receiverId}/${fileId}_${Date.now()}${fileExtension}`
-        : `files/user-${senderId}/${fileId}_${Date.now()}${fileExtension}`;
+        ? `files/group/${receiverId}/${fileId}/${messageId}/${fileSize}${fileExtension}`
+        : `files/private/${userId}/${fileId}/${messageId}/${fileSize}${fileExtension}`;
+
+    const timestamp = new Date();
+
+    const newMessage = {
+        sender_id: userId,
+        content: `[文件] ${fileName}`,
+        message_type: 'file',
+        file_name: fileName,
+        file_path: objectName, // 存储MinIO中的对象名
+        file_url: `/api/download/${fileId}`, // 下载URL保持不变
+        file_size: fileSize,
+        file_id: fileId,
+        timestamp: timestamp,
+        message_id: messageId
+    };
+
+    if (isGroup) {
+        newMessage.group_id = receiverId;
+        const idResult = await db('group_messages').insert(newMessage).returning('id');
+        const id = idResult[0].id;
+        await updateGroupMessageVersion(receiverId, id);
+    }
+    else {
+        newMessage.room_id = `private_${Math.min(userId, receiverId)}_${Math.max(userId, receiverId)}`;
+        newMessage.receiver_id = receiverId;
+        await db('messages').insert(newMessage);
+    }
 
     // 生成一个有效期为15分钟的预签名URL，用于PUT操作
     minioClient.presignedPutObject(bucketName, objectName, 15 * 60, (err, presignedUrl) => {
@@ -1386,6 +1413,7 @@ app.post('/api/upload/initiate', authenticateToken, (req, res) => {
 
 //完成上传，保存文件元数据
 app.post('/api/upload/complete', authenticateToken, async (req, res) => {
+    const username = req.user.username;
     const { fileName, objectName, fileId, fileSize, receiverId, senderId, messageId, isGroup } = req.body;
 
     if (!fileName || !objectName || !fileId || !fileSize || !receiverId || !senderId) {
@@ -1410,12 +1438,9 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
             message_id: messageId
         };
 
-        const senderUser = await db('users').where({ id: senderId }).first();
-
-
         const savedMessage = {
             message_id: messageId,
-            username: senderUser.username,
+            username,
             content: newMessage.content,
             senderId: newMessage.sender_id,
             type: isGroup ? 'group' : 'private',
@@ -1429,19 +1454,11 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
         };
 
         if (isGroup) {
-            newMessage.group_id = receiverId;
-            const idResult = await db('group_messages').insert(newMessage).returning('id');
-            const id = idResult[0].id;
-            await updateGroupMessageVersion(receiverId, id);
-
             savedMessage.receiverId = receiverId
             io.to(`group:${receiverId}`).emit('new-message', savedMessage);
 
         }
         else {
-            newMessage.room_id = `private_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
-            newMessage.receiver_id = receiverId;
-            await db('messages').insert(newMessage);
             const onlineUsersIds = await getAllOnlineUserIds();
             const targetSocketId = onlineUsersIds.get(receiverId)?.socketId;
             if (targetSocketId) {
@@ -1452,14 +1469,54 @@ app.post('/api/upload/complete', authenticateToken, async (req, res) => {
             }
         }
 
-
         res.status(200).json({ message: '文件记录成功', messageData: savedMessage });
-
 
     } catch (error) {
         console.error('完成文件上传失败:', error);
         res.status(500).json({ error: '服务器内部错误' });
     }
+});
+
+app.post("/minio/event", authenticateToken, async (req, res) => {
+    const event = req.body;
+    const username = req.user.username;
+
+    const record = event.Records?.[0];
+    const key = record?.s3?.object?.key;
+
+    const [_, type] = key.split('/'); // 获取路径中的类型（group 或 private）
+    const isGroup = type === 'group';
+    let newMessage = null;
+
+    if (isGroup) {
+        newMessage = await db('group_messages').where({ file_path: key }).first()
+    }
+    else {
+        newMessage = await db('messages').where({ file_path: key }).first();
+    }
+    const timestamp = new Date();
+
+    const savedMessage = {
+        message_id: newMessage.message_id,
+        username: username,
+        content: newMessage.content,
+        senderId: newMessage.sender_id,
+        type,
+        messageType: 'file',
+        fileUrl: newMessage.file_url,
+        fileName: newMessage.file_name,
+        fileSize: newMessage.file_size,
+        fileId: newMessage.file_id,
+        status: 'success',
+        timestamp: timestamp
+    };
+    if (isGroup) {
+        io.to(`group:${newMessage.group_id}`).emit('new-message', savedMessage);
+    }
+    else {
+        io.to(`user:${newMessage.sender_id}`).emit('new-message', savedMessage);
+    }
+    res.sendStatus(200);
 });
 
 // --- 新的基于HTTP的头像上传流程 ---

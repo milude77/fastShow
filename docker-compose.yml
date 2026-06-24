@@ -48,14 +48,58 @@ services:
     networks:
       - fastshow-net
     ports:
-      - "9001:9001"   
       - "9000:9000"
+      - "9001:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    networks:
+      - fastshow-net
+    entrypoint: >
+      /bin/sh -c "
+      echo 'waiting minio...' &&
+
+      until mc alias set fastshow http://minio:9000 ${MINIO_USER} ${MINIO_PASSWORD}; do
+        sleep 2;
+      done &&
+
+      echo 'config webhook...' &&
+      mc admin config set fastshow notify_webhook:1 endpoint=http://node-app:3001/minio/event &&
+
+      mc admin service restart fastshow &&
+
+      echo 'create bucket...' &&
+      mc mb -p fastshow/files || true &&
+
+      echo 'add event...' &&
+      mc event add fastshow/files arn:minio:sqs::1:webhook --event put &&
+
+      echo 'set lifecycle...' &&
+      cat > /tmp/lifecycle.json <<EOF
+      {
+        \"Rules\": [
+          {
+            \"ID\": \"expire-7-days\",
+            \"Status\": \"Enabled\",
+            \"Expiration\": { \"Days\": 7 },
+            \"Filter\": { \"Prefix\": \"\" }
+          }
+        ]
+      }
+      EOF
+
+      mc ilm import fastshow/files /tmp/lifecycle.json &&
+
+      echo 'minio init done'
+      "
+      
   node-app:
     build: .
     container_name: fastshow-node
