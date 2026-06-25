@@ -498,8 +498,6 @@ io.on('connection', (socket) => {
             status: 'sent'
         };
 
-
-
         // 存储消息到数据库
         await db('messages').insert(newMessage);
 
@@ -515,15 +513,7 @@ io.on('connection', (socket) => {
             type: 'private'
         };
 
-        const onlineUsersIds = await getAllOnlineUserIds();
-
-        if (onlineUsersIds.has(receiverId)) {
-            const targetSocketId = onlineUsersIds.get(receiverId).socketId;
-            io.to(targetSocketId).emit('new-message', savedMessage);
-        } else {
-            // 接收方离线，消息状态保持 'sent' (待投递)
-            console.log(`用户 ${receiverUser.username} 离线，消息将等待上线后投递`);
-        }
+        io.to(`user:${receiverId}`).emit('new-message', savedMessage);
 
         socket.emit('message-sent-success', { senderInfo, sendMessageId, receiverId, isGroup: false });
     });
