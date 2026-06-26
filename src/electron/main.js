@@ -24,13 +24,14 @@ import {
 } from './userOptions/store.js';
 
 import { initUpdater } from './utils/updater.js';
+import crypto from 'crypto';
 
 //注册监听器函数
 import { registerSocketListeners } from './listeners/registerListeners.js'
 import { runDatabaseMigrations } from './dbMigrate/running.cjs'
 import Database from 'better-sqlite3-multiple-ciphers'
 import Client_BetterSQLite3 from 'knex/lib/dialects/better-sqlite3/index.js';
-import { getElectronLoginParams } from './userOptions/userRSAkeyOptions.js'
+import { getElectronLoginParams, decryptAESKey } from './userOptions/userRSAkeyOptions.js'
 
 // ESM-compliant __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -715,6 +716,13 @@ ipcMain.handle('get-initial-always-on-top', (event) => {
 });
 
 
+function getUserDbPath(userId) {
+    if (!userId) {
+        throw new Error('User ID is not set. Cannot determine database path.');
+    }
+    return path.join(app.getPath('userData'), `${userId}`);
+}
+
 
 
 ipcMain.on('login-success', async (event, { userId, username, token, email }) => {
@@ -728,7 +736,7 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
 
 
     try {
-        const userDbPath = path.join(app.getPath('userData'), `${userId}`);
+        const userDbPath = getUserDbPath(userId);
         dbPath = path.join(userDbPath, 'secure.db');
 
         if (!fs.existsSync(userDbPath)) {
@@ -914,7 +922,41 @@ ipcMain.handle('get-new-message-id', async () => {
     return getNewMessageId();
 })
 
+function encrypt(text, key, iv) {
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+
 ipcMain.on('send-private-message', async (event, { receiverId, message, messageId }) => {
+
+    const iv = crypto.randomBytes(16);
+    const row = await db('friends')
+        .where('id', receiverId)
+        .first('aes_key');
+
+    let aesKey = row?.aes_key;
+
+    if (!aesKey) {
+        try {
+            const friendShipId = `private_${Math.min(currentUserId, receiverId)}_${Math.max(currentUserId, receiverId)}`
+            const userDbPath = getUserDbPath(currentUserId);
+            const { device_id } = getElectronLoginParams(userDbPath)
+            const response = await apiClient.post(`api/getFriendAESKey`, {
+                friendShipId,
+                deviceId: device_id
+            });
+            const { encryptedAESKey } = response.data;
+            const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
+            aesKey = AesKey
+            await db('friends').where({ id: receiverId }).update({ session_aes_key: AesKey })
+        } catch (error) {
+            console.error('Failed to fetch AES key for friend:', receiverId, error);
+            return;
+        }
+    }
+
     const fullMessage = {
         ...message,
         id: messageId,
@@ -924,11 +966,39 @@ ipcMain.on('send-private-message', async (event, { receiverId, message, messageI
     };
 
     await writeChatHistory(receiverId, fullMessage);
+
+    fullMessage.text = encrypt(message.text, Buffer.from(aesKey, 'hex'), iv);
+    fullMessage.iv = iv
+
     socket.emit('send-private-message', fullMessage);
     event.sender.send('sent-new-message', { contactId: receiverId, isGroup: false });
 });
 
 ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) => {
+    const iv = crypto.randomBytes(16);
+    const groupAesKey = await db('groups').where({ id: groupId }).first()
+    let aesKey = groupAesKey.group_aes_key;
+    let aesVersion = groupAesKey.aes_version;
+    if (!aesKey) {
+        try {
+            const userDbPath = getUserDbPath(currentUserId);
+            const { device_id } = getElectronLoginParams(userDbPath)
+            const response = await apiClient.post(`api/getGroupAes`, {
+                groupId,
+                deviceId: device_id
+            });
+            const { encryptedAESKey, aseVersion } = response.data;
+            const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
+            aesKey = AesKey
+            aesVersion = aseVersion
+            await db('groups').where({ id: groupId }).update({ group_aes_key: AesKey })
+            await db('group_aes_history').insert({ group_id: groupId, aes_key: AesKey, aes_version: aseVersion })
+        }
+        catch (error) {
+            console.error('Failed to fetch AES key for group:', error);
+            return;
+        }
+    }
     const fullMessage = {
         ...message,
         id: messageId,
@@ -937,6 +1007,11 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
         sender: 'user',
     };
     await writeChatHistory(groupId, fullMessage);
+
+    fullMessage.text = encrypt(message.text, Buffer.from(aesKey, 'hex'), iv);
+    fullMessage.iv = iv
+    fullMessage.ase_version = aesVersion
+
     socket.emit('send-group-message', fullMessage);
     event.sender.send('sent-new-message', { contactId: groupId, isGroup: true });
 });

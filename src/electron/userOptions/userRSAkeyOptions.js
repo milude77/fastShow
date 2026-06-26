@@ -4,29 +4,25 @@ import path from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 
-// 生成X25519密钥对
 function generateKeyPairSync() {
-    // 1. 使用 Node.js 原生高强度安全随机源生成密钥对
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('x25519', {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
         publicKeyEncoding: {
             type: 'spki',
-            format: 'der'
+            format: 'pem'
         },
         privateKeyEncoding: {
             type: 'pkcs8',
-            format: 'der'
+            format: 'pem'
         }
     });
 
-    // 此时 publicKey 和 privateKey 是 Buffer，需要转换为 Base64 字符串
-    const publicKeyString = publicKey.toString('base64');
-    const privateKeyString = privateKey.toString('base64');
-
     return {
-        publicKey: publicKeyString,
-        privateKey: privateKeyString
+        publicKey,
+        privateKey
     };
 }
+
 
 //生成设备唯一机器码
 function generateDeviceId() {
@@ -80,4 +76,23 @@ export function getElectronLoginParams(userPath) {
     }
 
     return { device_id, device_name, identity_public_key };
+}
+
+export function decryptAESKey(encryptedAESKeyBase64, userPath) {
+    // 读取并解密私钥
+    const encryptedPrivateKeyPath = path.join(userPath, 'localvoice_priv.enc');
+    const encryptedPriv = fs.readFileSync(encryptedPrivateKeyPath);
+    const privateKeyPem = safeStorage.decryptString(encryptedPriv);
+
+    // 用私钥解密 AES 密钥
+    const decrypted = crypto.privateDecrypt(
+        {
+            key: privateKeyPem,
+            padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+            oaepHash: 'sha256'
+        },
+        Buffer.from(encryptedAESKeyBase64, 'base64')
+    );
+
+    return decrypted.toString('hex');
 }

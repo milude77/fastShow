@@ -37,7 +37,7 @@ export function useMessageList(curSelectedContact) {
                 const newMessage = {
                     id: messageId,
                     text: msg.content,
-                    sender: 'other',
+                    sender: currentUser?.userId === msg.senderId ? 'user' : 'other',
                     timestamp: msg.timestamp,
                     username: msg.username,
                     messageType: msg.messageType,

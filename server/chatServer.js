@@ -1934,6 +1934,111 @@ app.post('/api/verify-verification-code', async (req, res) => {
 }
 )
 
+function encryptAESKeyWithRSA(aesKeyHex, publicKeyPem) {
+    const encryptedKey = crypto.publicEncrypt(
+        {
+            key: publicKeyPem,
+            padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+            oaepHash: 'sha256'
+        },
+        Buffer.from(aesKeyHex, 'hex')
+    );
+
+    return encryptedKey.toString('base64');
+}
+
+app.post('/api/getFriendAESKey', authenticateToken, async (req, res) => {
+    const { friendShipId, deviceId } = req.body
+    if (!friendShipId) {
+        return res.status(400).json({ success: false, message: 'friendShipId is required' });
+    }
+    const friendShip = await db('friendships').where({ id: friendShipId }).first();
+    if (!friendShip) {
+        return res.status(404).json({ success: false, message: 'friendShip not found' });
+    }
+
+    let aesKey = friendShip.aes_key;
+
+    if (!aesKey) {
+        aesKey = crypto.randomBytes(32).toString('hex');
+
+        await db('friendships')
+            .where({ id: friendShipId })
+            .update({
+                aes_key: db.raw('COALESCE(aes_key, ?)', [aesKey])
+            });
+    }
+
+    const isExitDeviceId = await db('user_devices').where({ device_id: deviceId, user_id: req.user.id }).first('identity_public_key')
+    if (!isExitDeviceId) {
+        return res.status(404).json({ success: false, message: 'device not exit' });
+    }
+    else {
+        const publicDeviceKey = isExitDeviceId.identity_public_key
+        const encryptedAESKey = encryptAESKeyWithRSA(aesKey, publicDeviceKey);
+        res.status(200).json({ encryptedAESKey });
+    }
+});
+
+app.post('/api/getGroupAes', authenticateToken, async (req, res) => {
+    const { groupId, deviceId } = req.body
+    const reqUserId = req.user.userId
+
+    const result = await db.transaction(async (trx) => {
+
+        const group = await trx('groups')
+            .where({ id: groupId })
+            .forUpdate()
+            .first()
+
+        if (!group) {
+            return { error: '群组不存在' }
+        }
+
+        const member = await trx('group_members')
+            .where({ group_id: groupId, user_id: reqUserId })
+            .first()
+
+        if (!member) {
+            return { error: '你已非此群成员' }
+        }
+
+        let aesKey = group.aes_key
+
+        if (!aesKey) {
+            aesKey = crypto.randomBytes(32).toString('hex')
+
+            await trx('groups')
+                .where({ id: groupId })
+                .whereNull('aes_key')
+                .update({
+                    aes_key: aesKey,
+                    aes_version: trx.raw('aes_version + 1')
+                })
+        }
+
+        const updated = await trx('groups')
+            .where({ id: groupId })
+            .first('aes_key', 'aes_version')
+
+        return updated
+    })
+
+    if (result.error) {
+        return res.status(404).json({ success: false, message: result.error })
+    }
+
+    const isExitDeviceId = await db('user_devices').where({ device_id: deviceId, user_id: reqUserId }).first('identity_public_key')
+    if (!isExitDeviceId) {
+        return res.status(404).json({ success: false, message: 'device not exit' });
+    }
+    else {
+        const publicDeviceKey = isExitDeviceId.identity_public_key
+        const encryptedAESKey = encryptAESKeyWithRSA(result.aes_key, publicDeviceKey);
+        return res.status(200).json({ encryptedAESKey, aseVersion: result.aes_version });
+    }
+})
+
 
 // 启动服务器
 const PORT = process.env.PORT || 3001;
