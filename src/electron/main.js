@@ -292,15 +292,10 @@ async function writeChatHistory(contactId, msg) {
         }
         else {
             await db('group_messages').insert(messageData).onConflict('id').ignore();
-            const messageVersion = await db('groups')
-                .where('id', contactId)
-                .first()
-                .then(group => group ? group.message_version : 0);
-            const maxMessageVersion = Math.max(messageVersion, msg.versionId);
             await db('groups')
                 .where('id', contactId)
                 .update({
-                    message_version: maxMessageVersion
+                    message_version: db.raw('COALESCE(message_version, 0) + 1')
                 });
         }
 
@@ -745,6 +740,7 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
 
         //如果本地为旧数据库， 迁移至新的加密的数据库
         const dbKey = getOrCreateDatabaseKey(userDbPath);
+        console.log(`dbKey:${dbKey}`)
         migrateOldDataIfNeeded(userDbPath, dbKey);
 
 
@@ -1017,46 +1013,34 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
 });
 
 
-ipcMain.on('message-sent-status', async (event, { senderInfo, sendMessageId, isGroup, versionId }) => {
+ipcMain.on('message-sent-status', async (event, { sendMessageId, isGroup, versionId }) => {
     try {
-
-        const userDbPath = path.join(app.getPath('userData'), String(senderInfo?.userId || senderInfo));
-
-        const senderDb = knex({
-            client: 'sqlite3',
-            connection: {
-                filename: path.join(userDbPath, 'chat_history.sqlite3'),
-            },
-            useNullAsDefault: true
-        });
-
-        if (!senderDb) {
+        if (!db) {
             console.error('Database not connected, cannot update message status.');
             return;
         }
         //改变私聊信息状态
         if (!isGroup) {
-            await senderDb('messages')
+            await db('messages')
                 .where('id', sendMessageId)
                 .update({ status: 'success' });
         }
         //改变群聊信息状态
         else {
-            await senderDb('group_messages')
+            await db('group_messages')
                 .where('id', sendMessageId)
                 .update({ status: 'success' });
-            const groupId = await senderDb('group_messages')
-                .where('id', sendMessageId)
-                .first()
-                .then(row => row.group_id);
-            const currentVersion = await senderDb('groups')
-                .where('id', groupId)
-                .first('message_version')
-                .then(row => row?.message_version || 0);
-            const newVersion = Math.max(currentVersion, versionId);
-            await senderDb('groups')
-                .where('id', groupId)
-                .update({ message_version: newVersion });
+            const row = await db('group_messages')
+                .join('groups', 'groups.id', 'group_messages.receiver_id')
+                .where('group_messages.id', sendMessageId)
+                .select('group_messages.receiver_id', 'groups.message_version')
+                .first();
+            if (row?.group_id) {
+                const newVersion = Math.max(row.message_version || 0, versionId);
+                await db('groups')
+                    .where('id', row.group_id)
+                    .update({ message_version: newVersion });
+            }
         }
 
     } catch (error) {
