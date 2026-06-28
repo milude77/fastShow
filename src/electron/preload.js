@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.send('download-update'),
   quitAndInstall: () => ipcRenderer.send('quit-and-install'),
   getInviteInformationList: () => ipcRenderer.invoke('get-invite-information-list'),
-  openSearchWindow: (selectInformation) => ipcRenderer.send('open-search-window', { selectInformation }),
+  openSearchWindow: (selectInformation = null) => ipcRenderer.send('open-search-window', { selectInformation }),
   openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
   deleteContact: (contactId) => ipcRenderer.invoke('delete-contact', { contactId }),
   deleteContactMessageHistory: (contact) => ipcRenderer.invoke('delete-contact-message-history', { contact }),

@@ -497,7 +497,7 @@ io.on('connection', (socket) => {
             message_id: sendMessageId,
             sender_id: senderInfo.userId,
             receiver_id: receiverUser.id,
-            room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`,
+            room_id: `private_${[senderInfo.userId, receiverUser.id].sort().join('_')}`,
             content: message.text,
             timestamp: nowTime,
             status: 'sent',
@@ -1391,7 +1391,7 @@ app.post('/api/upload/initiate', authenticateToken, async (req, res) => {
         await updateGroupMessageVersion(receiverId, id);
     }
     else {
-        newMessage.room_id = `private_${Math.min(userId, receiverId)}_${Math.max(userId, receiverId)}`;
+        newMessage.room_id = `private_${[userId, receiverId].sort().join('_')}`;
         newMessage.receiver_id = receiverId;
         await db('messages').insert(newMessage);
     }
@@ -1978,7 +1978,7 @@ app.post('/api/getFriendAESKey', authenticateToken, async (req, res) => {
             });
     }
 
-    const isExitDeviceId = await db('user_devices').where({ device_id: deviceId, user_id: req.user.id }).first('identity_public_key')
+    const isExitDeviceId = await db('user_devices').where({ device_id: deviceId, user_id: req.user.userId }).first('identity_public_key')
     if (!isExitDeviceId) {
         return res.status(404).json({ success: false, message: 'device not exit' });
     }

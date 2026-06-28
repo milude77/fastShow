@@ -27,28 +27,12 @@ export function useMessageList(curSelectedContact) {
 
 
     const handleNewMessage = useCallback((msg) => {
-        // Safety check: Do not process messages if the user is not logged in.
+        console.log(msg)
 
         const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
-        const messageId = msg.message_id;
 
         if (contactRef.current.id == contactId && msg.type == (contactRef.current.type === 'group' ? 'group' : 'private')) {
-            setMessages(prev => {
-                const newMessage = {
-                    id: messageId,
-                    text: msg.content,
-                    sender: currentUser?.userId === msg.senderId ? 'user' : 'other',
-                    timestamp: msg.timestamp,
-                    username: msg.username,
-                    messageType: msg.messageType,
-                    fileName: msg.fileName,
-                    fileUrl: msg.fileUrl,
-                    fileSize: msg.fileSize,
-                    sender_id: msg.senderId
-                };
-
-                // 返回新数组，不是包装在对象中的数组
-                return [...prev, newMessage].sort((a, b) => a.timestamp - b.timestamp);
+            setMessages(prev => { return [...prev, msg].sort((a, b) => a.timestamp - b.timestamp);
             })
         }
     }, []);

@@ -901,8 +901,9 @@ const handleNewMessage = async (msg) => {
         : await db('friends').where({ id: contactId }).first('session_aes_key').then(row => row?.session_aes_key)
     if (!contactAesKey) {
         if (!isGroup) {
-            const friendShipId = `private_${Math.min(msg.receiverId, msg.senderId)}_${Math.max(msg.receiverId, msg.senderId)}`
-            contactAesKey = getFriendAesKey(friendShipId)
+            const [minId, maxId] = [msg.receiverId, msg.senderId].sort();
+            const friendShipId = `${minId}_${maxId}_friends`;
+            contactAesKey = getFriendAesKey(friendShipId, msg.senderId)
         }
         else {
             const { AesKey, AseVersion } = await getGroupAesKey(contactId)
@@ -966,7 +967,7 @@ function encrypt(text, key, iv) {
     return encrypted;
 }
 
-async function getFriendAesKey(friendShipId) {
+async function getFriendAesKey(friendShipId, receiverId) {
     const userDbPath = getUserDbPath(currentUserId);
     const { device_id } = getElectronLoginParams(userDbPath)
     const response = await apiClient.post(`api/getFriendAESKey`, {
@@ -975,6 +976,7 @@ async function getFriendAesKey(friendShipId) {
     });
     const { encryptedAESKey } = response.data;
     const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
+    await db('friends').where({ id: receiverId }).update({ session_aes_key: AesKey })
     return AesKey
 }
 
@@ -983,15 +985,16 @@ ipcMain.on('send-private-message', async (event, { receiverId, message, messageI
     const iv = crypto.randomBytes(16);
     const row = await db('friends')
         .where('id', receiverId)
-        .first('aes_key');
+        .first('session_aes_key');
 
     let aesKey = row?.aes_key;
 
     if (!aesKey) {
         try {
-            const friendShipId = `private_${Math.min(currentUserId, receiverId)}_${Math.max(currentUserId, receiverId)}`
-            aesKey = await getFriendAesKey(friendShipId)
-            await db('friends').where({ id: receiverId }).update({ session_aes_key: aesKey })
+            const [minId, maxId] = [currentUserId, receiverId].sort();
+            const friendShipId = `${minId}_${maxId}_friends`;
+            aesKey = await getFriendAesKey(friendShipId, receiverId)
+
         } catch (error) {
             console.error('Failed to fetch AES key for friend:', receiverId, error);
             return;

@@ -1,10 +1,10 @@
 import React from 'react';
 import { LoadingOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 
-export default function TextItem({msg, handleResendMessage, contact} ) {
+export default function TextItem({msg, handleResendMessage, contact, isCurUserSender } ) {
     return (
         <div style={{ display: 'flex', alignItems: 'center' }}>
-            {msg.sender === 'user' && (() => {
+            {isCurUserSender && (() => {
                 switch (msg.status) {
                     case 'sending':
                         return (<span className="message-status"><LoadingOutlined /></span>);

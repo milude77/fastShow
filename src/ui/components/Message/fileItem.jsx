@@ -3,7 +3,7 @@ import { Button, Progress } from 'antd';
 import { ExclamationCircleOutlined, FolderOpenOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 
-export default function FileItem({ msg, handleResendFile, handleOpenFileLocation, handleDownloadFile, isGroup, convertFileSize }) {
+export default function FileItem({ msg, handleResendFile, handleOpenFileLocation, handleDownloadFile, isGroup, convertFileSize, isCurUserSender }) {
     const { t } = useTranslation();
     // 添加进度状态
     const [fileExt, setFileExt] = useState(false)
@@ -140,7 +140,7 @@ export default function FileItem({ msg, handleResendFile, handleOpenFileLocation
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', maxWidth: '70%' }}>
-            {msg.sender === 'user' && (() => {
+            {isCurUserSender && (() => {
                 switch (msg.status) {
                     case 'fail':
                         return (
@@ -157,7 +157,7 @@ export default function FileItem({ msg, handleResendFile, handleOpenFileLocation
                 }
             })()}
 
-            <div className={`file-message-content ${msg.sender === 'user' ? 'sent' : 'received'}`}>
+            <div className={`file-message-content ${isCurUserSender ? 'sent' : 'received'}`}>
                 <div
                     style={{
                         display: "flex",

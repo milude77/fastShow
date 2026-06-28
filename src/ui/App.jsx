@@ -78,7 +78,7 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
         <Button type="link" onClick={onCreateGroup}><CommentOutlined />{t('app.createGroup')}</Button>
       </Menu.Item>
       <Menu.Item key="2">
-        <Button type="link" onClick={() => { window.electronAPI.openSearchWindow(currentUser.id, searchTerm) }}><UsergroupAddOutlined />{t('app.addFriend')}</Button>
+        <Button type="link" onClick={() => { window.electronAPI.openSearchWindow() }}><UsergroupAddOutlined />{t('app.addFriend')}</Button>
       </Menu.Item>
     </Menu>
   );
@@ -237,7 +237,7 @@ function App() {
     }
   }, [messageApi]);
 
-  const sortContactList = useCallback((event, { contactId, isGroup }) => {
+  const sortContactList = ({ contactId, isGroup }) => {
     // 优化 1: 使用 LRU 缓存记录访问顺序
     const lruOrder = contactLruOrderRef.current;
     const contactMap = contactMapRef.current;
@@ -282,7 +282,12 @@ function App() {
 
     // 更新 ref
     contactLruOrderRef.current = lruOrder;
-  }, []);
+  };
+
+  const receivedNewMessge = useCallback((event, { contactId, isGroup, renderNewMessage }) => {
+    handleNewMessage(renderNewMessage)
+    sortContactList({ contactId, isGroup })
+  }, [handleNewMessage])
 
   const handleLanguageUpdated = useCallback((event, language) => {
     i18n.changeLanguage(language);
@@ -304,7 +309,7 @@ function App() {
     window.electronAPI.ipcRenderer.on('contact-deleted', handleDeleteContact);
     window.electronAPI.ipcRenderer.on('message-history-deleted', handleChatHistoryDeleted);
     window.electronAPI.ipcRenderer.on('sent-new-message', sortContactList);
-    window.electronAPI.ipcRenderer.on('received-new-chat-message', sortContactList);
+    window.electronAPI.ipcRenderer.on('received-new-chat-message', receivedNewMessge);
     window.electronAPI.ipcRenderer.on('contacts-list-updated', getContactList);
     window.electronAPI.ipcRenderer.on('db-initialized-success', handleDbInitializedSuccess);
     window.electronAPI.ipcRenderer.on('language-updated', handleLanguageUpdated);
@@ -317,7 +322,7 @@ function App() {
       window.electronAPI.ipcRenderer.removeListener('contact-deleted', handleDeleteContact);
       window.electronAPI.ipcRenderer.removeListener('message-history-deleted', handleChatHistoryDeleted);
       window.electronAPI.ipcRenderer.removeListener('sent-new-message', sortContactList);
-      window.electronAPI.ipcRenderer.removeListener('received-new-chat-message', sortContactList);
+      window.electronAPI.ipcRenderer.removeListener('received-new-chat-message', receivedNewMessge);
       window.electronAPI.ipcRenderer.removeListener('contacts-list-updated', getContactList);
       window.electronAPI.ipcRenderer.removeListener('db-initialized-success', handleDbInitializedSuccess);
       window.electronAPI.ipcRenderer.removeListener('language-updated', handleLanguageUpdated);
@@ -335,7 +340,6 @@ function App() {
   useEffect(() => {
     if (!socket) return;
     socket.on('login-success', handleLoginSuccess);
-    socket.on('new-message', handleNewMessage);
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('reconnecting', handleReconnecting);
@@ -347,7 +351,6 @@ function App() {
 
     return () => {
       socket.off('login-success', handleLoginSuccess);
-      socket.off('new-message', handleNewMessage);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('reconnecting', handleReconnecting);

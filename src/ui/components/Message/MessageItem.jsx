@@ -3,6 +3,7 @@ import React, { forwardRef, useCallback, useEffect, useState } from 'react';
 import FileItem from './FileItem.jsx';
 import TextItem from './TextItem.jsx';
 import Avatar from '../avatar.jsx';
+import { useAuth } from '../../hooks/useAuth';
 
 
 const MessageItem = forwardRef(({
@@ -17,18 +18,19 @@ const MessageItem = forwardRef(({
     convertFileSize,
     isGroup
 }, ref) => {
-
+    const { currentUser } = useAuth()
     const [userAvatar, setUserAvatar] = useState(userAvatarSrc);
-    
+    const isCurUserSender = msg.sender_id === currentUser.userId
+
     const key = msg.id || `${msg.timestamp}-${index}`;
 
     const handleAvatarChange = useCallback((event, avatarPath) => {
-        if (msg.sender === 'user'){ 
+        if (isCurUserSender) {
             setUserAvatar(avatarPath)
         };
-    }, [msg.sender])
+    }, [isCurUserSender])
 
-    useEffect(() =>{
+    useEffect(() => {
         setUserAvatar(userAvatarSrc);
         window.electronAPI.ipcRenderer.on('avatar-saved-successfully', handleAvatarChange)
 
@@ -41,7 +43,7 @@ const MessageItem = forwardRef(({
     return (
         <React.Fragment key={key}>
             <li
-                className={`message-item ${msg.sender === 'user' ? 'sent' : 'received'}`}
+                className={`message-item ${isCurUserSender ? 'sent' : 'received'}`}
                 ref={ref}
             >
                 <Avatar
@@ -49,13 +51,15 @@ const MessageItem = forwardRef(({
                     className="user-avatar"
                     src={userAvatar}
                     alt="user-avatar" />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start', maxWidth: '70%' }} >
-                    <div style={{ fontSize: '10px', textAlign: msg.sender === 'user' ? 'right' : 'left' }}>{msg?.username}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: isCurUserSender ? 'flex-end' : 'flex-start', maxWidth: '70%' }} >
+                    <div style={{ fontSize: '10px', textAlign: isCurUserSender ? 'right' : 'left' }}>{msg?.username}</div>
                     {msg.messageType == 'text' ?
                         <TextItem
                             msg={msg}
                             handleResendMessage={handleResendMessage}
-                            contact={contact} />
+                            contact={contact}
+                            isCurUserSender={isCurUserSender}
+                        />
                         :
                         <FileItem
                             msg={msg}
@@ -64,6 +68,7 @@ const MessageItem = forwardRef(({
                             handleDownloadFile={handleDownloadFile}
                             convertFileSize={convertFileSize}
                             isGroup={isGroup}
+                            isCurUserSender={isCurUserSender}
                         />
                     }
                 </div>
