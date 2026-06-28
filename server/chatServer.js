@@ -204,7 +204,8 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                     'gm.file_name',
                     'gm.file_url',
                     'gm.file_size',
-                    'u.username as sender_username'
+                    'u.username as sender_username',
+                    'gm.aes_iv as iv'
                 )
                 .limit(30)
                 .orderBy('gm.timestamp', 'asc');
@@ -225,7 +226,8 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                     'gm.file_name',
                     'gm.file_url',
                     'gm.file_size',
-                    'u.username as sender_username'
+                    'u.username as sender_username',
+                    'gm.aes_iv as iv'
                 )
                 .orderBy('gm.timestamp', 'asc');
         }
@@ -246,7 +248,8 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                 fileName: msg.file_name,
                 fileUrl: msg.file_url,
                 fileSize: msg.file_size,
-                status: 'success'
+                status: 'success',
+                iv: msg.iv
             });
         }
 
@@ -344,7 +347,8 @@ async function handleSendDisconnectMessage(socket, user) {
             'm.file_name',
             'm.file_url',
             'm.file_size',
-            'u.username as sender_username'
+            'u.username as sender_username',
+            'm.aes_iv as iv'
         )
         .orderBy('m.timestamp', 'asc');
 
@@ -362,7 +366,8 @@ async function handleSendDisconnectMessage(socket, user) {
             fileName: msg.file_name,
             fileUrl: msg.file_url,
             fileSize: msg.file_size,
-            status: 'success'
+            status: 'success',
+            iv: msg.iv
         });
     }
 
@@ -495,7 +500,8 @@ io.on('connection', (socket) => {
             room_id: `private_${Math.min(senderInfo.userId, receiverUser.id)}_${Math.max(senderInfo.userId, receiverUser.id)}`,
             content: message.text,
             timestamp: nowTime,
-            status: 'sent'
+            status: 'sent',
+            aes_iv: message.iv
         };
 
         // 存储消息到数据库
@@ -510,7 +516,8 @@ io.on('connection', (socket) => {
             receiverId: newMessage.receiver_id,
             receiverUsername: receiverUser.username,
             messageType: 'text',
-            type: 'private'
+            type: 'private',
+            iv: message.iv
         };
 
         io.to(`user:${receiverId}`).emit('new-message', savedMessage);
@@ -551,6 +558,7 @@ io.on('connection', (socket) => {
             content: message.text,
             timestamp: sendTimestamp,
             message_id: sendMessageId,
+            aes_iv: message.iv
         };
 
 
@@ -563,7 +571,8 @@ io.on('connection', (socket) => {
             senderId: newMessage.sender_id,
             receiverId: newMessage.group_id,
             type: 'group',
-            status: 'success'
+            status: 'success',
+            iv: message.iv
         };
 
         const idResult = await db('group_messages').insert(newMessage).returning('id');

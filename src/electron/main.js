@@ -24,6 +24,7 @@ import {
 } from './userOptions/store.js';
 
 import { initUpdater } from './utils/updater.js';
+import { decryptAESMessage } from './utils/decryptAESMessage.js'
 import crypto from 'crypto';
 
 //注册监听器函数
@@ -883,13 +884,37 @@ const saveNewMessage = async ({ contactId, msg }) => {
 const handleNewMessage = async (msg) => {
     // Safety check: Do not process messages if the user is not logged in.
 
-    const contactId = msg.type == 'group' ? msg.receiverId : msg.senderId;
+    const isGroup = msg.type == 'group'
+
+    const contactId = isGroup ? msg.receiverId : msg.senderId;
     const messageId = msg.message_id;
     const versionId = msg.version_id || null;
 
+    // 群聊消息会群发给所有成员包括发送者，跳过已存在的消息避免重复处理
+    const tableName = isGroup ? 'group_messages' : 'messages';
+    const existing = await db(tableName).where({ id: messageId }).first();
+    if (existing) return;
+
+    const iv = msg.iv
+    let contactAesKey = isGroup
+        ? await db('groups').where({ id: contactId }).first('group_aes_key').then(row => row?.group_aes_key)
+        : await db('friends').where({ id: contactId }).first('session_aes_key').then(row => row?.session_aes_key)
+    if (!contactAesKey) {
+        if (!isGroup) {
+            const friendShipId = `private_${Math.min(msg.receiverId, msg.senderId)}_${Math.max(msg.receiverId, msg.senderId)}`
+            contactAesKey = getFriendAesKey(friendShipId)
+        }
+        else {
+            const { AesKey, AseVersion } = await getGroupAesKey(contactId)
+            contactAesKey = AesKey
+        }
+
+    }
+    const decryptMessage = iv ? decryptAESMessage(msg.content, contactAesKey, iv) : msg.content
+
     const newMessage = {
         id: messageId,
-        text: msg.content,
+        text: decryptMessage,
         sender: msg.senderId == currentUserId ? 'user' : 'other',
         sender_id: msg.senderId,
         timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now(),
@@ -903,9 +928,25 @@ const handleNewMessage = async (msg) => {
         status: 'success'
     }
 
+    const renderNewMessage = {
+        id: messageId,
+        text: decryptMessage,
+        sender: currentUserId === msg.senderId ? 'user' : 'other',
+        timestamp: msg.timestamp,
+        username: msg.username,
+        messageType: msg.messageType,
+        fileName: msg.fileName,
+        fileUrl: msg.fileUrl,
+        fileSize: msg.fileSize,
+        sender_id: msg.senderId,
+        type: msg.type,
+        receiverId: msg.receiverId,
+        senderId: msg.senderId
+    };
+
     await saveNewMessage({ contactId, msg: newMessage });
     BrowserWindow.getAllWindows().forEach(win => {
-        win.webContents.send('received-new-chat-message', { contactId, isGroup: msg.type === 'group' });
+        win.webContents.send('received-new-chat-message', { contactId, isGroup: msg.type === 'group', renderNewMessage });
     })
 }
 
@@ -925,6 +966,18 @@ function encrypt(text, key, iv) {
     return encrypted;
 }
 
+async function getFriendAesKey(friendShipId) {
+    const userDbPath = getUserDbPath(currentUserId);
+    const { device_id } = getElectronLoginParams(userDbPath)
+    const response = await apiClient.post(`api/getFriendAESKey`, {
+        friendShipId,
+        deviceId: device_id
+    });
+    const { encryptedAESKey } = response.data;
+    const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
+    return AesKey
+}
+
 ipcMain.on('send-private-message', async (event, { receiverId, message, messageId }) => {
 
     const iv = crypto.randomBytes(16);
@@ -937,16 +990,8 @@ ipcMain.on('send-private-message', async (event, { receiverId, message, messageI
     if (!aesKey) {
         try {
             const friendShipId = `private_${Math.min(currentUserId, receiverId)}_${Math.max(currentUserId, receiverId)}`
-            const userDbPath = getUserDbPath(currentUserId);
-            const { device_id } = getElectronLoginParams(userDbPath)
-            const response = await apiClient.post(`api/getFriendAESKey`, {
-                friendShipId,
-                deviceId: device_id
-            });
-            const { encryptedAESKey } = response.data;
-            const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
-            aesKey = AesKey
-            await db('friends').where({ id: receiverId }).update({ session_aes_key: AesKey })
+            aesKey = await getFriendAesKey(friendShipId)
+            await db('friends').where({ id: receiverId }).update({ session_aes_key: aesKey })
         } catch (error) {
             console.error('Failed to fetch AES key for friend:', receiverId, error);
             return;
@@ -964,11 +1009,27 @@ ipcMain.on('send-private-message', async (event, { receiverId, message, messageI
     await writeChatHistory(receiverId, fullMessage);
 
     fullMessage.text = encrypt(message.text, Buffer.from(aesKey, 'hex'), iv);
-    fullMessage.iv = iv
+    fullMessage.iv = iv.toString('hex')
 
     socket.emit('send-private-message', fullMessage);
     event.sender.send('sent-new-message', { contactId: receiverId, isGroup: false });
 });
+
+async function getGroupAesKey(groupId) {
+    const userDbPath = getUserDbPath(currentUserId);
+    const { device_id } = getElectronLoginParams(userDbPath)
+    const response = await apiClient.post(`api/getGroupAes`, {
+        groupId,
+        deviceId: device_id
+    });
+    const { encryptedAESKey, aseVersion } = response.data;
+    const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
+    await db('groups').where({ id: groupId }).update({ group_aes_key: AesKey })
+    await db('group_aes_history').insert({ group_id: groupId, aes_key: AesKey, aes_version: aseVersion })
+
+    return { AesKey, AseVersion: aseVersion }
+}
+
 
 ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) => {
     const iv = crypto.randomBytes(16);
@@ -977,18 +1038,9 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
     let aesVersion = groupAesKey.aes_version;
     if (!aesKey) {
         try {
-            const userDbPath = getUserDbPath(currentUserId);
-            const { device_id } = getElectronLoginParams(userDbPath)
-            const response = await apiClient.post(`api/getGroupAes`, {
-                groupId,
-                deviceId: device_id
-            });
-            const { encryptedAESKey, aseVersion } = response.data;
-            const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
+            const { AesKey, AseVersion } = await getGroupAesKey(groupId)
             aesKey = AesKey
-            aesVersion = aseVersion
-            await db('groups').where({ id: groupId }).update({ group_aes_key: AesKey })
-            await db('group_aes_history').insert({ group_id: groupId, aes_key: AesKey, aes_version: aseVersion })
+            aesVersion = AseVersion
         }
         catch (error) {
             console.error('Failed to fetch AES key for group:', error);
@@ -1005,7 +1057,7 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
     await writeChatHistory(groupId, fullMessage);
 
     fullMessage.text = encrypt(message.text, Buffer.from(aesKey, 'hex'), iv);
-    fullMessage.iv = iv
+    fullMessage.iv = iv.toString('hex')
     fullMessage.ase_version = aesVersion
 
     socket.emit('send-group-message', fullMessage);
