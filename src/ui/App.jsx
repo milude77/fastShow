@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Alert, Button, ConfigProvider, Dropdown, Menu } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { SearchOutlined, PlusOutlined, UsergroupAddOutlined, CommentOutlined } from '@ant-design/icons';
@@ -25,7 +26,7 @@ import { useTranslation } from 'react-i18next';
 import titleImage from './assets/title.png';
 import { debounce } from './utils/universalFunction.js'
 
-const SearchBar = ({ currentUser, onCreateGroup }) => {
+const SearchBar = ({ onCreateGroup }) => {
   const { t } = useTranslation();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,13 +110,37 @@ const SearchBar = ({ currentUser, onCreateGroup }) => {
   );
 };
 
+// 右侧信息面板路由包装器
+function MessageInfoPanel({ contacts, messageListHook }) {
+  const { contactType, contactId } = useParams();
+  const type = contactType === 'group' ? 'group' : 'friend';
+  const contact = contacts.find(c => String(c.id) === contactId && c.type === type);
+  if (!contact) return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
+  return <MessageList contact={contact} messageListHook={messageListHook} />;
+}
+
+function ContactInfoPanel({ contacts, handleToSendMessage }) {
+  const { contactType, contactId } = useParams();
+
+  // 好友请求
+  if (contactType === 'friendsRequest') {
+    return <FriendsRequestManagement />;
+  }
+
+  // 联系人详情：用 contactType + contactId 精确查找，避免 id 冲突
+  const contact = contacts.find(c => String(c.id) === contactId && c.type === (contactType === 'group' ? 'group' : 'friend'));
+  if (contact) {
+    return <ContactInformation contactInformation={contact} toSendMessage={handleToSendMessage} />;
+  }
+
+  return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
+}
+
 function App() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [theme, setTheme] = useState('dark');
-  const [selectFeatures, setSelectFeatures] = useState('message');
-  const [selectedContact, setSelectedContact] = useState(null);
-  const selectedContactRef = useRef(selectedContact);
-  const [selectedContactInformation, setSelectedContactInformation] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const [contacts, setContacts] = useState([]);
   const contactLruOrderRef = useRef([]);
@@ -127,6 +152,23 @@ function App() {
   const socket = useSocket();
 
   const { isModalOpen, modalType, modalProps, openModal, closeModal } = useGlobalModal();
+
+  // 从 URL 派生当前选中的联系人 ID 和类型
+  // message/:contactType/:contactId  或  contact/:contactType/:contactId
+  const { contactId, contactType } = useMemo(() => {
+    const segments = location.pathname.split('/').filter(Boolean);
+    if ((segments[0] === 'message' || segments[0] === 'contact') && segments.length >= 3) {
+      return { contactId: segments[2], contactType: segments[1] };
+    }
+    return { contactId: null, contactType: null };
+  }, [location.pathname]);
+
+  const selectedContact = useMemo(() => {
+    if (!contactId || !contactType || contacts.length === 0) return null;
+    const type = contactType === 'group' ? 'group' : 'friend';
+    return contacts.find(c => String(c.id) === contactId && c.type === type) || null;
+  }, [contactId, contactType, contacts]);
+
   const messageListHook = useMessageList(selectedContact);
   const {
     handleChatHistoryDeleted,
@@ -134,10 +176,6 @@ function App() {
     handleNewMessage,
     MessageListSelectContact
   } = messageListHook;
-
-  useEffect(() => {
-    selectedContactRef.current = selectedContact;
-  }, [selectedContact]);
 
   const toggleDarkMode = async () => {
     const curTheme = await window.electronAPI.getSettingsValue('theme');
@@ -198,8 +236,8 @@ function App() {
     const key = `${groupId}-group`;
     contactLruOrderRef.current = contactLruOrderRef.current.filter(k => k !== key);
     contactMapRef.current.delete(key);
-    setSelectedContact(null)
-  }, [messageApi]);
+    navigate('/message', { replace: true });
+  }, [messageApi, navigate]);
 
   const handleConnect = useCallback(() => {
     setConnectionStatus('connected');
@@ -212,9 +250,10 @@ function App() {
   const handleReconnecting = useCallback(() => setConnectionStatus('reconnecting'), []);
 
   const handleMessageListSelectContact = useCallback(async (contact) => {
-    setSelectedContact(contact);
+    const type = contact.type === 'group' ? 'group' : 'friend';
+    navigate(`/message/${type}/${contact.id}`);
     await MessageListSelectContact(contact)
-  }, [MessageListSelectContact]);
+  }, [MessageListSelectContact, navigate]);
 
   const handleStrongLogoutWarning = useCallback(async (data) => {
     const message = data.message;
@@ -363,22 +402,20 @@ function App() {
   }, [socket]);
 
 
-  const handleAddressBookSelectContact = useCallback((contact) => {
-    setSelectedContactInformation(contact);
-  }, []);
+  const handleAddressBookSelectContact = useCallback((contactId, contactType) => {
+    navigate(`/contact/${contactType}/${contactId}`);
+  }, [navigate]);
 
 
   const handleToSendMessage = useCallback((contact) => {
-    setSelectedContact(contact)
-    setSelectFeatures('message')
-    setSelectedContactInformation(null)
-  }, [])
+    const type = contact.type === 'group' ? 'group' : 'friend';
+    navigate(`/message/${type}/${contact.id}`);
+  }, [navigate])
 
 
 
   const handleDeleteContact = useCallback((event, { contactId }) => {
-    setSelectedContactInformation(null)
-    setSelectedContact(null)
+    navigate('/contact', { replace: true });
     setContacts(prevContacts => {
       const newContacts = prevContacts.filter(contact => { return (contact.id !== contactId || contact.type !== 'friend') });
       return newContacts;
@@ -388,7 +425,7 @@ function App() {
     contactLruOrderRef.current = contactLruOrderRef.current.filter(k => k !== key);
     contactMapRef.current.delete(key);
     messageApi.success(t('app.deleteFriendSuccess'));
-  }, [setSelectedContactInformation, setSelectedContact, setContacts, messageApi]);
+  }, [setContacts, messageApi, navigate]);
 
   const handleGroupNameUpdate = useCallback((event, { groupId, newGroupName }) => {
     console.log('handleGroupNameUpdate', groupId, newGroupName);
@@ -402,24 +439,6 @@ function App() {
     });
   }, []);
 
-  const renderFeature = () => {
-    switch (selectFeatures) {
-      case 'message':
-        return <ContactList
-          selectedContact={selectedContact}
-          contacts={contacts}
-          onSelectContact={handleMessageListSelectContact}
-        />;
-      case 'contact':
-        return <AddressBook
-          selectedContact={selectedContactInformation}
-          contacts={contacts}
-          onSelectContact={handleAddressBookSelectContact}
-        />;
-      default:
-        return <div>默认列表</div>;
-    }
-  };
 
   const handleCreateGroup = () => {
     openModal('createGroup')
@@ -440,34 +459,22 @@ function App() {
     return null;
   };
 
-  const renderInformationFunctionBar = () => {
-    if (selectFeatures === 'message' && selectedContact) {
-      return (
-        <MessageList
-          contact={selectedContact}
-          messageListHook={messageListHook}
-        />
-      );
+  // 中间面板：根据路由渲染联系人列表或通讯录
+  const renderFeature = () => {
+    const isMessageRoute = location.pathname.startsWith('/message');
+    if (isMessageRoute) {
+      return <ContactList
+        selectedContact={selectedContact}
+        contacts={contacts}
+        onSelectContact={handleMessageListSelectContact}
+      />;
     }
-    if (selectFeatures === 'contact' && selectedContactInformation) {
-      if (selectedContactInformation !== 'friendsRequest') {
-        return (
-          <ContactInformation
-            contactInformation={selectedContactInformation}
-            toSendMessage={handleToSendMessage}
-          />);
-      }
-      else {
-        return (
-          <FriendsRequestManagement />
-        );
-      }
-    }
-
-    return <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>;
+    return <AddressBook
+      selectedContact={contactId}
+      contacts={contacts}
+      onSelectContact={handleAddressBookSelectContact}
+    />;
   };
-
-
 
   if (!currentUser) {
     return (
@@ -485,8 +492,6 @@ function App() {
           <CustomModal isModalOpen={isModalOpen} modalType={modalType} modalProps={modalProps} closeModal={closeModal} />
           <div className='app-features-bar'>
             <ToolBar
-              selectFeatures={selectFeatures}
-              setSelectFeatures={setSelectFeatures}
               theme={theme}
               toggleDarkMode={toggleDarkMode}
             />
@@ -503,7 +508,17 @@ function App() {
               <AppHeaderBar />
             </div>
             <div className='message-box-body'>
-              {renderInformationFunctionBar()}
+              <Routes>
+                <Route path="/message/:contactType/:contactId" element={
+                  <MessageInfoPanel contacts={contacts} messageListHook={messageListHook} />
+                } />
+                <Route path="/contact/:contactType/:contactId" element={
+                  <ContactInfoPanel contacts={contacts} handleToSendMessage={handleToSendMessage} />
+                } />
+                <Route path="*" element={
+                  <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>
+                } />
+              </Routes>
             </div>
           </div>
         </div>

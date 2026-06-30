@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { HashRouter } from 'react-router-dom';
 import './css/index.css';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
@@ -10,15 +11,17 @@ import { UserAvatarProvider } from './context/UserAvatarContext.jsx';
 
 
 createRoot(document.getElementById('root')).render(
-  <AuthProvider>
-    <SocketProvider>
-      <ModalProvider>
-        <AntdMessageProvider>
-          <UserAvatarProvider>
-            <App />
-          </UserAvatarProvider>
-        </AntdMessageProvider>
-      </ModalProvider>
-    </SocketProvider>
-  </AuthProvider>
+  <HashRouter>
+    <AuthProvider>
+      <SocketProvider>
+        <ModalProvider>
+          <AntdMessageProvider>
+            <UserAvatarProvider>
+              <App />
+            </UserAvatarProvider>
+          </AntdMessageProvider>
+        </ModalProvider>
+      </SocketProvider>
+    </AuthProvider>
+  </HashRouter>
 );

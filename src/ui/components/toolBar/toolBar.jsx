@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './css/toolBar.css';
 import { Button, Badge } from 'antd';
 import Avatar from '../avatar.jsx';
@@ -7,7 +8,11 @@ import { TeamOutlined, MessageOutlined, SettingOutlined, SunOutlined, MoonOutlin
 import { useGlobalModal } from '../../hooks/useModalManager.js'
 import { useTranslation } from 'react-i18next';
 
-const ToolBar = ({ selectFeatures, setSelectFeatures, theme, toggleDarkMode }) => {
+const ToolBar = ({ theme, toggleDarkMode }) => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const isMessageActive = location.pathname.startsWith('/message');
+    const isContactActive = location.pathname.startsWith('/contact');
     const { t } = useTranslation();
     const { avatarSrc } = useUserAvatar();
     const [hasNewInvite, setHasNewInvite] = useState(false);
@@ -63,10 +68,10 @@ const ToolBar = ({ selectFeatures, setSelectFeatures, theme, toggleDarkMode }) =
 
             <div className='base-tool-bar'>
                 <Badge size="small" count={newMessageCount}>
-                    <Button className={`tool-bar-button ${selectFeatures === 'message' ? 'active' : 'inactive'}`} type="link" title={t('nav.messages')} icon={<MessageOutlined />} onClick={() => setSelectFeatures('message')}></Button>
+                    <Button className={`tool-bar-button ${isMessageActive ? 'active' : 'inactive'}`} type="link" title={t('nav.messages')} icon={<MessageOutlined />} onClick={() => navigate('/message')}></Button>
                 </Badge>
                 <Badge size="small" dot={hasNewInvite} >
-                    <Button className={`tool-bar-button ${selectFeatures === 'contact' ? 'active' : 'inactive'}`} type="link" title={t('nav.contacts')} icon={<TeamOutlined />} onClick={() => { setHasNewInvite(false); setSelectFeatures('contact') }}></Button>
+                    <Button className={`tool-bar-button ${isContactActive ? 'active' : 'inactive'}`} type="link" title={t('nav.contacts')} icon={<TeamOutlined />} onClick={() => { setHasNewInvite(false); navigate('/contact') }}></Button>
                 </Badge>
             </div>
             <div className='change-theme-bar'>

@@ -11,8 +11,8 @@ const { Panel } = Collapse;
 const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
   const { t } = useTranslation();
 
-  const handleSelectContact = (contactId) => {
-    onSelectContact(contactId);
+  const handleSelectContact = (contactId, contactType) => {
+    onSelectContact(contactId, contactType);
   };
 
   // 服务器地址
@@ -34,7 +34,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
 
   return (
     <div className="address-book-container">
-      <div className="friend-request-manager" onClick={() => { onSelectContact('friendsRequest') }} >
+      <div className="friend-request-manager" onClick={() => { onSelectContact( null, 'friendsRequest') }} >
         <UsergroupAddOutlined style={{ color: 'var(--text-color)' }} />
         <span style={{ color: 'var(--text-color)' }}>{t('contacts.friendRequests')}</span>
       </div>
@@ -56,7 +56,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
         >
           {friendsList && friendsList.length > 0 ? (
             friendsList.map((contact) => (
-              <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact) }}>
+              <div className={`address-book-item ${contact.id === selectedContact ? 'active' : 'inactive'}`} key={contact.id} onClick={() => { handleSelectContact(contact.id, 'friend') }}>
                 <Avatar
                   src={getAvatarUrl(contact.id)}
                   size={40}
@@ -78,7 +78,7 @@ const AddressBook = ({ selectedContact, contacts = null, onSelectContact }) => {
           {/* 这里可以放置群聊列表 */}
           {groupList && groupList.length > 0 ? (
             groupList.map(group => (
-              <div className={`address-book-item ${group.id === selectedContact ? 'active' : 'inactive'}`} key={group.id} onClick={() => { handleSelectContact(group) }} >
+              <div className={`address-book-item ${group.id === selectedContact ? 'active' : 'inactive'}`} key={group.id} onClick={() => { handleSelectContact(group.id, 'group') }} >
                 <Avatar
                   icon={<TeamOutlined />}
                   src={`${serverUrl}/api/avatar/${group.id}/group?t=${new Date().getTime()}`}
