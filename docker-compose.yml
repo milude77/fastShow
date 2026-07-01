@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"   
     command: ["sh", "-c", "echo 'Postgres user=$POSTGRES_USER, password=$POSTGRES_PASSWORD'; docker-entrypoint.sh postgres"]
 
   redis:
@@ -48,8 +50,8 @@ services:
     networks:
       - fastshow-net
     ports:
+      - "9001:9001"   
       - "9000:9000"
-      - "9001:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -99,7 +101,7 @@ services:
 
       echo 'minio init done'
       "
-      
+
   node-app:
     build: .
     container_name: fastshow-node
@@ -112,43 +114,68 @@ services:
       minio:
         condition: service_healthy
     env_file:
-      - server/config.env
+      - ./server/config.env
     networks:
       - fastshow-net
     ports:
     - "3001:3001"   # 这里添加端口映射
+    volumes:
+    - /etc/letsencrypt:/etc/letsencrypt:ro
 
-  nginx:
-    image: nginx:alpine
-    container_name: fastshow-nginx
-    restart: unless-stopped
-    depends_on:
-      - node-app
+  web:
+    image: nginx:latest
+    container_name: nginx-web
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/html:/usr/share/nginx/html
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
     ports:
       - "80:80"
       - "443:443"
-    volumes:
-      - ./nginx:/etc/nginx/conf.d
-      - ./dist:/usr/share/nginx/html
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    networks:
-      - fastshow-net
+    depends_on:
+      - certbot
 
-  # 自动申请 HTTPS 证书（可选）
   certbot:
     image: certbot/certbot
-    container_name: fastshow-certbot
+    container_name: certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c"
-    command: >
-      "trap exit TERM;
-       while :; do
-         certbot renew;
-         sleep 12h & wait $${!};
-       done"
+    entrypoint: "/bin/sh -c 'while :; do sleep 12h & wait $${!}; certbot renew; done;'"
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /opt/coturn/certs:/certs:ro
+    command:
+      - -n
+      - --log-file=stdout
+      - --lt-cred-mech
+      - --realm=milude77.online
+      - --user=fastshow:milude77
+      - --external-ip=119.91.68.61
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --min-port=40000
+      - --max-port=40100
+      - --cert=/certs/fullchain.pem
+      - --pkey=/certs/privkey.pem
+      - --fingerprint
+      - --no-multicast-peers
+      - --no-cli
+      
+  worker:
+    build: .
+    command: node ./server/taskQueue/emailWorker.js
+    depends_on:
+        redis:
+          condition: service_healthy
+    env_file:
+      - ./server/config.env
     networks:
       - fastshow-net
 
