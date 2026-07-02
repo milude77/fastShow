@@ -34,11 +34,10 @@ const FriendsRequestManagement = () => {
     }, []);
 
 
-    const handleAcceptRequest = (requesterId, isGroupInvite) => {
+    const handleAcceptRequest = async (requesterId, isGroupInvite) => {
         if (socket) {
             if (isGroupInvite) {
-                socket.emit('accept-group-invite', requesterId);
-                window.electronAPI.acceptGroupInvite(requesterId);
+                await window.electronAPI.acceptGroupInvite(requesterId);
                 setInviteInformationList(prev => ({
                     ...prev,
                     [requesterId]: {
@@ -49,7 +48,6 @@ const FriendsRequestManagement = () => {
                 messageApi.success(t('friendsRequest.acceptedGroupInvite'));
                 return;
             }
-            socket.emit('accept-friend-request', requesterId);
             window.electronAPI.acceptFriendRequest(requesterId);
             setInviteInformationList(prev => ({
                 ...prev,

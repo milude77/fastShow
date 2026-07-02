@@ -1715,6 +1715,7 @@ ipcMain.on('accept-friend-request', async (event, requestId) => {
         return { success: false, error: '数据库未连接' };
     }
     try {
+        socket.emit('accept-friend-request', requestId);
         const timestamp = Date.now();
         const updated = await db('invite_information')
             .where('id', requestId)
@@ -1793,6 +1794,7 @@ ipcMain.on('accept-group-invite', async (event, requestId) => {
     }
     try {
         const timestamp = Date.now();
+        socket.emit('accept-group-invite', requestId);
         const updated = await db('invite_information')
             .where('id', requestId)
             .update({
