@@ -331,47 +331,75 @@ async function getGroupsList(socket) {
 
     return payload;
 }
-async function handleSendDisconnectMessage(socket, user) {
+async function handleSendDisconnectMessage(socket, user, friendId, messageVersion) {
+    try {
+        const roomID = `private_${[user.userId, friendId].sort().join('_')}`;
 
-    // 使用 JOIN 查询一次性获取未送达的私聊消息和发送者信息
-    const undeliveredMessages = await db('messages as m')
-        .join('users as u', 'm.sender_id', 'u.id')
-        .where({ 'm.receiver_id': user.userId, 'm.status': 'sent' })
-        .select(
-            'm.message_id',
-            'm.sender_id',
-            'm.receiver_id',
-            'm.content',
-            'm.timestamp',
-            'm.message_type',
-            'm.file_name',
-            'm.file_url',
-            'm.file_size',
-            'u.username as sender_username',
-            'm.aes_iv as iv'
-        )
-        .orderBy('m.timestamp', 'asc');
+        // 先查询该会话的最大自增 ID，没有新消息则直接跳过
+        const { maxId } = await db('messages')
+            .where('room_id', roomID)
+            .max('id as maxId')
+            .first();
 
-    // 发送私聊消息
-    for (const msg of undeliveredMessages) {
-        socket.emit('new-message', {
-            message_id: msg.message_id,
-            username: msg.sender_username,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            type: 'private',
-            senderId: msg.sender_id,
-            receiverId: msg.receiver_id,
-            messageType: msg.message_type,
-            fileName: msg.file_name,
-            fileUrl: msg.file_url,
-            fileSize: msg.file_size,
-            status: 'success',
-            iv: msg.iv
-        });
+        if (!maxId || maxId <= messageVersion) {
+            socket.emit('disconnect-message-send-comple', db, user.userId, friendId, messageVersion);
+            return;
+        }
+
+        // 有新消息，查询未送达的消息详情
+        let query = db('messages as m')
+            .join('users as u', 'm.sender_id', 'u.id')
+            .where('m.room_id', roomID)
+            .andWhere('m.id', '>', messageVersion)
+            .select(
+                'm.id',
+                'm.message_id',
+                'm.sender_id',
+                'm.receiver_id',
+                'm.content',
+                'm.timestamp',
+                'm.message_type',
+                'm.file_name',
+                'm.file_url',
+                'm.file_size',
+                'u.username as sender_username',
+                'm.aes_iv as iv'
+            )
+            .orderBy('m.timestamp', 'asc');
+
+        if (messageVersion === 0) {
+            query = query.limit(30);
+        }
+
+        const undeliveredMessages = await query;
+
+        // 逐条发送私聊消息
+        for (const msg of undeliveredMessages) {
+            socket.emit('new-message', {
+                message_id: msg.message_id,
+                username: msg.sender_username,
+                content: msg.content,
+                timestamp: msg.timestamp,
+                type: 'private',
+                senderId: msg.sender_id,
+                receiverId: msg.receiver_id,
+                messageType: msg.message_type,
+                fileName: msg.file_name,
+                fileUrl: msg.file_url,
+                fileSize: msg.file_size,
+                status: 'success',
+                iv: msg.iv
+            });
+        }
+
+        const maxMessageId = undeliveredMessages.reduce(
+            (max, msg) => Math.max(max, msg.id), messageVersion
+        );
+
+        socket.emit('disconnect-message-send-comple', db, user.userId, friendId, maxMessageId);
+    } catch (error) {
+        console.error('Error sending disconnect messages:', error);
     }
-
-    socket.emit('disconnect-message-send-comple', user.userId)
 }
 
 async function handleGetFriendRequests(socket) {
@@ -445,7 +473,6 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            await handleSendDisconnectMessage(socket, { userId: user.id, username: user.username });
             await handleGetFriendRequests(socket);
         } catch (error) {
             logger.error('Error processing initial-data-success', {
@@ -455,6 +482,12 @@ io.on('connection', (socket) => {
             });
             socket.emit('notification', { status: 'error', message: '处理请求时出错' });
         }
+    });
+
+    socket.on('sync-friend-messages', async ({ friendId, messageVersion }) => {
+        const user = await getOnlineUser(socket.id);
+        // 处理同步好友消息的逻辑
+        await handleSendDisconnectMessage(socket, user, friendId, messageVersion);
     });
 
     socket.on('confirm-message-received', async ({ messageId, isGroup }) => {
@@ -667,8 +700,6 @@ io.on('connection', (socket) => {
                 }).where('id', friendshipId);
             }
 
-            // 查找对方是否在线，以便发送实时通知
-            const targetSocketId = await getOnlineUserId(friendId);
             const idResult = await db('user_event')
                 .insert({
                     user_id: friendId,
@@ -684,9 +715,7 @@ io.on('connection', (socket) => {
             const id = idResult[0].id;
             await updateUserContactVersion(friendId, id);
 
-            if (targetSocketId) {
-                io.to(targetSocketId.socketId).emit('contact-update');
-            }
+            io.to(`user:${friendId}`).emit('contact-update');
 
             // 改为通用成功通知，或直接不通知（由 contact-update 触发刷新）
             socket.emit('notification', { status: 'success', message: '好友请求已发送' });
@@ -719,10 +748,7 @@ io.on('connection', (socket) => {
                 .returning('id');
             const id = idResult[0].id;
             await updateUserContactVersion(friendId, id);
-            const targetSocketId = await getOnlineUserId(friendId);
-            if (targetSocketId) {
-                io.to(targetSocketId.socketId).emit('contact-update');
-            }
+            io.to(`user:${friendId}`).emit('contact-update');
 
             socket.emit('contact-deleted', { friendId });
         } catch (error) {
@@ -785,14 +811,8 @@ io.on('connection', (socket) => {
                 await updateUserContactVersion(friendInformation.id, id);
                 await updateUserContactVersion(senderInformation.id, id_2);
 
-                const targetSocketId = await getOnlineUserId(friendInformation.id);
-                const senderSocketId = await getOnlineUserId(senderInformation.id);
-                if (targetSocketId) {
-                    io.to(targetSocketId.socketId).emit('contact-update');
-                }
-                if (senderSocketId) {
-                    io.to(senderSocketId.socketId).emit('contact-update');
-                }
+                io.to(`user:${friendInformation.id}`).emit('contact-update');
+                io.to(`user:${senderInformation.id}`).emit('contact-update');
             }
         } catch (error) {
             console.error('Error accepting friend request:', error);
@@ -1031,7 +1051,6 @@ io.on('connection', (socket) => {
 
 
         try {
-            const onlineUsersIds = await getAllOnlineUserIds();
             for (const contact of checkedContacts) {
                 const existingMember = await db('group_members')
                     .where({ group_id: groupId, user_id: contact.id })
@@ -1089,11 +1108,7 @@ io.on('connection', (socket) => {
                 const id = idResult[0].id;
                 await updateUserContactVersion(contact.id, id);
 
-                if (onlineUsersIds.has(contact.id)) {
-                    // 在线用户直接发送邀请
-                    const targetSocketId = onlineUsersIds.get(contact.id).socketId;
-                    io.to(targetSocketId).emit('contact-update');
-                }
+                io.to(`user:${contact.id}`).emit('contact-update');
             }
             socket.emit('notification', { status: 'success', message: `发送请求成功` });
             socket.emit('invite-friends-join-group-success');
@@ -1142,14 +1157,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('call-request', async ({ roomId, contactId, offer, callMode }) => {
-        const targetId = await getOnlineUserId(contactId);
         const callerUserId = await getOnlineUserId(socket.id);
-        if (targetId) {
-            io.to(targetId.socketId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
-        }
-        else {
-            io.to(roomId).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
-        }
+        io.to(`user:${contactId}`).emit('call-request', { callerUserId, callerId: socket.id, roomId, offer, callMode });
     });
 
     // 处理offer时指定接收者

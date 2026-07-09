@@ -741,7 +741,6 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
 
         //如果本地为旧数据库， 迁移至新的加密的数据库
         const dbKey = getOrCreateDatabaseKey(userDbPath);
-        console.log(`dbKey:${dbKey}`)
         migrateOldDataIfNeeded(userDbPath, dbKey);
 
 
