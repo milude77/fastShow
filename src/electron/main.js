@@ -293,11 +293,6 @@ async function writeChatHistory(contactId, msg) {
         }
         else {
             await db('group_messages').insert(messageData).onConflict('id').ignore();
-            await db('groups')
-                .where('id', contactId)
-                .update({
-                    message_version: db.raw('COALESCE(message_version, 0) + 1')
-                });
         }
 
         await updateContactLastMessagetimestamp(contactId, msg.type == 'group');
@@ -741,6 +736,7 @@ ipcMain.on('login-success', async (event, { userId, username, token, email }) =>
 
         //如果本地为旧数据库， 迁移至新的加密的数据库
         const dbKey = getOrCreateDatabaseKey(userDbPath);
+        console.log("dbKey",dbKey)
         migrateOldDataIfNeeded(userDbPath, dbKey);
 
 
@@ -880,14 +876,16 @@ const saveNewMessage = async ({ contactId, msg }) => {
     shell.beep();
 }
 
+// 群聊密钥请求去重：防止多条消息并发时重复请求同一把密钥
+const groupAesKeyFetching = new Map();
+
 const handleNewMessage = async (msg) => {
-    // Safety check: Do not process messages if the user is not logged in.
 
     const isGroup = msg.type == 'group'
 
     const contactId = isGroup ? msg.receiverId : msg.senderId;
     const messageId = msg.message_id;
-    const versionId = msg.version_id || null;
+    const aesVersion = msg.aes_version || null;
 
     // 群聊消息会群发给所有成员包括发送者，跳过已存在的消息避免重复处理
     const tableName = isGroup ? 'group_messages' : 'messages';
@@ -896,7 +894,7 @@ const handleNewMessage = async (msg) => {
 
     const iv = msg.iv
     let contactAesKey = isGroup
-        ? await db('groups').where({ id: contactId }).first('group_aes_key').then(row => row?.group_aes_key)
+        ? await db('group_aes_history').where({ group_id: contactId, aes_version: aesVersion }).first('aes_key').then(row => row?.aes_key)
         : await db('friends').where({ id: contactId }).first('session_aes_key').then(row => row?.session_aes_key)
     if (!contactAesKey) {
         if (!isGroup) {
@@ -905,10 +903,13 @@ const handleNewMessage = async (msg) => {
             contactAesKey = getFriendAesKey(friendShipId, msg.senderId)
         }
         else {
-            const { AesKey, AseVersion } = await getGroupAesKey(contactId)
+            const fetchKey = `${contactId}_${aesVersion}`;
+            if (!groupAesKeyFetching.has(fetchKey)) {
+                groupAesKeyFetching.set(fetchKey, getGroupAesKey(contactId, aesVersion).finally(() => groupAesKeyFetching.delete(fetchKey)));
+            }
+            const { AesKey } = await groupAesKeyFetching.get(fetchKey);
             contactAesKey = AesKey
         }
-
     }
     const decryptMessage = iv ? decryptAESMessage(msg.content, contactAesKey, iv) : msg.content
 
@@ -924,7 +925,6 @@ const handleNewMessage = async (msg) => {
         type: msg.type,
         fileUrl: msg.fileUrl,
         fileSize: msg.fileSize,
-        versionId,
         status: 'success'
     }
 
@@ -1017,19 +1017,20 @@ ipcMain.on('send-private-message', async (event, { receiverId, message, messageI
     event.sender.send('sent-new-message', { contactId: receiverId, isGroup: false });
 });
 
-async function getGroupAesKey(groupId) {
+async function getGroupAesKey(groupId, needAesVersion = null) {
     const userDbPath = getUserDbPath(currentUserId);
     const { device_id } = getElectronLoginParams(userDbPath)
     const response = await apiClient.post(`api/getGroupAes`, {
         groupId,
-        deviceId: device_id
+        deviceId: device_id,
+        needAesVersion
     });
-    const { encryptedAESKey, aseVersion } = response.data;
+    const { encryptedAESKey, aesVersion } = response.data;
     const AesKey = decryptAESKey(encryptedAESKey, userDbPath)
-    await db('groups').where({ id: groupId }).update({ group_aes_key: AesKey })
-    await db('group_aes_history').insert({ group_id: groupId, aes_key: AesKey, aes_version: aseVersion })
+    if (!needAesVersion) await db('groups').where({ id: groupId }).update({ group_aes_key: AesKey, aes_version: aesVersion })
+    await db('group_aes_history').insert({ group_id: groupId, aes_key: AesKey, aes_version: aesVersion })
 
-    return { AesKey, AseVersion: aseVersion }
+    return { AesKey, AesVersion: aesVersion }
 }
 
 
@@ -1038,11 +1039,11 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
     const groupAesKey = await db('groups').where({ id: groupId }).first()
     let aesKey = groupAesKey.group_aes_key;
     let aesVersion = groupAesKey.aes_version;
-    if (!aesKey) {
+    if (!aesKey || aesVersion == 0) {
         try {
-            const { AesKey, AseVersion } = await getGroupAesKey(groupId)
+            const { AesKey, AesVersion } = await getGroupAesKey(groupId)
             aesKey = AesKey
-            aesVersion = AseVersion
+            aesVersion = AesVersion
         }
         catch (error) {
             console.error('Failed to fetch AES key for group:', error);
@@ -1060,7 +1061,7 @@ ipcMain.on('send-group-message', async (event, { groupId, message, messageId }) 
 
     fullMessage.text = encrypt(message.text, Buffer.from(aesKey, 'hex'), iv);
     fullMessage.iv = iv.toString('hex')
-    fullMessage.ase_version = aesVersion
+    fullMessage.aesVersion = aesVersion
 
     socket.emit('send-group-message', fullMessage);
     event.sender.send('sent-new-message', { contactId: groupId, isGroup: true });

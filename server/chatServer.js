@@ -205,7 +205,8 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                     'gm.file_url',
                     'gm.file_size',
                     'u.username as sender_username',
-                    'gm.aes_iv as iv'
+                    'gm.aes_iv as iv',
+                    'gm.aes_version as aes_version'
                 )
                 .limit(30)
                 .orderBy('gm.timestamp', 'asc');
@@ -227,7 +228,8 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                     'gm.file_url',
                     'gm.file_size',
                     'u.username as sender_username',
-                    'gm.aes_iv as iv'
+                    'gm.aes_iv as iv',
+                    'gm.aes_version as aes_version'
                 )
                 .orderBy('gm.timestamp', 'asc');
         }
@@ -249,9 +251,12 @@ async function syncGroupMessages(socket, groupId, messageVersion) {
                 fileUrl: msg.file_url,
                 fileSize: msg.file_size,
                 status: 'success',
-                iv: msg.iv
+                iv: msg.iv,
+                aes_version: msg.aes_version
             });
         }
+
+        socket.emit('sync-group-messages-complete', groupId, Math.max(...newGroupMessages.map(msg => msg.id), messageVersion));
 
     } catch (error) {
         console.error('Error syncing group messages:', error);
@@ -342,7 +347,7 @@ async function handleSendDisconnectMessage(socket, user, friendId, messageVersio
             .first();
 
         if (!maxId || maxId <= messageVersion) {
-            socket.emit('disconnect-message-send-comple', db, user.userId, friendId, messageVersion);
+            socket.emit('disconnect-message-send-comple', user.userId, friendId, messageVersion);
             return;
         }
 
@@ -396,7 +401,7 @@ async function handleSendDisconnectMessage(socket, user, friendId, messageVersio
             (max, msg) => Math.max(max, msg.id), messageVersion
         );
 
-        socket.emit('disconnect-message-send-comple', db, user.userId, friendId, maxMessageId);
+        socket.emit('disconnect-message-send-comple', user.userId, friendId, maxMessageId);
     } catch (error) {
         console.error('Error sending disconnect messages:', error);
     }
@@ -591,7 +596,8 @@ io.on('connection', (socket) => {
             content: message.text,
             timestamp: sendTimestamp,
             message_id: sendMessageId,
-            aes_iv: message.iv
+            aes_iv: message.iv,
+            aes_version: message.aesVersion
         };
 
 
@@ -605,7 +611,8 @@ io.on('connection', (socket) => {
             receiverId: newMessage.group_id,
             type: 'group',
             status: 'success',
-            iv: message.iv
+            iv: message.iv,
+            aesVersion: message.aesVersion
         };
 
         const idResult = await db('group_messages').insert(newMessage).returning('id');
@@ -1999,48 +2006,54 @@ app.post('/api/getFriendAESKey', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/getGroupAes', authenticateToken, async (req, res) => {
-    const { groupId, deviceId } = req.body
+    const { groupId, deviceId, needAesVersion } = req.body
     const reqUserId = req.user.userId
 
-    const result = await db.transaction(async (trx) => {
+    let result;
+    if (!needAesVersion) {
+        result = await db.transaction(async (trx) => {
 
-        const group = await trx('groups')
-            .where({ id: groupId })
-            .forUpdate()
-            .first()
-
-        if (!group) {
-            return { error: '群组不存在' }
-        }
-
-        const member = await trx('group_members')
-            .where({ group_id: groupId, user_id: reqUserId })
-            .first()
-
-        if (!member) {
-            return { error: '你已非此群成员' }
-        }
-
-        let aesKey = group.aes_key
-
-        if (!aesKey) {
-            aesKey = crypto.randomBytes(32).toString('hex')
-
-            await trx('groups')
+            const group = await trx('groups')
                 .where({ id: groupId })
-                .whereNull('aes_key')
-                .update({
-                    aes_key: aesKey,
-                    aes_version: trx.raw('aes_version + 1')
-                })
-        }
+                .forUpdate()
+                .first()
 
-        const updated = await trx('groups')
-            .where({ id: groupId })
-            .first('aes_key', 'aes_version')
+            if (!group) {
+                return { error: '群组不存在' }
+            }
 
-        return updated
-    })
+            const member = await trx('group_members')
+                .where({ group_id: groupId, user_id: reqUserId })
+                .first()
+
+            if (!member) {
+                return { error: '你已非此群成员' }
+            }
+
+            let aesKey = group.aes_key
+
+            if (!aesKey) {
+                aesKey = crypto.randomBytes(32).toString('hex')
+
+                await trx('groups')
+                    .where({ id: groupId })
+                    .whereNull('aes_key')
+                    .update({
+                        aes_key: aesKey,
+                        aes_version: trx.raw('aes_version + 1')
+                    })
+            }
+
+            const updated = await trx('groups')
+                .where({ id: groupId })
+                .first('aes_key', 'aes_version')
+
+            return updated
+        })
+    }
+    else {
+        result = await db('group_aes_history').where({ group_id: groupId, aes_version: needAesVersion }).first('aes_key')
+    }
 
     if (result.error) {
         return res.status(404).json({ success: false, message: result.error })
@@ -2053,7 +2066,7 @@ app.post('/api/getGroupAes', authenticateToken, async (req, res) => {
     else {
         const publicDeviceKey = isExitDeviceId.identity_public_key
         const encryptedAESKey = encryptAESKeyWithRSA(result.aes_key, publicDeviceKey);
-        return res.status(200).json({ encryptedAESKey, aseVersion: result.aes_version });
+        return res.status(200).json({ encryptedAESKey, aesVersion: result.aes_version });
     }
 })
 

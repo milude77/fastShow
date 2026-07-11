@@ -11,5 +11,7 @@ export async function registerGroupListeners(socket, db) {
     });
 
     socket.on('group-compare-result', handleGroupCompareResult)
-
+    socket.on('sync-group-messages-complete', async (groupId, messageVersion) => {
+        await db('groups').update({ message_version: messageVersion }).where('id', groupId);
+    });
 }

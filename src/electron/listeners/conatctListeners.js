@@ -74,5 +74,5 @@ export async function registerContactListeners(socket, db) {
 
     socket.on('contact-compare-result', async (payload) => await contactCompare(db, payload, socket));
     socket.on('contact-deleted', async (payload) => await handleContactDeleted(db, payload));
-    socket.on('disconnect-message-send-comple', async (db, userId, friendId, maxMessageId) => await handleDisconnectMessageSendComple(db, userId, friendId, maxMessageId))
+    socket.on('disconnect-message-send-comple', async (userId, friendId, maxMessageId) => await handleDisconnectMessageSendComple(db, userId, friendId, maxMessageId))
 }
