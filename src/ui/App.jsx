@@ -187,6 +187,9 @@ function App() {
   useEffect(() => {
     if (currentUser) {
       window.electronAPI.resizeWindow(1100, 750);
+      if (location.pathname === '/') {
+        navigate('/message', { replace: true });
+      }
     }
   }, [currentUser]);
 
@@ -509,6 +512,9 @@ function App() {
             </div>
             <div className='message-box-body'>
               <Routes>
+                <Route path="/message" element={
+                  <div className="background-image-container" style={{ backgroundImage: `url(${titleImage})` }}></div>
+                } />
                 <Route path="/message/:contactType/:contactId" element={
                   <MessageInfoPanel contacts={contacts} messageListHook={messageListHook} />
                 } />

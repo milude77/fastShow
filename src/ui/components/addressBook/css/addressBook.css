@@ -4,13 +4,13 @@
   color: var(--text-color);
 }
 
-.friend-request-manager{
+.friend-request-manager {
   display: flex;
   padding: 10px 10px;
   margin-bottom: 10px;
 }
 
-.friend-request-manager:hover{
+.friend-request-manager:hover {
   background-color: var(--hover-contact-background-color);
 }
 
@@ -24,25 +24,27 @@
 }
 
 .contact-username {
-    font-size: 14px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px; 
-    display: inline-block;
-    color: var(--text-color) ;
+  flex: 1;
+  justify-self: start;
+  align-items: start;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  color: var(--text-color);
+  text-align: left;
 }
-
 
 .address-book-item {
   display: flex;
   align-items: center;
   text-align: center;
-  padding: 15px 10px ;
+  padding: 15px 10px;
   width: 100%;
 }
 
-.address-book-item.active{
+.address-book-item.active {
   background-color: var(--selected-contact-background-color);
 }
 
@@ -52,7 +54,7 @@
 
 .address-book-no-data {
   padding-left: 24px;
-  color: var(--text-color) ;
+  color: var(--text-color);
 }
 
 .online-indicator {
